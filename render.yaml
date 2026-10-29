@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: stars-ai
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      # Mets UNE de ces deux clés dans Render > Environment
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
