@@ -287,6 +287,16 @@ async function selfCheck() {
       const names = (JSON.parse(body).models || []).map(m => m.name.replace("models/", ""));
       const flash = names.filter(n => n.includes("flash")).slice(0, 12);
       console.log(`[vérif] Clé Gemini OK — ${names.length} modèles. Flash : ${flash.join(", ")}`);
+      const model = names.includes(GEMINI_MODEL) ? GEMINI_MODEL : GEMINI_FALLBACKS.find(m => names.includes(m)) || GEMINI_MODEL;
+      const g = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Réponds seulement : OK" }] }], generationConfig: { maxOutputTokens: 400 } })
+      });
+      const gb = await g.text();
+      if (!g.ok) return console.error(`[vérif] Gemini ne répond pas (HTTP ${g.status}) : ${gb.slice(0, 300)}`);
+      const txt = (JSON.parse(gb).candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || "").join("").trim();
+      console.log(`[vérif] Gemini (${model}) répond : « ${txt.slice(0, 60)} »`);
     } else if (provider === "claude") {
       const r = await fetch(`${ANTHROPIC_BASE_URL}/v1/models`, { headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" } });
       const body = await r.text();
