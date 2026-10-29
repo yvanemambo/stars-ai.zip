@@ -277,6 +277,29 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// Vérifie la clé au démarrage et écrit le résultat dans les journaux Render (sans jamais afficher la clé).
+async function selfCheck() {
+  try {
+    if (provider === "gemini") {
+      const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models?pageSize=200`, { headers: { "x-goog-api-key": GEMINI_API_KEY } });
+      const body = await r.text();
+      if (!r.ok) return console.error(`[vérif] Clé Gemini REFUSÉE (HTTP ${r.status}) : ${body.slice(0, 300)}`);
+      const names = (JSON.parse(body).models || []).map(m => m.name.replace("models/", ""));
+      const flash = names.filter(n => n.includes("flash")).slice(0, 12);
+      console.log(`[vérif] Clé Gemini OK — ${names.length} modèles. Flash : ${flash.join(", ")}`);
+    } else if (provider === "claude") {
+      const r = await fetch(`${ANTHROPIC_BASE_URL}/v1/models`, { headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" } });
+      const body = await r.text();
+      if (!r.ok) return console.error(`[vérif] Clé Claude REFUSÉE (HTTP ${r.status}) : ${body.slice(0, 300)}`);
+      const names = (JSON.parse(body).data || []).map(m => m.id);
+      console.log(`[vérif] Clé Claude OK — modèles : ${names.slice(0, 12).join(", ")}`);
+    }
+  } catch (e) {
+    console.error("[vérif] Impossible de joindre l'IA :", e.message);
+  }
+}
+
 server.listen(PORT, () => {
   console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${provider ? provider + " (" + (provider === "claude" ? CLAUDE_MODEL : GEMINI_MODEL) + ")" : "AUCUNE CLÉ (ajoute ANTHROPIC_API_KEY ou GEMINI_API_KEY)"}`);
+  if (provider && process.env.SKIP_SELF_CHECK !== "1") selfCheck();
 });
