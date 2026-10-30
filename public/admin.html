@@ -84,6 +84,16 @@
       <div class="tile gold"><div class="k">Encaissé ce mois</div><div class="v" id="t-revenue">–</div></div>
     </div>
 
+    <section class="card" id="pushCard">
+      <h2>🔔 Notifications sur ce téléphone</h2>
+      <p class="muted" id="pushText">Reçois une notification à chaque nouvelle demande de paiement Premium. Active-les depuis ton téléphone (dans Chrome ou dans l'appli STARS AI).</p>
+      <div class="actions">
+        <button class="btn ok" type="button" id="pushBtn">Activer les notifications</button>
+        <button class="btn" type="button" id="pushTest" hidden>Envoyer une notification de test</button>
+      </div>
+      <div class="msg" id="pushMsg" role="status"></div>
+    </section>
+
     <section class="card" id="payments">
       <h2>Paiements à vérifier <span class="count" id="c-pending">0</span></h2>
       <p class="muted">Vérifie dans ton appli Wave / Orange Money / MTN / Moov que l'argent est bien arrivé, puis valide : la personne reçoit 30 jours de Premium.</p>
@@ -225,6 +235,45 @@
     msg.className = "msg good"; msg.textContent = "✓ Premium offert jusqu'au " + fmtDay(data.premiumUntil) + ".";
     $("grantEmail").value = ""; load();
   });
+  /* ---------- Phone notifications (Web Push) ---------- */
+  const keyBytes = b64 => { const s = (b64 + "=".repeat((4 - b64.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/"); return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+  const pushMsg = (t, good) => { $("pushMsg").className = "msg " + (good ? "good" : "bad"); $("pushMsg").textContent = t; };
+  let swReg = null;
+  async function setupPush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      $("pushText").textContent = "Ce navigateur ne gère pas les notifications. Sur Android, ouvre cette page dans Chrome ou dans l'appli STARS AI.";
+      $("pushBtn").hidden = true; return;
+    }
+    try { swReg = await navigator.serviceWorker.register("/sw.js"); await navigator.serviceWorker.ready; } catch (e) { return; }
+    const sub = await swReg.pushManager.getSubscription().catch(() => null);
+    if (sub && Notification.permission === "granted") {
+      await api("/api/admin/push-subscribe", { endpoint: sub.endpoint });   // keeps the server list up to date
+      $("pushBtn").hidden = true; $("pushTest").hidden = false;
+      pushMsg("✓ Notifications activées sur cet appareil.", true);
+    }
+  }
+  $("pushBtn").addEventListener("click", async () => {
+    if (!swReg) return pushMsg("Ouvre cette page dans Chrome pour activer les notifications.");
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return pushMsg("Notifications refusées. Autorise-les dans les réglages du navigateur (cadenas à côté de l'adresse), puis réessaie.");
+    const k = await api("/api/push/key");
+    if (!k.ok || !k.data.publicKey) return pushMsg("Les notifications ne sont pas encore prêtes sur le serveur. Réessaie plus tard.");
+    let sub;
+    try { sub = await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(k.data.publicKey) }); }
+    catch (e) { return pushMsg("Activation impossible sur cet appareil (" + e.name + ")."); }
+    const r = await api("/api/admin/push-subscribe", { endpoint: sub.endpoint });
+    if (!r.ok) return pushMsg("Le serveur n'a pas pu enregistrer ce téléphone. Réessaie.");
+    $("pushBtn").hidden = true; $("pushTest").hidden = false;
+    pushMsg("✓ Notifications activées ! Tu seras prévenu à chaque nouvelle demande de paiement.", true);
+  });
+  $("pushTest").addEventListener("click", async () => {
+    $("pushTest").disabled = true;
+    const r = await api("/api/admin/push-test", {});
+    $("pushTest").disabled = false;
+    pushMsg(r.ok ? "Notification de test envoyée : elle doit arriver dans quelques secondes." : "Envoi impossible, réessaie.", r.ok);
+  });
+  setupPush();
+
   $("refresh").addEventListener("click", load);
   setInterval(() => { if (!document.hidden) load(); }, 60000);
   load();

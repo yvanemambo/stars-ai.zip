@@ -290,6 +290,11 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   font: 600 14px var(--f-body); color: var(--ink); text-transform: uppercase;
 }
 .account summary::-webkit-details-marker { display: none; }
+.account summary { position: relative; }
+.account summary.alert::after {
+  content: ""; position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%;
+  background: #ff5a5f; border: 2px solid var(--sky);
+}
 .account summary:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
 .account .menu {
   position: absolute; right: 0; top: 42px; z-index: 5; min-width: 220px; max-width: calc(100vw - 32px);
@@ -1327,7 +1332,12 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   function refreshPlan() {
     if (!me) return;
     const plan = document.getElementById("planLine"), prem = document.getElementById("premiumLink");
-    document.getElementById("adminLink").hidden = !me.admin;
+    const adminLink = document.getElementById("adminLink");
+    adminLink.hidden = !me.admin;
+    const todo = me.admin ? (me.adminPending || 0) : 0;
+    adminLink.textContent = "🛠 Tableau de bord" + (todo ? " · " + todo + " paiement" + (todo > 1 ? "s" : "") + " à vérifier" : "");
+    adminLink.classList.toggle("gold", todo > 0);
+    document.getElementById("avatar").classList.toggle("alert", todo > 0);
     const until = me.premiumUntil ? new Date(me.premiumUntil) : null;
     if (until && until > new Date()) {
       plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));

@@ -65,6 +65,59 @@ const CONTACT_WHATSAPP = env("CONTACT_WHATSAPP").replace(/[^\d]/g, "");
 const CONTACT_EMAIL = env("CONTACT_EMAIL") || "yvanemambo@gmail.com";
 const ADMIN_EMAILS = new Set(env("ADMIN_EMAILS").toLowerCase().split(/[,\s]+/).filter(Boolean));
 const isAdmin = u => !!u && ADMIN_EMAILS.has(u.email);
+
+// Notifications sur le téléphone du propriétaire (Web Push sans contenu : le téléphone vient chercher le détail dans /api/admin/overview).
+// Les clés sont créées par le serveur au premier besoin et gardées dans Supabase (table verrouillée stars_config) : personne n'a à les manipuler.
+const VAPID_SUBJECT = env("VAPID_SUBJECT") || "mailto:" + CONTACT_EMAIL;
+let vapidKey = null, VAPID_PUBLIC = "";
+async function loadVapid() {
+  if (vapidKey) return true;
+  if (!MEMBERS) return false;
+  try {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    const jwk = publicKey.export({ format: "jwk" });
+    const proposal = JSON.stringify({
+      pub: Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, "base64url"), Buffer.from(jwk.y, "base64url")]).toString("base64url"),
+      priv: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64url")
+    });
+    const stored = JSON.parse(await rpc("stars_config_get_or_init", { p_key: "vapid", p_value: proposal }));
+    vapidKey = crypto.createPrivateKey({ key: Buffer.from(stored.priv, "base64url"), format: "der", type: "pkcs8" });
+    VAPID_PUBLIC = stored.pub;
+    return true;
+  } catch (e) { console.warn("[push] clés de notification indisponibles :", e.message); return false; }
+}
+const PUSH_HOSTS = /^(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)$/i;
+function pushEndpointOk(u) {
+  try {
+    const x = new URL(u);
+    if (env("PUSH_ALLOW_ANY") === "1") return /^https?:$/.test(x.protocol); // tests locaux uniquement
+    return x.protocol === "https:" && PUSH_HOSTS.test(x.hostname);
+  }
+  catch { return false; }
+}
+function vapidJwt(aud) {
+  const enc = o => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const unsigned = enc({ typ: "JWT", alg: "ES256" }) + "." + enc({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: VAPID_SUBJECT });
+  const sig = crypto.sign("sha256", Buffer.from(unsigned), { key: vapidKey, dsaEncoding: "ieee-p1363" }).toString("base64url");
+  return unsigned + "." + sig;
+}
+async function notifyAdmins(reason) {
+  if (!MEMBERS || !(await loadVapid())) return;
+  let subs = [];
+  try { subs = (await rpc("stars_push_list", {})) || []; } catch (e) { return console.warn("[push]", e.message); }
+  for (const s of subs) {
+    if (!ADMIN_EMAILS.has(s.email) || !pushEndpointOk(s.endpoint)) continue;
+    try {
+      const r = await fetch(s.endpoint, {
+        method: "POST", body: "", signal: AbortSignal.timeout(10000),
+        headers: { TTL: "86400", Urgency: "high", Authorization: `vapid t=${vapidJwt(new URL(s.endpoint).origin)}, k=${VAPID_PUBLIC}` }
+      });
+      if (r.status === 404 || r.status === 410) await rpc("stars_push_disable", { p_endpoint: s.endpoint, p_error: "HTTP " + r.status });
+      else if (r.status >= 400) console.warn(`[push] refusé HTTP ${r.status} : ${(await r.text().catch(() => "")).slice(0, 200)}`);
+      else console.log(`[push] notification envoyée (${reason})`);
+    } catch (e) { console.warn("[push]", e.message); }
+  }
+}
 if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les connexions seront perdues à chaque redémarrage.");
 
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
@@ -696,6 +749,7 @@ async function premiumRequest(req, res) {
     return json(res, 503, { code: "members_down" });
   }
   console.log(`[premium] demande de ${mask(u.email)} via ${method}`);
+  notifyAdmins("paiement").catch(() => {});
   json(res, 200, { ok: true });
 }
 
@@ -719,6 +773,19 @@ async function adminApi(req, res, url) {
       const b = await readJson(req);
       const until = await rpc("stars_premium_grant", { p_email: String(b?.email || "").trim().toLowerCase(), p_months: Number(b?.months) || 1 });
       return json(res, 200, { ok: true, premiumUntil: until });
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/push-subscribe") {
+      const b = await readJson(req);
+      const endpoint = String(b?.endpoint || "");
+      if (!(await loadVapid())) return json(res, 503, { code: "push_off" });
+      if (!pushEndpointOk(endpoint) || endpoint.length > 1000) return json(res, 400, { code: "bad_endpoint" });
+      await rpc("stars_push_save", { p_email: u.email, p_endpoint: endpoint });
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/push-test") {
+      await readJson(req);
+      await notifyAdmins("test");
+      return json(res, 200, { ok: true });
     }
     if (req.method === "POST" && url.pathname === "/api/admin/report") {
       const b = await readJson(req);
@@ -775,9 +842,14 @@ const server = http.createServer(async (req, res) => {
         try {
           const r = (await rpc("stars_me_status", { p_email: u.email }))?.[0];
           if (r) { out.used = r.used; out.premiumUntil = r.premium_until; out.pending = r.pending; }
+          if (out.admin) out.adminPending = await rpc("stars_admin_pending", {});
         } catch (e) { console.warn("[premium]", e.message); }
       }
       return json(res, 200, out);
+    }
+    if (req.method === "GET" && url.pathname === "/api/push/key") {
+      const ready = await loadVapid();
+      return json(res, ready ? 200 : 503, { publicKey: ready ? VAPID_PUBLIC : null });
     }
     if (req.method === "GET" && url.pathname === "/api/premium/info") return premiumInfo(req, res);
     if (req.method === "POST" && url.pathname === "/api/premium/request") return await premiumRequest(req, res);
@@ -842,6 +914,7 @@ async function selfCheck() {
       console.error("[vérif] Base des comptes Supabase injoignable :", e.message);
     }
   }
+  if (MEMBERS) console.log(await loadVapid() ? "[vérif] Clés des notifications OK." : "[vérif] Clés des notifications indisponibles.");
   if (MAIL_WEBHOOK_URL) {
     try {
       const d = await callMailer({ action: "ping" });
