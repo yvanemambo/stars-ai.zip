@@ -590,8 +590,8 @@ async function page() {
 
 // ---------- Fichiers de l'appli (icônes, manifeste, service worker, pages) ----------
 const PUBLIC_DIR = path.join(__dirname, "public");
-const TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
-const PAGES = { "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
+const TYPES = { ".apk": "application/vnd.android.package-archive", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
+const PAGES = { "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
 async function serveStatic(req, res, pathname) {
   let rel = PAGES[pathname];
   if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg)$/.test(pathname)) rel = pathname.slice(1);
@@ -602,7 +602,9 @@ async function serveStatic(req, res, pathname) {
   try { data = await readFile(file); } catch { return false; }
   const ext = path.extname(file);
   const cache = rel.startsWith("icons/") ? "public, max-age=604800" : rel === "sw.js" ? "no-cache" : "public, max-age=3600";
-  res.writeHead(200, { "content-type": TYPES[ext] || "application/octet-stream", "cache-control": cache });
+  const headers = { "content-type": TYPES[ext] || "application/octet-stream", "cache-control": cache, "content-length": data.length };
+  if (ext === ".apk") headers["content-disposition"] = 'attachment; filename="STARS-AI.apk"';
+  res.writeHead(200, headers);
   res.end(req.method === "HEAD" ? undefined : data);
   return true;
 }

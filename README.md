@@ -34,6 +34,9 @@ Le paquet Android se génère sur https://www.pwabuilder.com à partir de https:
 Une fois l'appli signée, mettre le contenu de `assetlinks.json` dans la variable Render `ASSETLINKS_JSON`
 (servi sur `/.well-known/assetlinks.json`) pour enlever la barre d'adresse dans l'appli.
 
+Sans Play Store : la page `/telecharger` propose l'APK signé (`public/downloads/stars-ai.apk`, généré par PWABuilder)
+et l'installation en un clic (Chrome) ; le bouton « Installer l'appli » du chat y mène quand Chrome ne propose pas l'installation.
+
 Exigences Google Play déjà en place : bouton « Signaler » sous chaque réponse (`/api/report`, table `stars_reports`),
 « Supprimer mon compte » dans le menu (`/api/account/delete`, anonymise la ligne de `stars_members`),
 politique de confidentialité sur `/confidentialite`.

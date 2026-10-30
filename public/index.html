@@ -177,6 +177,16 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 .menu-link:hover { color: var(--ink); text-decoration: underline; }
 .menu-link.danger { color: var(--danger); }
 .menu-sep { height: 1px; background: var(--line); }
+.install-cta {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  background: linear-gradient(90deg, rgba(244, 201, 107, .16), rgba(244, 201, 107, .05));
+  border: 1px solid rgba(244, 201, 107, .45); border-radius: 14px; padding: 12px 14px; color: var(--ink);
+  font: 400 14px/1.4 var(--f-body);
+}
+.install-cta img { width: 38px; height: 38px; border-radius: 10px; flex: none; }
+.install-cta strong { display: block; color: var(--star); font-weight: 600; font-size: 15px; }
+.install-cta:hover { border-color: var(--star); }
+.install-cta:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
 .legal { margin: 0; font-size: 12px; color: var(--ink-dim); text-align: center; line-height: 1.5; }
 .legal a { color: var(--star); }
 
@@ -356,6 +366,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
           <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
           <div class="menu-sep"></div>
+          <button class="menu-link" type="button" data-install hidden>📲 Installer l'appli</button>
           <a class="menu-link" href="/confidentialite">Confidentialité</a>
           <button class="menu-link danger" id="deleteAccount" type="button">Supprimer mon compte</button>
         </div>
@@ -367,6 +378,10 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     <section class="welcome" id="welcome" hidden>
       <h2 id="greet">Bonsoir. Que veux-tu <em>explorer</em> aujourd'hui ?</h2>
       <p>Je suis STARS AI. Pose-moi une question, envoie-moi un exercice, demande-moi d'écrire, d'expliquer, de traduire ou de coder. Je réponds en français ou dans ta langue.</p>
+      <button class="install-cta" type="button" data-install hidden>
+        <img src="/icons/icon-192.png" alt="">
+        <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
+      </button>
       <div class="chips">
         <button class="chip" type="button" data-q="Résous cette équation en expliquant chaque étape : 3x + 7 = 2x − 5"><small>Exercice</small>Résoudre 3x + 7 = 2x − 5</button>
         <button class="chip" type="button" data-q="Explique-moi comment naissent les étoiles, simplement."><small>Apprendre</small>Comment naissent les étoiles ?</button>
@@ -404,6 +419,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
         <p class="legal">En utilisant STARS AI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
+        <p class="legal" data-install-link hidden><a href="/telecharger">📲 Installer l'appli sur ton téléphone</a></p>
       </div>
       <div id="step2" hidden>
         <h2>Regarde ton <em>Gmail</em></h2>
@@ -1375,10 +1391,31 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   });
   document.addEventListener("click", e => { if (account.open && !account.contains(e.target)) account.open = false; });
 
-  /* ---------- Installable app (service worker) ---------- */
+  /* ---------- Installable app (service worker + "Installer l'appli" buttons) ---------- */
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
   }
+  const runningAsApp = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true || document.referrer.startsWith("android-app://");
+  let installEvt = null, appInstalled = runningAsApp;
+  function refreshInstall() {
+    document.querySelectorAll("[data-install], [data-install-link]").forEach(el => { el.hidden = appInstalled; });
+  }
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+  window.addEventListener("appinstalled", () => {
+    installEvt = null; appInstalled = true; refreshInstall();
+    flash("STARS AI est installée ! Tu la trouveras sur ton écran d'accueil.");
+  });
+  document.querySelectorAll("[data-install]").forEach(btn => btn.addEventListener("click", async () => {
+    account.open = false;
+    if (installEvt) {           // Chrome (Android / ordinateur) : installation en un clic
+      installEvt.prompt();
+      try { await installEvt.userChoice; } catch (e) {}
+      installEvt = null;
+      return;
+    }
+    location.href = "/telecharger"; // iPhone, WhatsApp, Facebook… : page avec les explications et l'APK
+  }));
+  refreshInstall();
 
   /* ---------- Start ---------- */
   (async () => {
