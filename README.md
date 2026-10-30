@@ -58,6 +58,13 @@ Avec `WAVE_API_KEY` (clé créée dans business.wave.com > Développeurs, autori
 
 Chaque session Wave n'active qu'un mois, une seule fois (`stars_wave_paid` dans Supabase, référence `auto:<session>`). La référence envoyée à Wave est chiffrée : Wave ne voit pas l'e-mail. Si Wave ne répond pas, la page revient au lien marchand `PAY_WAVE_LINK` validé à la main. Sans clé, rien ne change.
 
+## MonScanner en ligne (`/antivirus`)
+
+Vérifie un fichier avec VirusTotal, sans l'envoyer : le navigateur calcule l'empreinte SHA-256 (par morceaux pour les gros fichiers), le serveur demande à VirusTotal ce qu'il sait de cette empreinte.
+
+- `VT_API_KEY` : clé du compte gratuit VirusTotal (profil > API Key). Sans clé, la page donne le lien direct vers le rapport VirusTotal.
+- Limites du compte gratuit respectées : `VT_PER_MINUTE` (4) et `VT_PER_DAY` (480) ; résultats gardés 6 h en mémoire ; 40 vérifications / heure / personne.
+
 ## Inscription par code Gmail
 
 Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.

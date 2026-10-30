@@ -747,7 +747,7 @@ async function page() {
 // ---------- Fichiers de l'appli (icônes, manifeste, service worker, pages) ----------
 const PUBLIC_DIR = path.join(__dirname, "public");
 const TYPES = { ".apk": "application/vnd.android.package-archive", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
-const PAGES = { "/premium": "premium.html", "/admin": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
+const PAGES = { "/antivirus": "antivirus.html", "/monscanner": "antivirus.html", "/premium": "premium.html", "/admin": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
 async function serveStatic(req, res, pathname) {
   let rel = PAGES[pathname];
   if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg)$/.test(pathname)) rel = pathname.slice(1);
@@ -957,6 +957,74 @@ async function waveWebhook(req, res) {
   json(res, 200, { ok: true });
 }
 
+// ---------- MonScanner en ligne (antivirus de vérification, par Yvan Mambo) ----------
+// Le navigateur calcule l'empreinte SHA-256 du fichier : le fichier ne quitte jamais l'appareil.
+// Le serveur demande seulement à VirusTotal ce qu'il sait de cette empreinte (clé VT_API_KEY, compte gratuit).
+const VT_API_KEY = env("VT_API_KEY");
+const VT_BASE_URL = (env("VT_BASE_URL") || "https://www.virustotal.com").replace(/\/+$/, "");
+const VT_PER_MINUTE = Number(env("VT_PER_MINUTE")) || 4; // limite du compte gratuit VirusTotal
+const VT_PER_DAY = Number(env("VT_PER_DAY")) || 480;     // 500 par jour : on garde une marge
+const VT_CACHE_MS = 6 * 3600_000;
+const vtCalls = [];
+let vtDay = "", vtDayCount = 0;
+const vtCache = new Map(); // empreinte -> { t, data } (les fichiers déjà vérifiés ne coûtent rien)
+
+function vtBudget() {
+  const now = Date.now(), day = new Date(now).toISOString().slice(0, 10);
+  if (day !== vtDay) { vtDay = day; vtDayCount = 0; }
+  while (vtCalls.length && now - vtCalls[0] > 60_000) vtCalls.shift();
+  if (vtDayCount >= VT_PER_DAY) {
+    const midnight = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate() + 1);
+    return { ok: false, daily: true, wait: Math.ceil((midnight - now) / 1000) };
+  }
+  if (vtCalls.length >= VT_PER_MINUTE) return { ok: false, wait: Math.ceil((60_000 - (now - vtCalls[0])) / 1000) + 1 };
+  vtCalls.push(now); vtDayCount++;
+  return { ok: true };
+}
+function vtRemember(sha, data) {
+  vtCache.set(sha, { t: Date.now(), data });
+  if (vtCache.size > 5000) vtCache.delete(vtCache.keys().next().value);
+}
+
+async function handleScan(req, res, ip) {
+  const body = await readJson(req, 2000);
+  const sha = String(body?.sha256 || "").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(sha)) return json(res, 400, { code: "bad_hash" });
+  if (!VT_API_KEY) return json(res, 503, { code: "vt_off" });
+  const hit = vtCache.get(sha);
+  if (hit && Date.now() - hit.t < VT_CACHE_MS) return json(res, 200, hit.data);
+  if (!allow("scan:" + ip, 40, 60 * 60_000)) return json(res, 429, { code: "rate_limited", retryAfter: 900 });
+  const budget = vtBudget();
+  if (!budget.ok) return json(res, 429, { code: budget.daily ? "vt_daily" : "vt_busy", retryAfter: budget.wait });
+  let r;
+  try {
+    r = await fetch(`${VT_BASE_URL}/api/v3/files/${sha}`, { headers: { "x-apikey": VT_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(20000) });
+  } catch (e) {
+    console.error("[antivirus] VirusTotal injoignable :", e.message);
+    return json(res, 502, { code: "vt_down" });
+  }
+  if (r.status === 404) { const data = { known: false }; vtRemember(sha, data); return json(res, 200, data); }
+  if (r.status === 429) return json(res, 429, { code: "vt_busy", retryAfter: 60 });
+  if (!r.ok) {
+    console.error(`[antivirus] VirusTotal a répondu HTTP ${r.status} : ${(await r.text().catch(() => "")).slice(0, 200)}`);
+    return json(res, 502, { code: r.status === 401 || r.status === 403 ? "vt_key" : "vt_down" });
+  }
+  const a = (await r.json().catch(() => null))?.data?.attributes || {};
+  const s = a.last_analysis_stats || {};
+  const n = k => Number(s[k]) || 0;
+  const data = {
+    known: true,
+    malicious: n("malicious"), suspicious: n("suspicious"),
+    total: n("malicious") + n("suspicious") + n("undetected") + n("harmless"),
+    label: a.popular_threat_classification?.suggested_threat_label || null,
+    type: a.type_description || null,
+    analysed: a.last_analysis_date ? new Date(a.last_analysis_date * 1000).toISOString() : null
+  };
+  vtRemember(sha, data);
+  console.log(`[antivirus] fichier vérifié : ${data.malicious}/${data.total} antivirus le signalent`);
+  json(res, 200, data);
+}
+
 // ---------- Tableau de bord du propriétaire ----------
 async function adminApi(req, res, url) {
   const u = currentUser(req);
@@ -1060,6 +1128,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/premium/wave") return await waveStart(req, res);
     if (req.method === "POST" && url.pathname === "/api/premium/wave/check") return await waveCheck(req, res);
     if (req.method === "POST" && url.pathname === "/api/wave/webhook") return await waveWebhook(req, res);
+    if (req.method === "GET" && url.pathname === "/api/scan/status") return json(res, 200, { virustotal: !!VT_API_KEY });
+    if (req.method === "POST" && url.pathname === "/api/scan") return await handleScan(req, res, ip);
     if (url.pathname.startsWith("/api/admin/")) return await adminApi(req, res, url);
     if (req.method === "GET" && url.pathname === "/api/contact") {
       return json(res, 200, { email: CONTACT_EMAIL, whatsapp: CONTACT_WHATSAPP || null, price: PREMIUM_PRICE, freeDaily: FREE_DAILY });
@@ -1115,6 +1185,14 @@ async function selfCheck() {
     } catch (e) {
       console.error("[vérif] Script Google injoignable :", e.message);
     }
+  }
+  if (VT_API_KEY) {
+    // Fichier de test EICAR (inoffensif, reconnu par tous les antivirus) : vérifie la clé VirusTotal.
+    try {
+      const r = await fetch(`${VT_BASE_URL}/api/v3/files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f`, { headers: { "x-apikey": VT_API_KEY }, signal: AbortSignal.timeout(20000) });
+      vtBudget();
+      console.log(r.ok ? "[vérif] Clé VirusTotal OK — MonScanner en ligne actif." : `[vérif] Clé VirusTotal REFUSÉE (HTTP ${r.status}).`);
+    } catch (e) { console.error("[vérif] VirusTotal injoignable :", e.message); }
   }
   if (WAVE_API_KEY && !MEMBERS) console.error("[vérif] Clé Wave présente mais base des comptes absente : paiement Wave automatique désactivé.");
   if (WAVE_AUTO) {
