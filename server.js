@@ -47,7 +47,16 @@ const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-flash-latest", "gemi
 
 const provider = ANTHROPIC_API_KEY ? "claude" : GEMINI_API_KEY ? "gemini" : null;
 
-function rules(name) {
+const VOICE_RULES = `
+
+MODE VOCAL — ta réponse va être lue à voix haute pendant un appel :
+- Parle comme à l'oral, de façon naturelle et chaleureuse, en 1 à 4 phrases courtes. Développe seulement si on te demande d'expliquer en détail.
+- Pas de Markdown, pas de listes, pas de titres, pas d'emojis, pas de tableaux, pas de code, pas de liens.
+- Dis les maths avec des mots : « x au carré », « 3 sur 4 », « racine de 16 ».
+- Pour un exercice, explique une étape à la fois, simplement, puis demande si l'élève veut la suite.
+- Si tu n'as pas bien compris la phrase (la reconnaissance vocale peut se tromper), demande gentiment de répéter.`;
+
+function rules(name, voice) {
   const tech = provider === "gemini"
     ? "STARS AI est propulsé par Gemini, un modèle de Google"
     : "STARS AI est propulsé par Claude, un modèle d'Anthropic";
@@ -66,7 +75,7 @@ Mode prof — quand on te donne un exercice (maths, physique-chimie, SVT, franç
 - Écris les formules en texte lisible avec des symboles : x², x³, √, ×, ÷, ±, ≤, ≥, ≠, ≈, π, Δ, →, °. N'utilise JAMAIS de LaTeX (pas de $…$, pas de \\frac, pas de \\sqrt). Écris les fractions comme 3/4 ou (x + 1)/(x − 2).
 - Utilise des méthodes du niveau de l'élève (collège ou lycée, programme francophone) quand c'est possible.
 - Si l'élève demande seulement un indice ou de l'aide pour commencer, donne un indice sans la solution complète.
-- À la fin d'un exercice résolu, propose en une phrase un exercice similaire pour s'entraîner, sans donner sa réponse.${name ? `\n\nL'utilisateur s'appelle ${name}. Tu peux l'appeler par son prénom de temps en temps, sans en abuser.` : ""}`;
+- À la fin d'un exercice résolu, propose en une phrase un exercice similaire pour s'entraîner, sans donner sa réponse.${name ? `\n\nL'utilisateur s'appelle ${name}. Tu peux l'appeler par son prénom de temps en temps, sans en abuser.` : ""}${voice ? VOICE_RULES : ""}`;
 }
 
 // Combine l'annulation par le visiteur et un délai maximum.
@@ -422,7 +431,7 @@ function codeFor(status) {
 const RETRY_NEXT = new Set([404, 429, 500, 503, 529]);
 
 // ---------- Claude (Anthropic) ----------
-async function callClaude(messages, signal, name) {
+async function callClaude(messages, signal, name, voice) {
   const models = [CLAUDE_MODEL, ...CLAUDE_FALLBACKS.filter(m => m !== CLAUDE_MODEL)];
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Claude disponible");
   for (const model of models) {
@@ -432,7 +441,7 @@ async function callClaude(messages, signal, name) {
         method: "POST",
         signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
         headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name), messages: toClaude(messages) })
+        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name, voice), messages: toClaude(messages) })
       });
     } catch (e) {
       if (signal.aborted) throw e;
@@ -460,7 +469,7 @@ async function* streamClaude(res) {
 }
 
 // ---------- Gemini (Google) ----------
-async function callGemini(messages, signal, name) {
+async function callGemini(messages, signal, name, voice) {
   const models = [GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)];
   const contents = toGemini(messages);
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Gemini disponible");
@@ -472,7 +481,7 @@ async function callGemini(messages, signal, name) {
         signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
         headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: rules(name) }] },
+          systemInstruction: { parts: [{ text: rules(name, voice) }] },
           contents,
           generationConfig: { maxOutputTokens: MAX_TOKENS }
         })
@@ -542,7 +551,8 @@ async function handleChat(req, res, ip) {
 
   let upstream;
   try {
-    upstream = provider === "claude" ? await callClaude(messages, ac.signal, user?.name) : await callGemini(messages, ac.signal, user?.name);
+    const voice = payload?.voice === true;
+    upstream = provider === "claude" ? await callClaude(messages, ac.signal, user?.name, voice) : await callGemini(messages, ac.signal, user?.name, voice);
   } catch (e) {
     if (ac.signal.aborted) return;
     console.error(`[${provider}]`, e.code || e.message, e.status || "", (e.detail || "").slice(0, 300));

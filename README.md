@@ -21,6 +21,12 @@ Si les deux sont présentes, Claude est utilisé.
 Le bouton appareil photo (ou coller / glisser une image) envoie jusqu'à 3 photos par message, réduites à 1600 px.
 STARS AI répond en « mode prof » : étape par étape, formules lisibles (x², √, ×), résultat en gras, et un exercice similaire pour s'entraîner.
 
+## Mode vocal (appel)
+
+Le bouton micro ouvre un appel : le navigateur écoute (reconnaissance vocale de Chrome / Safari), STARS AI répond
+en version courte « pour l'oral » (`voice: true` envoyé à `/api/chat`), la réponse est lue à voix haute phrase par phrase,
+puis l'écoute reprend. Toucher le cercle coupe la parole ; « Raccrocher » termine. Les échanges restent dans la discussion.
+
 ## Inscription par code Gmail
 
 Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.

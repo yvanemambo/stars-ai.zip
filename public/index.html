@@ -46,7 +46,7 @@ body {
 .app {
   position: relative; z-index: 1;
   height: 100%;
-  display: grid; grid-template-rows: auto 1fr auto;
+  display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr);
   max-width: 820px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -118,7 +118,7 @@ footer { padding-block: 8px 14px; }
 }
 .composer:focus-within { border-color: rgba(244, 201, 107, 0.55); }
 #input {
-  flex: 1; min-width: 0; resize: none; border: 0; background: transparent; color: var(--ink);
+  flex: 1 1 0; width: 0; min-width: 0; resize: none; border: 0; background: transparent; color: var(--ink);
   font: 400 15px/1.5 var(--f-body); padding: 7px 0; max-height: 180px; outline: none;
 }
 #input::placeholder { color: var(--ink-dim); }
@@ -130,6 +130,61 @@ footer { padding-block: 8px 14px; }
 #send svg { width: 18px; height: 18px; }
 .fine { text-align: center; color: var(--ink-dim); font-size: 12px; margin-top: 8px; }
 .fine.warn { color: var(--star); }
+
+/* Voice call */
+#micBtn {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; cursor: pointer;
+  background: transparent; color: var(--ink-dim); border: 1px solid var(--line);
+  display: grid; place-items: center;
+}
+#micBtn:hover { color: var(--star); border-color: rgba(244, 201, 107, .5); }
+#micBtn svg { width: 19px; height: 19px; }
+#micBtn:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.voice {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; overflow-y: auto;
+  background: radial-gradient(120% 80% at 50% 25%, rgba(20, 28, 70, .97), rgba(7, 11, 31, .985));
+  padding: max(24px, env(safe-area-inset-top, 0px)) 16px max(24px, env(safe-area-inset-bottom, 0px));
+}
+.voice-inner { width: 100%; max-width: 440px; display: grid; justify-items: center; gap: 18px; text-align: center; }
+.vtitle { margin: 0; font-family: var(--f-display); font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-dim); }
+.vtitle span { color: var(--star); }
+.orb {
+  position: relative; width: 168px; height: 168px; margin: 18px 0 6px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #fff4d2 0%, #f4c96b 45%, #a97a22 100%);
+  box-shadow: 0 0 70px rgba(244, 201, 107, .35), inset 0 -10px 30px rgba(120, 80, 10, .35);
+  transition: filter .3s, transform .3s;
+}
+.orb svg { width: 54px; height: 54px; }
+.orb:focus-visible { outline: 3px solid var(--ink); outline-offset: 6px; }
+.orb::before, .orb::after {
+  content: ""; position: absolute; inset: -10px; border-radius: 50%;
+  border: 2px solid rgba(244, 201, 107, .45); opacity: 0; pointer-events: none;
+}
+.voice[data-state="listening"] .orb::before { animation: ring 1.8s infinite ease-out; }
+.voice[data-state="listening"] .orb::after { animation: ring 1.8s .9s infinite ease-out; }
+@keyframes ring { from { transform: scale(.92); opacity: .9; } to { transform: scale(1.45); opacity: 0; } }
+.voice[data-state="thinking"] .orb { animation: breathe 1.4s infinite ease-in-out; filter: saturate(.6) brightness(.8); }
+@keyframes breathe { 50% { transform: scale(.9); } }
+.voice[data-state="speaking"] .orb { animation: talk .42s infinite alternate ease-in-out; }
+@keyframes talk { from { transform: scale(1); } to { transform: scale(1.07); } }
+.voice[data-state="idle"] .orb { filter: grayscale(.45) brightness(.7); }
+.vstatus { margin: 0; font-family: var(--f-display); font-weight: 500; font-size: 20px; }
+.vhint { margin: -8px 0 0; font-size: 13px; color: var(--ink-dim); max-width: 34ch; line-height: 1.5; }
+.vtext {
+  width: 100%; min-height: 3.2em; max-height: 28vh; overflow-y: auto; overflow-wrap: anywhere;
+  color: var(--ink); line-height: 1.6; font-size: 15px;
+}
+.vtext .you { color: var(--ink-dim); font-style: italic; }
+.hang {
+  margin-top: 6px; display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+  background: #e5484d; color: #fff; border: 0; border-radius: 999px; padding: 13px 24px; font: 600 15px var(--f-body);
+}
+.hang svg { width: 22px; height: 22px; }
+.hang:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .orb, .orb::before, .orb::after { animation: none !important; }
+}
 
 /* Photos */
 #photoBtn {
@@ -266,7 +321,7 @@ footer { padding-block: 8px 14px; }
         <button class="chip" type="button" data-q="Donne-moi 5 idées de petit business à lancer à Abidjan avec peu d'argent."><small>Idées</small>5 idées de petit business</button>
         <button class="chip" type="button" data-q="Écris une fonction Python qui vérifie si un mot est un palindrome, avec une explication."><small>Coder</small>Une fonction Python palindrome</button>
       </div>
-      <div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Tu peux aussi m'envoyer la photo d'un exercice avec le bouton appareil photo.</div>
+      <div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Envoie la photo d'un exercice avec l'appareil photo, ou touche le micro pour me parler à voix haute.</div>
     </section>
 
     <section class="auth" id="auth" hidden>
@@ -329,12 +384,31 @@ footer { padding-block: 8px 14px; }
       <input id="photoInput" type="file" accept="image/*" multiple hidden>
       <label for="input" hidden>Message</label>
       <textarea id="input" rows="1" placeholder="Écris à STARS AI…"></textarea>
+      <button id="micBtn" type="button" aria-label="Parler avec STARS AI (mode vocal)" title="Mode vocal : parler avec STARS AI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
       <button id="send" type="submit" aria-label="Envoyer" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
       </button>
     </form>
     <div class="fine" id="fine">STARS AI peut se tromper. Vérifie les informations importantes.</div>
   </footer>
+</div>
+
+<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec STARS AI" hidden>
+  <div class="voice-inner">
+    <p class="vtitle">STARS <span>AI</span> · appel vocal</p>
+    <button class="orb" id="orb" type="button" aria-label="Parler">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z" fill="#1a1404" opacity=".85"/></svg>
+    </button>
+    <p class="vstatus" id="vstatus" aria-live="polite">Je t'écoute…</p>
+    <p class="vhint" id="vhint">Parle normalement. Touche le cercle pour me couper la parole.</p>
+    <div class="vtext" id="vtext"></div>
+    <button class="hang" id="hangup" type="button">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+      Raccrocher
+    </button>
+  </div>
 </div>
 
 <script>
@@ -506,11 +580,11 @@ footer { padding-block: 8px 14px; }
   const canSend = () => loadingPics === 0 && (!!input.value.trim() || pending.length > 0);
 
   // Sends the conversation to the server and streams the answer back (one JSON object per line).
-  async function chat(history, signal, onText) {
+  async function chat(history, signal, onText, voice) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, voice: !!voice }),
       signal
     });
     if (!res.ok) {
@@ -543,10 +617,12 @@ footer { padding-block: 8px 14px; }
     return { text, truncated };
   }
 
-  async function ask(text) {
-    if (busy || loadingPics > 0) return;
+  // opts.voice: answer for the ear (short, read aloud); opts.onText(fullTextSoFar) follows the stream.
+  // Returns { ok, text, code } so the voice call knows what happened.
+  async function ask(text, opts = {}) {
+    if (busy || loadingPics > 0) return { ok: false, code: "busy" };
     const imgs = pending.slice();
-    if (!text.trim() && !imgs.length) return;
+    if (!text.trim() && !imgs.length) return { ok: false, code: "empty" };
     const thumbs = imgs.map(i => i.thumb);
     addMsg("user", text, thumbs);
     turns.push({ role: "user", content: text, images: imgs.map(i => ({ mime: i.mime, data: i.data })), thumbs }); save();
@@ -565,19 +641,22 @@ footer { padding-block: 8px 14px; }
     try {
       const { text: answer, truncated } = await chat(history, ctl.signal, t => {
         b.innerHTML = md(t); thread.scrollTop = thread.scrollHeight;
-      });
+        if (opts.onText) opts.onText(t);
+      }, opts.voice);
       turns.push({ role: "assistant", content: answer }); save();
       if (truncated) b.insertAdjacentHTML("beforeend", '<div class="note">Réponse coupée. Demande la suite.</div>');
+      return { ok: true, text: answer };
     } catch (e) {
       const code = (e && e.code) || (ctl.signal.aborted ? "cancelled" : "network");
-      if (code === "auth_required") { turns.pop(); me = null; showAuth("Ta session a expiré. Reconnecte-toi pour continuer."); return; }
+      if (code === "auth_required") { turns.pop(); me = null; showAuth("Ta session a expiré. Reconnecte-toi pour continuer."); return { ok: false, code }; }
       const partial = e && e.text;
       b.innerHTML = partial ? md(partial) : "";
       if (partial) { turns.push({ role: "assistant", content: partial }); save(); }
       if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
       } else if (!partial) { b.innerHTML = '<span class="thinking">Arrêté.</span>'; }
-    } finally { setBusy(false); input.focus(); }
+      return { ok: false, code, text: partial || "" };
+    } finally { setBusy(false); if (!opts.voice) input.focus(); }
   }
 
   function autosize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 180) + "px"; if (!busy) send.disabled = !canSend(); }
@@ -663,6 +742,208 @@ footer { padding-block: 8px 14px; }
     thread.querySelectorAll(".msg").forEach(n => n.remove());
     welcome.hidden = false; input.focus();
   });
+
+  /* ---------- Voice call: the browser listens (speech recognition) and reads answers aloud (speech synthesis) ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const synth = window.speechSynthesis;
+  const voiceEl = document.getElementById("voice"), orb = document.getElementById("orb");
+  const vstatus = document.getElementById("vstatus"), vhint = document.getElementById("vhint"), vtext = document.getElementById("vtext");
+  const micBtn = document.getElementById("micBtn"), hangBtn = document.getElementById("hangup");
+  const navLang = navigator.language || "fr-FR";
+  const isFr = /^fr/i.test(navLang);
+  const recLang = isFr ? "fr-FR" : navLang;
+  const HINT = "Parle normalement. Touche le cercle pour me couper la parole.";
+  const STATUS = { listening: "Je t'écoute…", thinking: "STARS AI réfléchit…", speaking: "STARS AI parle…", idle: "Touche le cercle pour parler" };
+  let call = { active: false };
+  let ttsVoice = null;
+
+  function pickVoice() {
+    if (!synth) return null;
+    const want = recLang.slice(0, 2).toLowerCase();
+    const list = synth.getVoices().filter(v => (v.lang || "").toLowerCase().replace("_", "-").startsWith(want));
+    const score = v => (/natural|neural|online|premium|enhanced/i.test(v.name) ? 4 : 0) + (/google/i.test(v.name) ? 2 : 0) + ((v.lang || "").replace("_", "-") === recLang ? 1 : 0);
+    list.sort((a, b) => score(b) - score(a));
+    return list[0] || null;
+  }
+  if (synth) {
+    ttsVoice = pickVoice();
+    if ("onvoiceschanged" in synth) synth.onvoiceschanged = () => { ttsVoice = pickVoice(); };
+  }
+
+  // Makes a written answer sound right when read aloud (no Markdown, maths said in words).
+  function toSpeech(t) {
+    let s = delatex(t)
+      .replace(/```[\s\S]*?(```|$)/g, isFr ? " Le code est affiché à l'écran. " : " The code is shown on screen. ")
+      .replace(/`([^`]*)`/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/^\s*#{1,6}\s*/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/\*\*|__/g, "")
+      .replace(/[*_~>|]/g, " ");
+    if (isFr) {
+      s = s.replace(/²/g, " au carré").replace(/³/g, " au cube").replace(/√\s*/g, "racine de ").replace(/×/g, " fois ")
+        .replace(/÷/g, " divisé par ").replace(/≤/g, " inférieur ou égal à ").replace(/≥/g, " supérieur ou égal à ")
+        .replace(/≠/g, " différent de ").replace(/≈/g, " environ ").replace(/π/g, " pi ").replace(/[→⇒]/g, ", donc ")
+        .replace(/±/g, " plus ou moins ").replace(/(\d)\s*\/\s*(\d)/g, "$1 sur $2").replace(/\s=\s/g, " égale ");
+    }
+    return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/\s+/g, " ").trim();
+  }
+
+  function chunks(text, max) {
+    const parts = text.replace(/([.!?…,;:])\s+/g, "$1\u0001").split("\u0001");
+    const out = []; let cur = "";
+    for (const part of parts) {
+      if (cur && (cur + " " + part).length > max) { out.push(cur); cur = part; }
+      else cur = cur ? cur + " " + part : part;
+    }
+    if (cur) out.push(cur);
+    return out.flatMap(c => c.length <= max * 1.5 ? [c] : (c.match(new RegExp("[^]{1," + max + "}(\\s|$)", "g")) || [c]));
+  }
+
+  function setState(s) {
+    call.state = s; voiceEl.dataset.state = s; vstatus.textContent = STATUS[s];
+    orb.setAttribute("aria-label", s === "speaking" || s === "thinking" ? "Couper la parole et parler" : s === "listening" ? "J'ai fini de parler" : "Parler");
+  }
+  function showYou(said, answer) {
+    vtext.innerHTML = (said ? '<p class="you">« ' + esc(said) + ' »</p>' : "") + (answer ? md(answer) : "");
+    vtext.scrollTop = vtext.scrollHeight;
+  }
+
+  function say(piece, turn) {
+    const text = toSpeech(piece);
+    if (!text || !synth) return;
+    for (const c of chunks(text, 180)) {
+      const u = new SpeechSynthesisUtterance(c);
+      u.lang = ttsVoice ? ttsVoice.lang : recLang;
+      if (ttsVoice) u.voice = ttsVoice;
+      u.rate = 1.05;
+      call.queue++;
+      u.onstart = () => { if (call.active && call.turn === turn) setState("speaking"); };
+      u.onend = u.onerror = () => {
+        if (call.turn !== turn) return;
+        call.queue = Math.max(0, call.queue - 1);
+        maybeListenAgain();
+      };
+      synth.speak(u);
+    }
+  }
+
+  // Reads each complete sentence as soon as it arrives, so the answer starts quickly.
+  function speakNew(full, final, turn) {
+    const rest = full.slice(call.spokenUpTo);
+    let cut = -1;
+    if (final) cut = rest.length;
+    else { const re = /[.!?…:;]\s|\n/g; let m; while ((m = re.exec(rest))) cut = m.index + m[0].length; }
+    if (cut <= 0) return;
+    call.spokenUpTo += cut;
+    say(rest.slice(0, cut), turn);
+  }
+
+  function maybeListenAgain() {
+    if (!call.active || !call.answerDone || call.queue > 0 || call.rec || call.state === "listening") return;
+    listen();
+  }
+
+  function stopRec() {
+    if (call.rec) { const r = call.rec; call.rec = null; try { r.abort(); } catch (e) {} }
+  }
+
+  function listen() {
+    if (!call.active) return;
+    stopRec();
+    const rec = new SR();
+    rec.lang = recLang; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    call.rec = rec; call.heard = "";
+    rec.onresult = e => {
+      if (call.rec !== rec) return;
+      let fin = "", interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) fin += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+      }
+      call.heard = (fin + " " + interim).replace(/\s+/g, " ").trim();
+      showYou(call.heard);
+    };
+    rec.onerror = e => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        endCall(); flash("Autorise le micro pour parler avec STARS AI (touche le cadenas à côté de l'adresse du site).");
+      } else if (e.error === "no-speech") call.silent++;
+      else if (e.error === "network" || e.error === "audio-capture") call.recError = e.error;
+    };
+    rec.onend = () => {
+      if (call.rec !== rec) return;
+      call.rec = null;
+      if (!call.active) return;
+      const said = (call.heard || "").trim();
+      if (said) { call.silent = 0; sendVoice(said); return; }
+      if (call.recError) {
+        vhint.textContent = call.recError === "audio-capture"
+          ? "Je n'arrive pas à utiliser ton micro. Vérifie qu'aucune autre appli ne l'utilise."
+          : "La reconnaissance de la voix ne répond pas. Vérifie ta connexion, puis touche le cercle.";
+        call.recError = null; setState("idle"); return;
+      }
+      if (call.silent < 2) { listen(); return; }
+      setState("idle"); vhint.textContent = "Je n'entends rien. Touche le cercle quand tu veux parler.";
+    };
+    try { rec.start(); setState("listening"); vhint.textContent = HINT; }
+    catch (e) { call.rec = null; setState("idle"); }
+  }
+
+  async function sendVoice(said) {
+    const turn = ++call.turn;
+    setState("thinking"); showYou(said);
+    call.answerDone = false; call.spokenUpTo = 0; call.queue = 0;
+    for (let i = 0; busy && i < 40; i++) await new Promise(r => setTimeout(r, 50));
+    const r = await ask(said, {
+      voice: true,
+      onText: t => { if (call.active && call.turn === turn) { showYou(said, t); speakNew(t, false, turn); } }
+    });
+    if (!call.active || call.turn !== turn) return;
+    call.answerDone = true;
+    if (r.ok) { showYou(said, r.text); speakNew(r.text, true, turn); }
+    else if (r.code === "auth_required") { endCall(); return; }
+    else if (r.code !== "cancelled") {
+      say(r.code === "rate_limited" ? "Trop de messages d'un coup. Attends une minute, puis reparle-moi."
+        : r.code === "daily_limit" ? "La limite de messages du jour est atteinte. Reviens demain."
+        : "Désolée, je n'ai pas pu répondre. Réessaie.", turn);
+    }
+    maybeListenAgain();
+  }
+
+  function startCall() {
+    if (!SR) {
+      flash(isFr ? "Le mode vocal marche avec Chrome (Android ou ordinateur) ou Safari (iPhone)." : "Voice mode needs Chrome or Safari.");
+      return;
+    }
+    if (busy) return;
+    call = { active: true, rec: null, heard: "", silent: 0, answerDone: true, spokenUpTo: 0, queue: 0, turn: 0, state: "idle" };
+    if (synth) { try { synth.cancel(); const u = new SpeechSynthesisUtterance(" "); u.volume = 0; synth.speak(u); } catch (e) {} } // unlocks speech on iPhone
+    vtext.innerHTML = ""; voiceEl.hidden = false;
+    listen();
+    orb.focus();
+  }
+
+  function endCall() {
+    if (!call.active) return;
+    call.active = false; call.turn++;
+    stopRec();
+    if (synth) synth.cancel();
+    voiceEl.hidden = true;
+    micBtn.focus();
+  }
+
+  orb.addEventListener("click", () => {
+    if (!call.active) return;
+    if (call.state === "speaking" || call.state === "thinking") {
+      call.turn++;                              // forget the answer in progress
+      if (synth) synth.cancel();
+      call.queue = 0; call.answerDone = true; call.silent = 0;
+      listen();
+    } else if (call.state === "listening") {
+      if (call.rec) { try { call.rec.stop(); } catch (e) {} }   // "j'ai fini" → send now
+    } else { call.silent = 0; listen(); }
+  });
+  hangBtn.addEventListener("click", endCall);
+  micBtn.addEventListener("click", startCall);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && call.active) endCall(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) endCall(); });
 
   /* ---------- Sign-up / sign-in ---------- */
   const auth = document.getElementById("auth");
