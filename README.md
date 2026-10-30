@@ -16,6 +16,19 @@ Dans Render › ton service `stars-ai` › **Environment**, ajoute **une** de ce
 
 Si les deux sont présentes, Claude est utilisé.
 
+## Inscription par code Gmail
+
+Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.
+Les codes partent du Gmail du propriétaire grâce au script `google-script/Code.gs`, installé dans une Google Sheet qui garde la liste des inscrits.
+
+| Variable | Rôle |
+|---|---|
+| `MAIL_WEBHOOK_URL` | URL `/exec` du script Google (active l'inscription obligatoire) |
+| `MAIL_WEBHOOK_SECRET` | même valeur que `SECRET` dans le script |
+| `SESSION_SECRET` | clé qui signe les connexions (ne pas changer, sinon tout le monde est déconnecté) |
+
+Sans `MAIL_WEBHOOK_URL`, le chat reste ouvert à tous.
+
 ## Réglages optionnels
 
 | Variable | Par défaut | Rôle |
