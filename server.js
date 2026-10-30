@@ -22,7 +22,7 @@ const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
 const DAILY_LIMIT = Number(env("DAILY_LIMIT")) || 500;              // messages / jour pour tout le site
-const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 40000;
+const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 20000;
 const ANTHROPIC_BASE_URL = env("ANTHROPIC_BASE_URL") || "https://api.anthropic.com";
 const GEMINI_BASE_URL = env("GEMINI_BASE_URL") || "https://generativelanguage.googleapis.com";
 
@@ -139,7 +139,7 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const CLAUDE_FALLBACKS = ["claude-haiku-5-5", "claude-sonnet-5-5"];
-const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-flash-lite-latest"];
+const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
 const provider = ANTHROPIC_API_KEY ? "claude" : GEMINI_API_KEY ? "gemini" : null;
 
@@ -529,9 +529,23 @@ function codeFor(status) {
 // Erreurs pour lesquelles on essaie le modèle suivant.
 const RETRY_NEXT = new Set([404, 429, 500, 503, 529]);
 
+// Un modèle qui a atteint sa limite (429), qui est surchargé (503) ou qui ne répond pas est mis de côté
+// un moment : les messages suivants vont directement au modèle qui marche, sans attendre.
+const modelPause = new Map(); // modèle -> pause jusqu'à (timestamp)
+function pauseModel(model, ms, why) {
+  modelPause.set(model, Date.now() + ms);
+  console.warn(`[modèles] ${model} mis de côté ${Math.round(ms / 60000)} min (${why})`);
+}
+function usableModels(list) {
+  const now = Date.now();
+  const ok = list.filter(m => (modelPause.get(m) || 0) <= now);
+  return ok.length ? ok : list; // si tout est en pause, on réessaie quand même
+}
+const PAUSE_FOR = { 429: 15 * 60_000, 404: 6 * 3600_000, 500: 60_000, 503: 2 * 60_000, 529: 2 * 60_000 };
+
 // ---------- Claude (Anthropic) ----------
 async function callClaude(messages, signal, name, voice) {
-  const models = [CLAUDE_MODEL, ...CLAUDE_FALLBACKS.filter(m => m !== CLAUDE_MODEL)];
+  const models = usableModels([CLAUDE_MODEL, ...CLAUDE_FALLBACKS.filter(m => m !== CLAUDE_MODEL)]);
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Claude disponible");
   for (const model of models) {
     let res;
@@ -544,7 +558,7 @@ async function callClaude(messages, signal, name, voice) {
       });
     } catch (e) {
       if (signal.aborted) throw e;
-      console.warn(`[claude] ${model} ne répond pas (${e.name}), essai suivant`);
+      pauseModel(model, 5 * 60_000, "ne répond pas");
       last = new UpstreamError("upstream_busy", 504, "timeout");
       continue;
     }
@@ -552,7 +566,7 @@ async function callClaude(messages, signal, name, voice) {
     const detail = await res.text().catch(() => "");
     const low = detail.toLowerCase();
     if (res.status === 400 && (low.includes("credit balance") || low.includes("billing"))) throw new UpstreamError("no_credit", res.status, detail);
-    if (RETRY_NEXT.has(res.status)) { console.warn(`[claude] ${model} : HTTP ${res.status}, essai suivant`); last = new UpstreamError(codeFor(res.status), res.status, detail); continue; }
+    if (RETRY_NEXT.has(res.status)) { pauseModel(model, PAUSE_FOR[res.status] || 60_000, "HTTP " + res.status); last = new UpstreamError(codeFor(res.status), res.status, detail); continue; }
     throw new UpstreamError(codeFor(res.status), res.status, detail);
   }
   throw last;
@@ -569,7 +583,7 @@ async function* streamClaude(res) {
 
 // ---------- Gemini (Google) ----------
 async function callGemini(messages, signal, name, voice) {
-  const models = [GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)];
+  const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
   const contents = toGemini(messages);
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Gemini disponible");
   for (const model of models) {
@@ -587,14 +601,14 @@ async function callGemini(messages, signal, name, voice) {
       });
     } catch (e) {
       if (signal.aborted) throw e;
-      console.warn(`[gemini] ${model} ne répond pas (${e.name}), essai suivant`);
+      pauseModel(model, 5 * 60_000, "ne répond pas");
       last = new UpstreamError("upstream_busy", 504, "timeout");
       continue;
     }
     if (res.ok) return { res, model };
     const detail = await res.text().catch(() => "");
     if (res.status === 400 && /api key not valid|api_key_invalid/i.test(detail)) throw new UpstreamError("bad_key", 401, detail);
-    if (RETRY_NEXT.has(res.status)) { console.warn(`[gemini] ${model} : HTTP ${res.status}, essai suivant`); last = new UpstreamError(codeFor(res.status), res.status, detail); continue; }
+    if (RETRY_NEXT.has(res.status)) { pauseModel(model, PAUSE_FOR[res.status] || 60_000, "HTTP " + res.status); last = new UpstreamError(codeFor(res.status), res.status, detail); continue; }
     throw new UpstreamError(codeFor(res.status), res.status, detail);
   }
   throw last;
@@ -903,21 +917,7 @@ async function selfCheck() {
       else {
         const names = (JSON.parse(body).models || []).map(m => m.name.replace("models/", ""));
         console.log(`[vérif] Clé Gemini OK — ${names.length} modèles disponibles.`);
-        const tests = [GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)].filter(m => names.includes(m));
-        for (const model of tests) {
-          const t0 = Date.now();
-          try {
-            const g = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-              method: "POST", signal: AbortSignal.timeout(30000),
-              headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-              body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Réponds seulement : OK" }] }], generationConfig: { maxOutputTokens: 400 } })
-            });
-            if (g.ok) { console.log(`[vérif] ${model} répond en ${Date.now() - t0} ms.`); break; }
-            console.error(`[vérif] ${model} : HTTP ${g.status} en ${Date.now() - t0} ms.`);
-          } catch (e) {
-            console.error(`[vérif] ${model} : pas de réponse (${e.name}) après ${Date.now() - t0} ms.`);
-          }
-        }
+        for (const m of [GEMINI_MODEL, ...GEMINI_FALLBACKS]) if (!names.includes(m)) pauseModel(m, 6 * 3600_000, "absent de la liste Google");
       }
     } else if (provider === "claude") {
       const r = await fetch(`${ANTHROPIC_BASE_URL}/v1/models`, { headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(20000) });
