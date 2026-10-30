@@ -76,8 +76,21 @@ const PAY_HOW = {
   moov: "Ton téléphone compose *155# : choisis « Transfert », colle le numéro et entre le montant."
 };
 const PAY_OPEN_LABEL = { wave: WAVE_MERCHANT ? "Payer avec Wave" : "Ouvrir Wave", orange: "Composer #144#", mtn: "Composer *133#", moov: "Composer *155#" };
-const PAY_METHODS = [["wave", "Wave", env("PAY_WAVE") || (WAVE_MERCHANT ? "—" : "")], ["orange", "Orange Money", env("PAY_ORANGE")], ["mtn", "MTN MoMo", env("PAY_MTN")], ["moov", "Moov Money", env("PAY_MOOV")]]
-  .filter(m => m[2]).map(([id, label, number]) => ({ id, label, number, open: PAY_OPEN[id], openLabel: PAY_OPEN_LABEL[id], how: PAY_HOW[id], direct: id === "wave" && !!WAVE_MERCHANT }));
+// Wave Checkout (API Wave Business) : le Premium s'active tout seul dès que Wave confirme le paiement.
+// Inactif tant que WAVE_API_KEY est vide (on garde alors le paiement Wave validé à la main).
+const WAVE_API_KEY = env("WAVE_API_KEY");
+const WAVE_WEBHOOK_SECRET = env("WAVE_WEBHOOK_SECRET");
+const WAVE_API_URL = (env("WAVE_API_URL") || "https://api.wave.com").replace(/\/+$/, "");
+const WAVE_AUTO = !!(WAVE_API_KEY && MEMBERS);
+const PAY_METHODS = [["wave", "Wave", env("PAY_WAVE") || (WAVE_MERCHANT || WAVE_AUTO ? "—" : "")], ["orange", "Orange Money", env("PAY_ORANGE")], ["mtn", "MTN MoMo", env("PAY_MTN")], ["moov", "Moov Money", env("PAY_MOOV")]]
+  .filter(m => m[2]).map(([id, label, number]) => {
+    const m = { id, label, number, open: PAY_OPEN[id], openLabel: PAY_OPEN_LABEL[id], how: PAY_HOW[id], direct: id === "wave" && !!WAVE_MERCHANT };
+    if (id !== "wave" || !WAVE_AUTO) return m;
+    // Si Wave ne répond pas, la page revient au paiement Wave habituel (validé à la main).
+    const manual = WAVE_MERCHANT || env("PAY_WAVE") ? { number: m.number, open: m.open, openLabel: m.openLabel, how: m.how, direct: m.direct } : null;
+    return { id, label, number: "—", auto: true, direct: true, open: null, openLabel: "Payer avec Wave",
+      how: "Wave s'ouvre avec le bon montant : confirme le paiement, puis reviens ici. Ton Premium s'active tout seul, sans attendre.", manual };
+  });
 const CONTACT_WHATSAPP = env("CONTACT_WHATSAPP").replace(/[^\d]/g, "");
 const CONTACT_EMAIL = env("CONTACT_EMAIL") || "yvanemambo@gmail.com";
 const ADMIN_EMAILS = new Set(env("ADMIN_EMAILS").toLowerCase().split(/[,\s]+/).filter(Boolean));
@@ -792,7 +805,7 @@ async function premiumRequest(req, res) {
   const phone = String(body?.phone || "").replace(/[^\d+ ]/g, "").trim();
   if (phone.replace(/\D/g, "").length < 8 || phone.length > 30) return json(res, 400, { code: "bad_phone" });
   const reference = String(body?.reference || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80);
-  if (reference.replace(/\s/g, "").length < 6) return json(res, 400, { code: "bad_reference" }); // la référence du SMS prouve qu'un paiement a eu lieu
+  if (reference.replace(/\s/g, "").length < 6 || /^auto:/i.test(reference)) return json(res, 400, { code: "bad_reference" }); // la référence du SMS prouve qu'un paiement a eu lieu
   if (!allow("payreq:" + u.email, 5, 60 * 60_000)) return json(res, 429, { code: "rate_limited" });
   try {
     await rpc("stars_payment_add", { p_email: u.email, p_name: u.name || "", p_method: method, p_phone: phone, p_reference: reference, p_amount: PREMIUM_PRICE });
@@ -803,6 +816,144 @@ async function premiumRequest(req, res) {
   }
   console.log(`[premium] demande de ${mask(u.email)} via ${method}`);
   notifyAdmins("paiement").catch(() => {});
+  json(res, 200, { ok: true });
+}
+
+// ---------- Paiement Wave automatique (API Checkout) ----------
+// 1. /api/premium/wave crée une session de paiement Wave et renvoie le lien qui ouvre l'appli Wave.
+// 2. Au retour sur /premium, /api/premium/wave/check demande à Wave si la session est payée.
+// 3. En plus, Wave prévient le serveur (webhook signé) même si la personne ne revient pas sur la page.
+// Chaque session Wave n'active le Premium qu'une seule fois (contrôlé dans Supabase).
+async function waveApi(method, pathname, body) {
+  const r = await fetch(WAVE_API_URL + pathname, {
+    method, signal: AbortSignal.timeout(15000),
+    headers: { authorization: "Bearer " + WAVE_API_KEY, ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const text = await r.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch {}
+  if (!r.ok) {
+    const e = new Error(`Wave ${method} ${pathname.split("?")[0]} HTTP ${r.status} : ${text.slice(0, 200).replace(/\s+/g, " ")}`);
+    e.status = r.status;
+    throw e;
+  }
+  return data;
+}
+
+// La référence envoyée à Wave est chiffrée : Wave ne voit pas l'e-mail, et personne ne peut la fabriquer.
+const waveRef = email => seal(JSON.stringify({ k: "wave", e: email }));
+function waveOwner(s) {
+  try {
+    const ref = JSON.parse(unseal(String(s?.client_reference || "")) || "null");
+    return ref && ref.k === "wave" && typeof ref.e === "string" ? ref.e : null;
+  } catch { return null; }
+}
+const waveLast = new Map(); // dernière session Wave de chaque personne (si la page de retour s'ouvre dans un autre navigateur)
+
+function publicOrigin(req) {
+  const fixed = env("PUBLIC_URL") || env("RENDER_EXTERNAL_URL");
+  if (fixed) return fixed.replace(/\/+$/, "");
+  const proto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() || "http";
+  return `${proto}://${req.headers.host}`;
+}
+
+// Active le Premium si la session Wave (lue chez Wave ou reçue par webhook signé) est payée.
+async function waveSettle(s, source) {
+  const status = s?.payment_status || "unknown";
+  if (status !== "succeeded") return { status, checkout: s?.checkout_status || null };
+  const email = waveOwner(s);
+  if (!email) { console.warn(`[wave] paiement ${s.id} sans référence STARS AI : ignoré`); return { status: "unknown_ref" }; }
+  if (s.currency !== "XOF" || !(Number(s.amount) >= PREMIUM_PRICE)) {
+    console.warn(`[wave] paiement ${s.id} : montant inattendu ${s.amount} ${s.currency}`);
+    return { status: "bad_amount" };
+  }
+  const row = (await rpc("stars_wave_paid", { p_email: email, p_name: "", p_session: String(s.id), p_amount: Math.round(Number(s.amount)), p_phone: "" }))?.[0];
+  if (row && !row.already) console.log(`[wave] Premium activé automatiquement pour ${mask(email)} (${source})`);
+  return { status: "succeeded", email, premiumUntil: row?.premium_until || null };
+}
+
+async function waveStart(req, res) {
+  const u = currentUser(req);
+  if (!u) return json(res, 401, { code: "auth_required" });
+  await readJson(req);
+  if (!WAVE_AUTO) return json(res, 404, { code: "wave_off" });
+  if (!allow("wave:" + u.email, 10, 60 * 60_000)) return json(res, 429, { code: "rate_limited" });
+  const reference = waveRef(u.email);
+  if (reference.length > 255) return json(res, 400, { code: "wave_off" });
+  const origin = publicOrigin(req);
+  try {
+    const s = await waveApi("POST", "/v1/checkout/sessions", {
+      amount: String(PREMIUM_PRICE), currency: "XOF",
+      success_url: origin + "/premium?wave=ok", error_url: origin + "/premium?wave=erreur",
+      client_reference: reference
+    });
+    if (!s?.id || !/^https:\/\//.test(String(s.wave_launch_url || ""))) throw new Error("réponse Wave incomplète");
+    waveLast.set(u.email, s.id);
+    console.log(`[wave] paiement lancé pour ${mask(u.email)}`);
+    json(res, 200, { id: s.id, url: s.wave_launch_url });
+  } catch (e) {
+    console.error("[wave] création du paiement impossible :", e.message);
+    json(res, 502, { code: "wave_down" });
+  }
+}
+
+async function waveCheck(req, res) {
+  const u = currentUser(req);
+  if (!u) return json(res, 401, { code: "auth_required" });
+  const b = await readJson(req);
+  if (!WAVE_AUTO) return json(res, 404, { code: "wave_off" });
+  const id = String(b?.id || waveLast.get(u.email) || "");
+  if (!/^cos-[A-Za-z0-9_-]{4,64}$/.test(id)) return json(res, 404, { code: "no_session" });
+  if (!allow("wavecheck:" + u.email, 120, 60 * 60_000)) return json(res, 429, { code: "rate_limited" });
+  try {
+    const s = await waveApi("GET", "/v1/checkout/sessions/" + encodeURIComponent(id));
+    if (waveOwner(s) !== u.email) return json(res, 404, { code: "no_session" });
+    const out = await waveSettle(s, "retour sur la page");
+    json(res, 200, { status: out.status, checkout: s.checkout_status || null, premiumUntil: out.premiumUntil || null });
+  } catch (e) {
+    if (e.status === 404) return json(res, 404, { code: "no_session" });
+    console.error("[wave] vérification impossible :", e.message);
+    json(res, 502, { code: "wave_down" });
+  }
+}
+
+// Webhook Wave (Business Portal > Développeurs > Webhooks) : en-tête Wave-Signature « t=…,v1=… »,
+// HMAC-SHA256 de (t + corps brut) avec le secret du webhook. On accepte aussi la méthode « secret partagé ».
+function waveSignatureOk(raw, header, auth) {
+  const secret = WAVE_WEBHOOK_SECRET;
+  if (header) {
+    const parts = String(header).split(",").map(p => p.trim().split("="));
+    const t = parts.find(p => p[0] === "t")?.[1];
+    const sigs = parts.filter(p => p[0] === "v1" && p[1]).map(p => p[1]);
+    if (!t || !/^\d+$/.test(t) || !sigs.length || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+    const expected = crypto.createHmac("sha256", secret).update(t).update(raw).digest();
+    return sigs.some(s => { const got = Buffer.from(s, "hex"); return got.length === expected.length && crypto.timingSafeEqual(got, expected); });
+  }
+  const m = /^Bearer (.+)$/.exec(String(auth || ""));
+  if (!m) return false;
+  const a = crypto.createHash("sha256").update(m[1]).digest(), e = crypto.createHash("sha256").update(secret).digest();
+  return crypto.timingSafeEqual(a, e);
+}
+
+async function waveWebhook(req, res) {
+  let size = 0; const chunks = [];
+  for await (const c of req) { size += c.length; if (size > 100_000) return json(res, 413, { code: "too_large" }); chunks.push(c); }
+  if (!WAVE_WEBHOOK_SECRET || !WAVE_AUTO) return json(res, 404, { code: "wave_off" });
+  const raw = Buffer.concat(chunks);
+  if (!waveSignatureOk(raw, req.headers["wave-signature"], req.headers.authorization)) {
+    console.warn("[wave] webhook refusé : signature invalide");
+    return json(res, 401, { code: "bad_signature" });
+  }
+  let ev;
+  try { ev = JSON.parse(raw.toString("utf8")); } catch { return json(res, 400, { code: "bad_request" }); }
+  try {
+    if (ev?.type === "checkout.session.completed") await waveSettle(ev.data, "webhook");
+    else if (ev?.type === "test.test_event") console.log("[wave] webhook de test reçu ✓");
+  } catch (e) {
+    console.error("[wave] webhook non traité (Wave réessaiera) :", e.message);
+    return json(res, 503, { code: "retry" });
+  }
   json(res, 200, { ok: true });
 }
 
@@ -906,6 +1057,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/api/premium/info") return premiumInfo(req, res);
     if (req.method === "POST" && url.pathname === "/api/premium/request") return await premiumRequest(req, res);
+    if (req.method === "POST" && url.pathname === "/api/premium/wave") return await waveStart(req, res);
+    if (req.method === "POST" && url.pathname === "/api/premium/wave/check") return await waveCheck(req, res);
+    if (req.method === "POST" && url.pathname === "/api/wave/webhook") return await waveWebhook(req, res);
     if (url.pathname.startsWith("/api/admin/")) return await adminApi(req, res, url);
     if (req.method === "GET" && url.pathname === "/api/contact") {
       return json(res, 200, { email: CONTACT_EMAIL, whatsapp: CONTACT_WHATSAPP || null, price: PREMIUM_PRICE, freeDaily: FREE_DAILY });
@@ -960,6 +1114,15 @@ async function selfCheck() {
       console.log(`[vérif] Script Google OK — e-mails encore disponibles aujourd'hui : ${d.quota}`);
     } catch (e) {
       console.error("[vérif] Script Google injoignable :", e.message);
+    }
+  }
+  if (WAVE_API_KEY && !MEMBERS) console.error("[vérif] Clé Wave présente mais base des comptes absente : paiement Wave automatique désactivé.");
+  if (WAVE_AUTO) {
+    try {
+      await waveApi("GET", "/v1/checkout/sessions/search?client_reference=verification");
+      console.log(`[vérif] Clé Wave OK — paiement Wave automatique actif${WAVE_WEBHOOK_SECRET ? " (avec webhook)" : " (sans webhook : activation au retour sur la page)"}.`);
+    } catch (e) {
+      console.error(`[vérif] Clé Wave ${e.status === 401 || e.status === 403 ? "REFUSÉE" : "injoignable"} :`, e.message);
     }
   }
 }

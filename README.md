@@ -49,6 +49,15 @@ politique de confidentialité sur `/confidentialite`.
 - `/ecoles` : offre pour les écoles, contact WhatsApp (`CONTACT_WHATSAPP`) et e-mail (`CONTACT_EMAIL`).
 - Prix : `PREMIUM_PRICE` (FCFA par mois).
 
+### Wave automatique (API Checkout de Wave Business)
+
+Avec `WAVE_API_KEY` (clé créée dans business.wave.com > Développeurs, autorisation « Checkout », sans signature des requêtes), le bouton Wave crée un paiement Wave et le Premium s'active tout seul :
+
+- au retour sur `/premium?wave=ok`, le serveur demande à Wave si la session est payée ;
+- en plus, avec `WAVE_WEBHOOK_SECRET`, Wave prévient le serveur sur `https://<site>/api/wave/webhook` (événement `checkout.session.completed`, méthode « Signing secret »), même si la personne ne revient pas sur la page.
+
+Chaque session Wave n'active qu'un mois, une seule fois (`stars_wave_paid` dans Supabase, référence `auto:<session>`). La référence envoyée à Wave est chiffrée : Wave ne voit pas l'e-mail. Si Wave ne répond pas, la page revient au lien marchand `PAY_WAVE_LINK` validé à la main. Sans clé, rien ne change.
+
 ## Inscription par code Gmail
 
 Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.

@@ -88,8 +88,14 @@
     <a class="btn" href="/">Se connecter ou s'inscrire</a>
   </section>
 
+  <section class="card" id="waveCard" hidden>
+    <h2 id="waveTitle">⏳ Vérification de ton paiement Wave…</h2>
+    <p id="waveText">Quelques secondes : ne ferme pas cette page.</p>
+    <button class="btn ghost" type="button" id="waveRetry" hidden>Vérifier à nouveau</button>
+  </section>
+
   <section class="card" id="activeCard" hidden>
-    <h2 class="ok">⭐ Ton Premium est actif</h2>
+    <h2 class="ok" id="activeTitle">⭐ Ton Premium est actif</h2>
     <p id="activeText"></p>
     <button class="btn ghost" type="button" id="extendBtn">Prolonger mon Premium</button>
   </section>
@@ -124,6 +130,7 @@
       <div class="copied" id="copiedTxt" hidden>✓ Numéro copié : colle-le dans le service</div>
       <a class="btn" id="openApp" href="#">Ouvrir</a>
       <p class="how" id="howTxt"></p>
+      <div class="err" id="payErr" role="alert"></div>
       <button class="btn small ghost" type="button" id="copyNumber" style="justify-self:center">Copier le numéro</button>
     </div>
   </section>
@@ -184,21 +191,119 @@
     const to = $("payTo"); to.textContent = "";
     const amount = document.createElement("span"); amount.className = "amount"; amount.textContent = amountLabel;
     const name = document.createElement("strong"); name.textContent = m.label;
-    if (m.direct) to.append("Paie ", amount, " avec ", name, " : le paiement s'ouvre directement dans l'appli.");
+    if (m.auto) to.append("Paie ", amount, " avec ", name, " : ton Premium s'active tout seul dès que Wave confirme.");
+    else if (m.direct) to.append("Paie ", amount, " avec ", name, " : le paiement s'ouvre directement dans l'appli.");
     else to.append("Envoie ", amount, " par ", name, " au numéro :");
     $("openApp").href = m.open || "#";
     $("openApp").textContent = m.openLabel || ("Ouvrir " + m.label);
-    $("openApp").hidden = !m.open;
+    $("openApp").hidden = !m.open && !m.auto;
     $("howTxt").textContent = m.how || "";
+    $("payErr").textContent = "";
     $("copiedTxt").hidden = true;
     $("paybox").hidden = false;
-    $("step2").hidden = false;
+    // Paiement Wave automatique : pas besoin de formulaire « J'ai payé ».
+    $("step2").hidden = !!m.auto;
     if (go) {
+      if (m.auto) { if (onPhone) startWave(); return; }
       if (!m.direct) await copyNumber(m);
       if (onPhone && m.open) window.location.href = m.open;
     }
   }
-  $("openApp").addEventListener("click", () => { if (method) copyNumber(method); });
+  $("openApp").addEventListener("click", e => {
+    if (method && method.auto) { e.preventDefault(); startWave(); return; }
+    if (method) copyNumber(method);
+  });
+
+  // ---- Paiement Wave automatique ----
+  const WAVE_KEY = "starsWave";
+  const saveWave = id => { try { localStorage.setItem(WAVE_KEY, JSON.stringify({ id, t: Date.now() })); } catch (e) {} };
+  const forgetWave = () => { try { localStorage.removeItem(WAVE_KEY); } catch (e) {} };
+  function savedWave() {
+    try {
+      const s = JSON.parse(localStorage.getItem(WAVE_KEY) || "null");
+      if (s && s.id && Date.now() - s.t < 2 * 3600_000) return s;
+    } catch (e) {}
+    forgetWave();
+    return null;
+  }
+  let starting = false;
+  async function startWave() {
+    if (starting || !method || !method.auto) return;
+    starting = true;
+    const m = method, btn = $("openApp");
+    btn.textContent = "Ouverture de Wave…"; $("payErr").textContent = "";
+    let ok = false, data = {};
+    try {
+      const r = await fetch("/api/premium/wave", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      data = await r.json().catch(() => ({})); ok = r.ok;
+    } catch (e) {}
+    starting = false;
+    if (ok && data.url) { saveWave(data.id); window.location.href = data.url; return; }
+    btn.textContent = m.openLabel;
+    if (data.code === "auth_required") { $("payErr").textContent = "Ta session a expiré : reconnecte-toi."; return; }
+    if (data.code === "rate_limited") { $("payErr").textContent = "Trop d'essais. Réessaie dans une heure."; return; }
+    // Wave ne répond pas : on propose le paiement Wave habituel (validé à la main).
+    if (m.manual) {
+      await pick(Object.assign({}, m, m.manual, { auto: false, manual: null }), false);
+      $("payErr").textContent = "Le paiement automatique ne répond pas pour l'instant. Paie avec Wave ci-dessous, puis envoie la référence du reçu.";
+      return;
+    }
+    $("payErr").textContent = "Wave ne répond pas pour l'instant. Réessaie dans un instant.";
+  }
+
+  function fmtDate(d) { return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }); }
+  function showActive(until, paid) {
+    hide("waveCard", "perks", "step1", "step2", "pendingCard", "noMethods", "doneCard");
+    $("activeTitle").textContent = paid ? "✓ Paiement reçu : ton Premium est actif" : "⭐ Ton Premium est actif";
+    $("activeText").textContent = "Messages illimités jusqu'au " + fmtDate(until) + ".";
+    show("activeCard");
+  }
+  // Date de fin du Premium si elle a avancé (activé ou prolongé), sinon null.
+  async function premiumNow(before) {
+    try {
+      const r = await fetch("/api/me");
+      if (r.ok) { const me = await r.json(); if (me.premiumUntil && new Date(me.premiumUntil) > (before ? new Date(before) : new Date())) return me.premiumUntil; }
+    } catch (e) {}
+    return null;
+  }
+  // Demande à Wave (via le serveur) si le paiement est fait. wait = on revient de Wave : on patiente un peu.
+  async function checkWave(id, wait, before) {
+    const tries = wait ? 12 : 1;
+    for (let i = 0; i < tries; i++) {
+      if (i) await new Promise(r => setTimeout(r, 2500));
+      let r = { ok: false }, d = {};
+      try {
+        r = await fetch("/api/premium/wave/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(id ? { id } : {}) });
+        d = await r.json().catch(() => ({}));
+      } catch (e) {}
+      if (r.ok && d.status === "succeeded" && d.premiumUntil) return { paid: true, until: d.premiumUntil };
+      if (r.ok && (d.checkout === "expired" || d.status === "cancelled")) return { over: true };
+      if (wait) { const until = await premiumNow(before); if (until) return { paid: true, until }; } // activé par le webhook
+      else if (!r.ok) return { over: d.code === "no_session" };
+    }
+    return {};
+  }
+  let waveBefore = null;
+  async function afterWave(id, before) {
+    if (before !== undefined) waveBefore = before;
+    hide("perks", "activeCard"); show("waveCard"); $("waveRetry").hidden = true;
+    $("waveTitle").textContent = "⏳ Vérification de ton paiement Wave…";
+    $("waveText").textContent = "Quelques secondes : ne ferme pas cette page.";
+    const r = await checkWave(id, true, waveBefore);
+    if (r.paid) { forgetWave(); showActive(r.until, true); return; }
+    if (r.over) { waveFailed(); return; }
+    $("waveTitle").textContent = "⏳ Paiement en cours de confirmation";
+    $("waveText").textContent = "Wave n'a pas encore confirmé. Si tu as bien payé, ton Premium s'activera tout seul : reviens sur cette page dans quelques minutes.";
+    $("waveRetry").hidden = false;
+  }
+  function waveFailed() {
+    forgetWave();
+    show("waveCard"); $("waveRetry").hidden = true;
+    $("waveTitle").textContent = "Paiement Wave non terminé";
+    $("waveText").textContent = "Le paiement n'a pas abouti ou a expiré. Tu peux réessayer ci-dessous.";
+    show("perks"); showPayment();
+  }
+  $("waveRetry").addEventListener("click", () => afterWave((savedWave() || {}).id));
 
   function showPayment() {
     hide("activeCard");
@@ -266,10 +371,19 @@
       show("helpLine");
     }
     const until = me.premiumUntil ? new Date(me.premiumUntil) : null;
-    if (until && until > new Date()) {
-      $("activeText").textContent = "Messages illimités jusqu'au " + until.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) + ".";
-      show("activeCard");
-      return;
+    // Retour de Wave : /premium?wave=ok (payé) ou ?wave=erreur (pas payé).
+    const back = new URLSearchParams(location.search).get("wave");
+    if (back) history.replaceState(null, "", location.pathname);
+    const autoWave = info.methods && info.methods.some(m => m.auto);
+    const saved = savedWave();
+    const active = !!(until && until > new Date());
+    if (autoWave && back === "ok") { await afterWave(saved && saved.id, active ? me.premiumUntil : null); return; }
+    if (back === "erreur") { waveFailed(); return; }
+    if (active) { showActive(me.premiumUntil, false); return; }
+    if (autoWave && saved) { // la personne revient sur la page : le paiement lancé plus tôt est-il fait ?
+      const r = await checkWave(saved.id, false);
+      if (r.paid) { forgetWave(); showActive(r.until, true); return; }
+      if (r.over) forgetWave();
     }
     show("perks");
     if (me.pending > 0) { show("pendingCard"); return; }
