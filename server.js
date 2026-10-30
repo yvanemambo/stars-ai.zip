@@ -23,9 +23,16 @@ const DAILY_LIMIT = Number(process.env.DAILY_LIMIT) || 500; // messages / jour p
 const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com";
 
-// Modèles de secours si le modèle choisi n'existe plus (erreur 404).
+// Modèles de secours si le modèle choisi n'existe plus (erreur 404) ou ne répond pas.
 const CLAUDE_FALLBACKS = ["claude-haiku-5-5", "claude-sonnet-5-5"];
-const GEMINI_FALLBACKS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-3-flash-preview"];
+const GEMINI_FALLBACKS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3-flash-preview"];
+const FIRST_BYTE_TIMEOUT_MS = Number(process.env.FIRST_BYTE_TIMEOUT_MS) || 40000;
+
+// Combine l'annulation par le visiteur et un délai maximum.
+function withTimeout(signal, ms) {
+  const t = AbortSignal.timeout(ms);
+  return signal && AbortSignal.any ? AbortSignal.any([signal, t]) : t;
+}
 
 const provider = ANTHROPIC_API_KEY ? "claude" : GEMINI_API_KEY ? "gemini" : null;
 
@@ -151,16 +158,23 @@ async function callGemini(messages, signal) {
   const models = [GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)];
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
   for (const model of models) {
-    const res = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
-      method: "POST",
-      signal,
-      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: rules() }] },
-        contents,
-        generationConfig: { maxOutputTokens: MAX_TOKENS }
-      })
-    });
+    let res;
+    try {
+      res = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+        method: "POST",
+        signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
+        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: rules() }] },
+          contents,
+          generationConfig: { maxOutputTokens: MAX_TOKENS }
+        })
+      });
+    } catch (e) {
+      if (signal.aborted) throw e;
+      console.warn(`[gemini] ${model} ne répond pas (${e.name}), essai suivant`);
+      continue;
+    }
     if (res.ok) return { res, model };
     const detail = await res.text().catch(() => "");
     if (res.status === 404) { console.warn(`[gemini] modèle ${model} introuvable, essai suivant`); continue; }
@@ -287,16 +301,24 @@ async function selfCheck() {
       const names = (JSON.parse(body).models || []).map(m => m.name.replace("models/", ""));
       const flash = names.filter(n => n.includes("flash")).slice(0, 12);
       console.log(`[vérif] Clé Gemini OK — ${names.length} modèles. Flash : ${flash.join(", ")}`);
-      const model = names.includes(GEMINI_MODEL) ? GEMINI_MODEL : GEMINI_FALLBACKS.find(m => names.includes(m)) || GEMINI_MODEL;
-      const g = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Réponds seulement : OK" }] }], generationConfig: { maxOutputTokens: 400 } })
-      });
-      const gb = await g.text();
-      if (!g.ok) return console.error(`[vérif] Gemini ne répond pas (HTTP ${g.status}) : ${gb.slice(0, 300)}`);
-      const txt = (JSON.parse(gb).candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || "").join("").trim();
-      console.log(`[vérif] Gemini (${model}) répond : « ${txt.slice(0, 60)} »`);
+      const tests = [GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)].filter(m => names.includes(m));
+      for (const model of tests) {
+        const t0 = Date.now();
+        try {
+          const g = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+            method: "POST",
+            signal: AbortSignal.timeout(30000),
+            headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Réponds seulement : OK" }] }], generationConfig: { maxOutputTokens: 400 } })
+          });
+          const gb = await g.text();
+          if (!g.ok) { console.error(`[vérif] ${model} : HTTP ${g.status} en ${Date.now() - t0} ms : ${gb.slice(0, 300)}`); continue; }
+          const txt = (JSON.parse(gb).candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || "").join("").trim();
+          console.log(`[vérif] ${model} répond en ${Date.now() - t0} ms : « ${txt.slice(0, 60)} »`);
+        } catch (e) {
+          console.error(`[vérif] ${model} : pas de réponse (${e.name}) après ${Date.now() - t0} ms`);
+        }
+      }
     } else if (provider === "claude") {
       const r = await fetch(`${ANTHROPIC_BASE_URL}/v1/models`, { headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" } });
       const body = await r.text();
