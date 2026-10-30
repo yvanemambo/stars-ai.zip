@@ -52,7 +52,7 @@ const PAY_OPEN = {
   moov: "tel:*155%23"
 };
 const PAY_HOW = {
-  wave: WAVE_LINK ? "Wave s'ouvre directement sur le paiement : vérifie le montant et confirme."
+  wave: WAVE_LINK ? "Wave s'ouvre directement sur l'envoi vers STARS AI : entre le montant et confirme."
     : "Wave s'ouvre (touche « Ouvrir » si le Play Store s'affiche). Choisis « Envoyer », colle le numéro et mets le montant.",
   orange: "Ton téléphone compose #144# : choisis « Transfert d'argent », colle le numéro et entre le montant.",
   mtn: "Ton téléphone compose *133# : choisis « Transfert », colle le numéro et entre le montant.",
