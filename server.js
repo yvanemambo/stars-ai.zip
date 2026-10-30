@@ -34,6 +34,11 @@ const SESSION_SECRET = env("SESSION_SECRET") || crypto.randomBytes(32).toString(
 const SESSION_DAYS = Number(env("SESSION_DAYS")) || 30;
 const CODE_MINUTES = 10;
 const CODE_ATTEMPTS = 5;
+// Liste des comptes (Supabase) : sépare « S'inscrire » et « Se connecter »
+const SUPABASE_URL = env("SUPABASE_URL").replace(/\/+$/, "");
+const SUPABASE_KEY = env("SUPABASE_KEY");
+const MEMBERS_SECRET = env("MEMBERS_SECRET");
+const MEMBERS = !!(SUPABASE_URL && SUPABASE_KEY && MEMBERS_SECRET);
 if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les connexions seront perdues à chaque redémarrage.");
 
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
@@ -155,6 +160,30 @@ async function callMailer(payload) {
   return data;
 }
 
+// ---------- Comptes (Supabase) ----------
+async function rpc(fn, args) {
+  const headers = { "content-type": "application/json", apikey: SUPABASE_KEY };
+  if (SUPABASE_KEY.startsWith("eyJ")) headers.authorization = "Bearer " + SUPABASE_KEY;
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST", headers, signal: AbortSignal.timeout(10000),
+    body: JSON.stringify({ p_secret: MEMBERS_SECRET, ...args })
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`Supabase ${fn} HTTP ${r.status} : ${text.slice(0, 200)}`);
+  return text ? JSON.parse(text) : null;
+}
+async function findMember(email) {
+  const rows = await rpc("stars_member_get", { p_email: email });
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+const ensured = new Set();
+function ensureMember(user) {
+  if (!MEMBERS || ensured.has(user.email)) return;
+  ensured.add(user.email);
+  rpc("stars_member_ensure", { p_email: user.email, p_name: user.name || "" })
+    .catch(e => { ensured.delete(user.email); console.warn("[comptes]", e.message); });
+}
+
 const EMAIL_RE = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[a-z]{2,}$/i;
 function cleanName(s) {
   return String(s || "").replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/^[=+\-@]+/, "").trim().slice(0, 40);
@@ -163,10 +192,24 @@ function cleanName(s) {
 async function authStart(req, res, ip) {
   if (!AUTH_REQUIRED) return json(res, 400, { code: "auth_disabled" });
   const body = await readJson(req);
+  const mode = body?.mode === "login" ? "login" : "signup";
   const email = String(body?.email || "").trim().toLowerCase();
-  const name = cleanName(body?.name);
-  if (!name) return json(res, 400, { code: "bad_name" });
+  let name = cleanName(body?.name);
   if (email.length > 254 || !EMAIL_RE.test(email)) return json(res, 400, { code: "bad_email" });
+  if (mode === "signup" && !name) return json(res, 400, { code: "bad_name" });
+
+  // Inscription : refusée si le compte existe déjà. Connexion : refusée si le compte n'existe pas.
+  if (MEMBERS) {
+    if (!allow("lookup-ip:" + ip, 20, 10 * 60_000)) return json(res, 429, { code: "too_many_codes" });
+    let member;
+    try { member = await findMember(email); }
+    catch (e) { console.error("[comptes]", e.message); return json(res, 503, { code: "members_down" }); }
+    if (mode === "signup" && member) return json(res, 409, { code: "already_registered" });
+    if (mode === "login" && !member) return json(res, 404, { code: "not_registered" });
+    if (member) name = cleanName(member.name) || name;
+  }
+  if (!name) name = cleanName(email.split("@")[0]) || "ami";
+
   if (!allow("start-ip:" + ip, 6, 10 * 60_000) || !allow("start-mail:" + email, 3, 10 * 60_000)) return json(res, 429, { code: "too_many_codes" });
 
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
@@ -199,6 +242,14 @@ async function authVerify(req, res, ip) {
     return json(res, 400, { code: "bad_code", left: Math.max(0, CODE_ATTEMPTS - a.n) });
   }
   a.used = true; attempts.set(peek.j, a);
+  if (MEMBERS) {
+    try {
+      const rows = await rpc("stars_member_login", { p_email: p.e, p_name: p.n });
+      if (Array.isArray(rows) && rows[0]?.name) p.n = cleanName(rows[0].name) || p.n;
+      if (rows?.[0]?.created) console.log(`[comptes] nouveau compte : ${p.e.replace(/^(.).*(@.*)$/, "$1***$2")}`);
+      ensured.add(p.e);
+    } catch (e) { console.error("[comptes] enregistrement impossible :", e.message); }
+  }
   const sess = makeToken("sess", { e: p.e, n: p.n, x: Date.now() + SESSION_DAYS * 86_400_000 });
   res.setHeader("set-cookie", sessionCookie(req, sess, SESSION_DAYS * 86_400));
   callMailer({ action: "verified", email: p.e, name: p.n }).catch(e => console.warn("[auth] note dans la Google Sheet impossible :", e.message));
@@ -462,6 +513,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/status") return json(res, 200, { ready: !!provider, provider, authRequired: AUTH_REQUIRED });
     if (req.method === "GET" && url.pathname === "/api/me") {
       const u = currentUser(req);
+      if (u) ensureMember(u);
       return u ? json(res, 200, u) : json(res, 401, { code: "auth_required" });
     }
     if (req.method === "POST" && url.pathname === "/api/auth/start") return await authStart(req, res, ip);
@@ -511,6 +563,14 @@ async function selfCheck() {
     }
   } catch (e) {
     console.error("[vérif] Impossible de joindre l'IA :", e.message);
+  }
+  if (MEMBERS) {
+    try {
+      await findMember("verification@example.com");
+      console.log("[vérif] Base des comptes Supabase OK.");
+    } catch (e) {
+      console.error("[vérif] Base des comptes Supabase injoignable :", e.message);
+    }
   }
   if (MAIL_WEBHOOK_URL) {
     try {

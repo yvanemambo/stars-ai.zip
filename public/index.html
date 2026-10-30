@@ -210,6 +210,20 @@ footer { padding-block: 8px 14px; }
 .link:disabled { opacity: .55; cursor: default; text-decoration: none; }
 .err { color: var(--danger); font-size: 13px; }
 .err:empty { display: none; }
+.info { color: var(--star); font-size: 13px; line-height: 1.5; }
+.info:empty { display: none; }
+.tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
+  background: rgba(5, 8, 24, .6); border: 1px solid var(--line); border-radius: 14px;
+}
+.tabs button {
+  font: 600 14px var(--f-body); color: var(--ink-dim); background: transparent;
+  border: 0; border-radius: 10px; padding: 10px 8px; cursor: pointer;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--user); color: var(--ink); }
+.tabs button:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.switch { margin: 0; font-size: 13px; color: var(--ink-dim); text-align: center; }
 
 @media (prefers-reduced-motion: reduce) {
   .thinking i { animation: none; opacity: .8; }
@@ -254,10 +268,14 @@ footer { padding-block: 8px 14px; }
 
     <section class="auth" id="auth" hidden>
       <div id="step1">
-        <h2>Rejoins <em>STARS AI</em></h2>
-        <p>Inscris-toi avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.</p>
+        <div class="tabs" role="tablist" aria-label="Inscription ou connexion">
+          <button type="button" role="tab" id="tabSignup" aria-selected="true">S'inscrire</button>
+          <button type="button" role="tab" id="tabLogin" aria-selected="false">Se connecter</button>
+        </div>
+        <h2 id="authTitle">Rejoins <em>STARS AI</em></h2>
+        <p id="authLead">Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.</p>
         <form class="card" id="startForm" novalidate>
-          <div class="field">
+          <div class="field" id="nameField">
             <label for="name">Prénom</label>
             <input id="name" autocomplete="given-name" maxlength="40" placeholder="Ton prénom">
           </div>
@@ -265,8 +283,10 @@ footer { padding-block: 8px 14px; }
             <label for="email">Adresse Gmail</label>
             <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="toi@gmail.com">
           </div>
+          <div class="info" id="info1" role="status"></div>
           <div class="err" id="err1" role="alert"></div>
           <button class="btn-star" id="startBtn" type="submit">Recevoir mon code</button>
+          <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
       </div>
       <div id="step2" hidden>
@@ -644,7 +664,43 @@ footer { padding-block: 8px 14px; }
   const resendBtn = document.getElementById("resend");
   let challenge = null, cooldown = null;
 
+  const info1 = document.getElementById("info1");
+  const nameField = document.getElementById("nameField");
+  const tabSignup = document.getElementById("tabSignup"), tabLogin = document.getElementById("tabLogin");
+  const LAST_EMAIL = "stars-ai-last-email";
+  let mode = "signup";
+  const lastEmail = () => { try { return localStorage.getItem(LAST_EMAIL) || ""; } catch (e) { return ""; } };
+
+  function setTitle(before, accent) {
+    const t = document.getElementById("authTitle");
+    t.textContent = before;
+    const em = document.createElement("em"); em.textContent = accent; t.appendChild(em);
+  }
+
+  function setMode(m, keepMessages) {
+    mode = m;
+    const login = m === "login";
+    tabSignup.setAttribute("aria-selected", String(!login));
+    tabLogin.setAttribute("aria-selected", String(login));
+    nameField.hidden = login;
+    if (login) setTitle("Content de te ", "revoir");
+    else setTitle("Rejoins ", "STARS AI");
+    document.getElementById("authLead").textContent = login
+      ? "Entre l'adresse Gmail de ton compte. On t'envoie un code à 6 chiffres pour te connecter."
+      : "Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.";
+    document.getElementById("switchText").textContent = login ? "Pas encore de compte ?" : "Déjà un compte ?";
+    document.getElementById("switchBtn").textContent = login ? "S'inscrire" : "Se connecter";
+    if (!keepMessages) { err1.textContent = ""; info1.textContent = ""; }
+  }
+  tabSignup.addEventListener("click", () => { setMode("signup"); nameIn.focus(); });
+  tabLogin.addEventListener("click", () => { setMode("login"); emailIn.focus(); });
+  document.getElementById("switchBtn").addEventListener("click", () => {
+    setMode(mode === "login" ? "signup" : "login");
+    (mode === "signup" ? nameIn : emailIn).focus();
+  });
+
   const AUTH_ERRORS = {
+    members_down: "Le service est momentanément indisponible. Réessaie dans un instant.",
     bad_name: "Écris ton prénom.",
     bad_email: "Cette adresse e-mail ne semble pas valide.",
     too_many_codes: "Trop de codes demandés. Attends 10 minutes puis réessaie.",
@@ -673,8 +729,11 @@ footer { padding-block: 8px 14px; }
     thread.querySelectorAll(".msg").forEach(n => n.remove());
     composerWrap.hidden = true; newChat.hidden = true; account.hidden = true;
     auth.hidden = false; step1.hidden = false; step2.hidden = true;
+    const known = lastEmail();
+    setMode(known ? "login" : "signup");
+    if (known && !emailIn.value) emailIn.value = known;
     err1.textContent = message || "";
-    (nameIn.value ? emailIn : nameIn).focus();
+    (mode === "login" ? emailIn : nameIn.value ? emailIn : nameIn).focus();
   }
 
   function showChat() {
@@ -707,14 +766,28 @@ footer { padding-block: 8px 14px; }
 
   async function requestCode(errBox, btn) {
     const name = nameIn.value.trim(), email = emailIn.value.trim();
-    errBox.textContent = "";
-    if (!name) { errBox.textContent = AUTH_ERRORS.bad_name; nameIn.focus(); return; }
+    errBox.textContent = ""; info1.textContent = "";
+    if (mode === "signup" && !name) { errBox.textContent = AUTH_ERRORS.bad_name; nameIn.focus(); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { errBox.textContent = AUTH_ERRORS.bad_email; emailIn.focus(); return; }
     const label = btn.textContent;
     btn.disabled = true; btn.textContent = "Envoi en cours…";
-    const { ok, data } = await post("/api/auth/start", { name, email });
+    const { ok, data } = await post("/api/auth/start", { mode, name, email });
     btn.disabled = false; btn.textContent = label;
-    if (!ok) { errBox.textContent = AUTH_ERRORS[data.code] || AUTH_ERRORS.mail_failed; return; }
+    if (!ok) {
+      if (data.code === "already_registered") {
+        step2.hidden = true; step1.hidden = false;
+        setMode("login", true);
+        info1.textContent = "Tu as déjà un compte avec cette adresse. Clique sur « Recevoir mon code » pour te connecter.";
+        startBtn.focus(); return;
+      }
+      if (data.code === "not_registered") {
+        step2.hidden = true; step1.hidden = false;
+        setMode("signup", true);
+        info1.textContent = "Aucun compte avec cette adresse. Inscris-toi : il ne manque que ton prénom.";
+        nameIn.focus(); return;
+      }
+      errBox.textContent = AUTH_ERRORS[data.code] || AUTH_ERRORS.mail_failed; return;
+    }
     challenge = data.token;
     document.getElementById("sentTo").textContent = data.email;
     step1.hidden = true; step2.hidden = false;
@@ -736,6 +809,7 @@ footer { padding-block: 8px 14px; }
       codeIn.select(); return;
     }
     me = data; challenge = null; clearInterval(cooldown);
+    try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
     showChat();
   }
 
@@ -765,6 +839,7 @@ footer { padding-block: 8px 14px; }
         if (r.ok) me = await r.json();
       } catch (e) {}
       if (!me) return showAuth("");
+      try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
     }
     showChat();
   })();

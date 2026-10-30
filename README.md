@@ -31,6 +31,10 @@ Les codes partent du Gmail du propriétaire grâce au script `google-script/Code
 | `MAIL_WEBHOOK_URL` | URL `/exec` du script Google (active l'inscription obligatoire) |
 | `MAIL_WEBHOOK_SECRET` | même valeur que `SECRET` dans le script |
 | `SESSION_SECRET` | clé qui signe les connexions (ne pas changer, sinon tout le monde est déconnecté) |
+| `SUPABASE_URL`, `SUPABASE_KEY` | projet Supabase « stars ai » (clé publishable) qui garde la liste des comptes |
+| `MEMBERS_SECRET` | clé vérifiée par les fonctions `stars_member_*` de Supabase (table `stars_members`) |
+
+Avec Supabase branché, « S'inscrire » refuse une adresse déjà inscrite et « Se connecter » refuse une adresse inconnue (la page bascule d'elle-même sur le bon onglet).
 
 Sans `MAIL_WEBHOOK_URL`, le chat reste ouvert à tous.
 
