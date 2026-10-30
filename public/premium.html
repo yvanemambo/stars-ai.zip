@@ -119,7 +119,7 @@
     <p>Choisis ton service :</p>
     <div class="methods" id="methods" role="group" aria-label="Service de paiement"></div>
     <div class="paybox" id="paybox" hidden>
-      <div class="to">Envoie <span class="amount" id="amountTxt">1 000 FCFA</span> par <strong id="methodName"></strong> au numéro :</div>
+      <div class="to" id="payTo">Envoie <span class="amount" id="amountTxt">1 000 FCFA</span> par <strong id="methodName"></strong> au numéro :</div>
       <div class="phone" id="payNumber"></div>
       <div class="copied" id="copiedTxt" hidden>✓ Numéro copié : colle-le dans le service</div>
       <a class="btn" id="openApp" href="#">Ouvrir</a>
@@ -158,7 +158,7 @@
   const fmt = n => Number(n).toLocaleString("fr-FR").replace(/ | /g, " ");
   const show = (...ids) => ids.forEach(id => { $(id).hidden = false; });
   const hide = (...ids) => ids.forEach(id => { $(id).hidden = true; });
-  let method = null, info = null;
+  let method = null, info = null, amountLabel = "1 000 FCFA";
 
   function contactHtml(i) {
     const parts = [];
@@ -178,8 +178,14 @@
   async function pick(m, go) {
     method = m;
     document.querySelectorAll(".method").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === m.id)));
-    $("methodName").textContent = m.label;
     $("payNumber").textContent = m.number;
+    // Lien marchand Wave : l'argent va sur le compte marchand, pas besoin de numéro.
+    $("payNumber").hidden = !!m.direct; $("copyNumber").hidden = !!m.direct;
+    const to = $("payTo"); to.textContent = "";
+    const amount = document.createElement("span"); amount.className = "amount"; amount.textContent = amountLabel;
+    const name = document.createElement("strong"); name.textContent = m.label;
+    if (m.direct) to.append("Paie ", amount, " avec ", name, " : le paiement s'ouvre directement dans l'appli.");
+    else to.append("Envoie ", amount, " par ", name, " au numéro :");
     $("openApp").href = m.open || "#";
     $("openApp").textContent = m.openLabel || ("Ouvrir " + m.label);
     $("openApp").hidden = !m.open;
@@ -188,7 +194,7 @@
     $("paybox").hidden = false;
     $("step2").hidden = false;
     if (go) {
-      await copyNumber(m);
+      if (!m.direct) await copyNumber(m);
       if (onPhone && m.open) window.location.href = m.open;
     }
   }
@@ -251,7 +257,8 @@
     if (!me) { show("needLogin"); return; }
     try { info = await (await fetch("/api/premium/info")).json(); } catch (e) { info = { methods: [], price: me.price || 1000, freeDaily: me.freeDaily || 25, contactEmail: "yvanemambo@gmail.com" }; }
     $("price").innerHTML = fmt(info.price) + " FCFA <small>/ mois</small>";
-    $("amountTxt").textContent = fmt(info.price) + " FCFA";
+    amountLabel = fmt(info.price) + " FCFA";
+    $("amountTxt").textContent = amountLabel;
     $("pendingAmount").textContent = fmt(info.price) + " FCFA";
     $("freeDaily").textContent = info.freeDaily;
     if (info.whatsapp || info.contactEmail) {

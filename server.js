@@ -45,6 +45,14 @@ const PREMIUM_PRICE = Number(env("PREMIUM_PRICE")) || 1000;
 // Toucher un service ouvre directement l'appli (Wave) ou le menu USSD (Orange #144#, MTN *133#, Moov *155#).
 const WAVE_LINK = /^https:\/\/([a-z0-9-]+\.)*wave\.com\//i.test(env("PAY_WAVE_LINK")) ? env("PAY_WAVE_LINK") : "";
 const WAVE_STORE = "https://play.google.com/store/apps/details?id=com.wave.personal";
+// Lien marchand Wave (pay.wave.com/m/…) : ouvre l'appli Wave directement, montant déjà rempli (on y met le prix du Premium).
+const WAVE_MERCHANT = (() => {
+  if (!WAVE_LINK) return "";
+  const u = new URL(WAVE_LINK);
+  if (u.hostname !== "pay.wave.com" || !u.pathname.startsWith("/m/")) return "";
+  u.searchParams.set("amount", String(PREMIUM_PRICE));
+  return u.toString();
+})();
 // Le lien du code QR Wave (qr.wave.com) n'est pas un site web : on le confie directement à l'appli Wave (Android).
 // Si l'appli ne sait pas l'ouvrir, Android affiche la page Play Store de Wave (bouton « Ouvrir »).
 function waveIntent(link) {
@@ -54,20 +62,22 @@ function waveIntent(link) {
   return "intent://" + u.host + u.pathname + u.search + "#Intent;scheme=https;package=com.wave.personal;action=android.intent.action.VIEW" + tail;
 }
 const PAY_OPEN = {
-  wave: waveIntent(WAVE_LINK),
+  wave: WAVE_MERCHANT || waveIntent(WAVE_LINK),
   orange: "tel:%23144%23",
   mtn: "tel:*133%23",
   moov: "tel:*155%23"
 };
 const PAY_HOW = {
-  wave: "Wave s'ouvre (si le Play Store s'affiche, touche « Ouvrir »). Envoie le montant au numéro copié, puis reviens ici.",
+  wave: WAVE_MERCHANT
+    ? "Wave s'ouvre directement avec le bon montant : confirme le paiement, puis reviens ici avec la référence du reçu Wave."
+    : "Wave s'ouvre (si le Play Store s'affiche, touche « Ouvrir »). Envoie le montant au numéro copié, puis reviens ici.",
   orange: "Ton téléphone compose #144# : choisis « Transfert d'argent », colle le numéro et entre le montant.",
   mtn: "Ton téléphone compose *133# : choisis « Transfert », colle le numéro et entre le montant.",
   moov: "Ton téléphone compose *155# : choisis « Transfert », colle le numéro et entre le montant."
 };
-const PAY_OPEN_LABEL = { wave: "Ouvrir Wave", orange: "Composer #144#", mtn: "Composer *133#", moov: "Composer *155#" };
-const PAY_METHODS = [["wave", "Wave", env("PAY_WAVE")], ["orange", "Orange Money", env("PAY_ORANGE")], ["mtn", "MTN MoMo", env("PAY_MTN")], ["moov", "Moov Money", env("PAY_MOOV")]]
-  .filter(m => m[2]).map(([id, label, number]) => ({ id, label, number, open: PAY_OPEN[id], openLabel: PAY_OPEN_LABEL[id], how: PAY_HOW[id] }));
+const PAY_OPEN_LABEL = { wave: WAVE_MERCHANT ? "Payer avec Wave" : "Ouvrir Wave", orange: "Composer #144#", mtn: "Composer *133#", moov: "Composer *155#" };
+const PAY_METHODS = [["wave", "Wave", env("PAY_WAVE") || (WAVE_MERCHANT ? "—" : "")], ["orange", "Orange Money", env("PAY_ORANGE")], ["mtn", "MTN MoMo", env("PAY_MTN")], ["moov", "Moov Money", env("PAY_MOOV")]]
+  .filter(m => m[2]).map(([id, label, number]) => ({ id, label, number, open: PAY_OPEN[id], openLabel: PAY_OPEN_LABEL[id], how: PAY_HOW[id], direct: id === "wave" && !!WAVE_MERCHANT }));
 const CONTACT_WHATSAPP = env("CONTACT_WHATSAPP").replace(/[^\d]/g, "");
 const CONTACT_EMAIL = env("CONTACT_EMAIL") || "yvanemambo@gmail.com";
 const ADMIN_EMAILS = new Set(env("ADMIN_EMAILS").toLowerCase().split(/[,\s]+/).filter(Boolean));
