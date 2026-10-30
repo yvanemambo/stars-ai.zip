@@ -224,6 +224,9 @@ footer { padding-block: 8px 14px; }
 .tabs button[aria-selected="true"] { background: var(--user); color: var(--ink); }
 .tabs button:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
 .switch { margin: 0; font-size: 13px; color: var(--ink-dim); text-align: center; }
+.label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.link.small { font-size: 12px; }
+.forgot { margin: -4px 0 0; text-align: right; font-size: 13px; }
 
 @media (prefers-reduced-motion: reduce) {
   .thinking i { animation: none; opacity: .8; }
@@ -283,9 +286,14 @@ footer { padding-block: 8px 14px; }
             <label for="email">Adresse Gmail</label>
             <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="toi@gmail.com">
           </div>
+          <div class="field" id="passField">
+            <div class="label-row"><label for="pass">Mot de passe</label><button class="link small" id="togglePass" type="button" aria-controls="pass">Afficher</button></div>
+            <input id="pass" type="password" autocomplete="new-password" maxlength="200" placeholder="Au moins 8 caractères">
+          </div>
+          <p class="forgot" id="forgotLine" hidden><button class="link" id="forgotBtn" type="button">Mot de passe oublié ?</button></p>
           <div class="info" id="info1" role="status"></div>
           <div class="err" id="err1" role="alert"></div>
-          <button class="btn-star" id="startBtn" type="submit">Recevoir mon code</button>
+          <button class="btn-star" id="startBtn" type="submit">Créer mon compte</button>
           <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
       </div>
@@ -296,6 +304,10 @@ footer { padding-block: 8px 14px; }
           <div class="field">
             <label for="code">Code à 6 chiffres</label>
             <input id="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
+          </div>
+          <div class="field" id="newPassField" hidden>
+            <div class="label-row"><label for="newPass">Nouveau mot de passe</label><button class="link small" id="toggleNewPass" type="button" aria-controls="newPass">Afficher</button></div>
+            <input id="newPass" type="password" autocomplete="new-password" maxlength="200" placeholder="Au moins 8 caractères">
           </div>
           <div class="err" id="err2" role="alert"></div>
           <button class="btn-star" id="verifyBtn" type="submit">Valider</button>
@@ -677,27 +689,88 @@ footer { padding-block: 8px 14px; }
     const em = document.createElement("em"); em.textContent = accent; t.appendChild(em);
   }
 
+  const passIn = document.getElementById("pass"), newPassIn = document.getElementById("newPass");
+  const passField = document.getElementById("passField"), newPassField = document.getElementById("newPassField");
+  const forgotLine = document.getElementById("forgotLine");
+  let passwordsOn = true, passwordMin = 8;
+
+  // Three screens share one form: "signup", "login" (Gmail + mot de passe) and "reset" (mot de passe oublié).
   function setMode(m, keepMessages) {
     mode = m;
-    const login = m === "login";
-    tabSignup.setAttribute("aria-selected", String(!login));
-    tabLogin.setAttribute("aria-selected", String(login));
-    nameField.hidden = login;
-    if (login) setTitle("Content de te ", "revoir");
-    else setTitle("Rejoins ", "STARS AI");
-    document.getElementById("authLead").textContent = login
-      ? "Entre l'adresse Gmail de ton compte. On t'envoie un code à 6 chiffres pour te connecter."
-      : "Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.";
-    document.getElementById("switchText").textContent = login ? "Pas encore de compte ?" : "Déjà un compte ?";
-    document.getElementById("switchBtn").textContent = login ? "S'inscrire" : "Se connecter";
+    const signup = m === "signup", login = m === "login", reset = m === "reset";
+    tabSignup.setAttribute("aria-selected", String(signup));
+    tabLogin.setAttribute("aria-selected", String(!signup));
+    nameField.hidden = !signup;
+    passField.hidden = reset || !passwordsOn;
+    forgotLine.hidden = !login || !passwordsOn;
+    passIn.autocomplete = login ? "current-password" : "new-password";
+    passIn.placeholder = login ? "Ton mot de passe" : "Au moins " + passwordMin + " caractères";
+    if (signup) setTitle("Rejoins ", "STARS AI");
+    else if (login) setTitle("Content de te ", "revoir");
+    else setTitle("Mot de passe ", "oublié");
+    document.getElementById("authLead").textContent = signup
+      ? (passwordsOn
+          ? "Choisis ton prénom, ton adresse Gmail et un mot de passe. On t'enverra un code une seule fois pour confirmer ton adresse."
+          : "Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.")
+      : login
+        ? (passwordsOn ? "Entre ton adresse Gmail et ton mot de passe." : "Entre l'adresse Gmail de ton compte. On t'envoie un code à 6 chiffres pour te connecter.")
+        : "Entre ton adresse Gmail : on t'envoie un code pour choisir un nouveau mot de passe.";
+    startBtn.textContent = signup ? "Créer mon compte" : login ? (passwordsOn ? "Se connecter" : "Recevoir mon code") : "Recevoir un code";
+    document.getElementById("switchText").textContent = signup ? "Déjà un compte ?" : reset ? "" : "Pas encore de compte ?";
+    document.getElementById("switchBtn").textContent = signup ? "Se connecter" : reset ? "← Retour à la connexion" : "S'inscrire";
     if (!keepMessages) { err1.textContent = ""; info1.textContent = ""; }
   }
   tabSignup.addEventListener("click", () => { setMode("signup"); nameIn.focus(); });
-  tabLogin.addEventListener("click", () => { setMode("login"); emailIn.focus(); });
+  tabLogin.addEventListener("click", () => { setMode("login"); (emailIn.value ? passIn : emailIn).focus(); });
   document.getElementById("switchBtn").addEventListener("click", () => {
-    setMode(mode === "login" ? "signup" : "login");
-    (mode === "signup" ? nameIn : emailIn).focus();
+    setMode(mode === "signup" ? "login" : mode === "reset" ? "login" : "signup");
+    (mode === "signup" ? nameIn : emailIn.value ? passIn : emailIn).focus();
   });
+  document.getElementById("forgotBtn").addEventListener("click", () => { setMode("reset"); emailIn.focus(); });
+  for (const [btnId, field] of [["togglePass", passIn], ["toggleNewPass", newPassIn]]) {
+    const btn = document.getElementById(btnId);
+    btn.addEventListener("click", () => {
+      const show = field.type === "password";
+      field.type = show ? "text" : "password";
+      btn.textContent = show ? "Masquer" : "Afficher";
+      field.focus();
+    });
+  }
+
+  async function loginWithPassword() {
+    const email = emailIn.value.trim(), password = passIn.value;
+    err1.textContent = ""; info1.textContent = "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err1.textContent = AUTH_ERRORS.bad_email; emailIn.focus(); return; }
+    if (!password) { err1.textContent = "Écris ton mot de passe."; passIn.focus(); return; }
+    startBtn.disabled = true; startBtn.textContent = "Connexion…";
+    const { ok, data } = await post("/api/auth/password", { email, password });
+    startBtn.disabled = false; startBtn.textContent = "Se connecter";
+    if (ok) { loggedIn(data); return; }
+    if (data.code === "not_registered") {
+      setMode("signup", true);
+      info1.textContent = "Aucun compte avec cette adresse. Inscris-toi : il ne manque que ton prénom.";
+      nameIn.focus(); return;
+    }
+    if (data.code === "no_password") {
+      setMode("reset", true);
+      info1.textContent = "Ton compte n'a pas encore de mot de passe. Clique sur « Recevoir un code » pour en créer un.";
+      startBtn.focus(); return;
+    }
+    err1.textContent = AUTH_ERRORS[data.code] || "Une erreur est survenue. Réessaie.";
+    if (data.code === "bad_password") passIn.select();
+  }
+
+  for (const el of [nameIn, emailIn, passIn]) el.addEventListener("input", () => { err1.textContent = ""; });
+  for (const el of [codeIn, newPassIn]) el.addEventListener("input", () => { err2.textContent = ""; });
+
+  function loggedIn(data) {
+    me = data; challenge = null; clearInterval(cooldown);
+    passIn.value = ""; newPassIn.value = ""; codeIn.value = "";
+    passIn.type = newPassIn.type = "password";
+    document.getElementById("togglePass").textContent = document.getElementById("toggleNewPass").textContent = "Afficher";
+    try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
+    showChat();
+  }
 
   const AUTH_ERRORS = {
     members_down: "Le service est momentanément indisponible. Réessaie dans un instant.",
@@ -711,6 +784,9 @@ footer { padding-block: 8px 14px; }
     too_many_attempts: "Trop d'essais. Clique sur « Renvoyer le code ».",
     bad_token: "Clique sur « Renvoyer le code ».",
     auth_disabled: "L'inscription n'est pas encore ouverte.",
+    weak_password: "Le mot de passe doit contenir au moins 8 caractères.",
+    bad_password: "Mot de passe incorrect. Réessaie, ou clique sur « Mot de passe oublié ? ».",
+    too_many_passwords: "Trop d'essais. Attends 15 minutes, ou clique sur « Mot de passe oublié ? ».",
     network: "Connexion impossible. Vérifie ton internet et réessaie."
   };
 
@@ -733,7 +809,7 @@ footer { padding-block: 8px 14px; }
     setMode(known ? "login" : "signup");
     if (known && !emailIn.value) emailIn.value = known;
     err1.textContent = message || "";
-    (mode === "login" ? emailIn : nameIn.value ? emailIn : nameIn).focus();
+    (mode === "login" ? (emailIn.value && passwordsOn ? passIn : emailIn) : nameIn.value ? emailIn : nameIn).focus();
   }
 
   function showChat() {
@@ -765,20 +841,25 @@ footer { padding-block: 8px 14px; }
   }
 
   async function requestCode(errBox, btn) {
-    const name = nameIn.value.trim(), email = emailIn.value.trim();
+    const name = nameIn.value.trim(), email = emailIn.value.trim(), password = passIn.value;
     errBox.textContent = ""; info1.textContent = "";
     if (mode === "signup" && !name) { errBox.textContent = AUTH_ERRORS.bad_name; nameIn.focus(); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { errBox.textContent = AUTH_ERRORS.bad_email; emailIn.focus(); return; }
+    if (mode === "signup" && passwordsOn && password.length < passwordMin) { errBox.textContent = AUTH_ERRORS.weak_password; passIn.focus(); return; }
     const label = btn.textContent;
     btn.disabled = true; btn.textContent = "Envoi en cours…";
-    const { ok, data } = await post("/api/auth/start", { mode, name, email });
+    const body = { mode, name, email };
+    if (mode === "signup" && passwordsOn) body.password = password;
+    const { ok, data } = await post("/api/auth/start", body);
     btn.disabled = false; btn.textContent = label;
     if (!ok) {
       if (data.code === "already_registered") {
         step2.hidden = true; step1.hidden = false;
         setMode("login", true);
-        info1.textContent = "Tu as déjà un compte avec cette adresse. Clique sur « Recevoir mon code » pour te connecter.";
-        startBtn.focus(); return;
+        info1.textContent = passwordsOn
+          ? "Tu as déjà un compte avec cette adresse. Entre ton mot de passe pour te connecter."
+          : "Tu as déjà un compte avec cette adresse. Clique sur « Recevoir mon code » pour te connecter.";
+        (passwordsOn ? passIn : startBtn).focus(); return;
       }
       if (data.code === "not_registered") {
         step2.hidden = true; step1.hidden = false;
@@ -791,36 +872,49 @@ footer { padding-block: 8px 14px; }
     challenge = data.token;
     document.getElementById("sentTo").textContent = data.email;
     step1.hidden = true; step2.hidden = false;
+    newPassField.hidden = mode !== "reset";
+    verifyBtn.textContent = verifyLabel();
     codeIn.value = ""; err2.textContent = ""; codeIn.focus();
     startCooldown(45);
   }
+
+  const verifyLabel = () => mode === "reset" ? "Changer mon mot de passe" : "Valider";
 
   async function verifyCode() {
     const code = codeIn.value.replace(/\D/g, "");
     err2.textContent = "";
     if (code.length !== 6) { err2.textContent = "Le code contient 6 chiffres."; codeIn.focus(); return; }
+    const body = { token: challenge, code };
+    if (mode === "reset") {
+      if (newPassIn.value.length < passwordMin) { err2.textContent = AUTH_ERRORS.weak_password; newPassIn.focus(); return; }
+      body.password = newPassIn.value;
+    }
     verifyBtn.disabled = true; verifyBtn.textContent = "Vérification…";
-    const { ok, data } = await post("/api/auth/verify", { token: challenge, code });
-    verifyBtn.disabled = false; verifyBtn.textContent = "Valider";
+    const { ok, data } = await post("/api/auth/verify", body);
+    verifyBtn.disabled = false; verifyBtn.textContent = verifyLabel();
     if (!ok) {
       err2.textContent = data.code === "bad_code"
         ? "Code incorrect." + (data.left > 0 ? " Encore " + data.left + " essai" + (data.left > 1 ? "s" : "") + "." : " Clique sur « Renvoyer le code ».")
         : (AUTH_ERRORS[data.code] || "Une erreur est survenue. Réessaie.");
-      codeIn.select(); return;
+      if (data.code === "weak_password") newPassIn.focus(); else codeIn.select();
+      return;
     }
-    me = data; challenge = null; clearInterval(cooldown);
-    try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
-    showChat();
+    loggedIn(data);
   }
 
-  document.getElementById("startForm").addEventListener("submit", e => { e.preventDefault(); requestCode(err1, startBtn); });
+  document.getElementById("startForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (mode === "login" && passwordsOn) loginWithPassword(); else requestCode(err1, startBtn);
+  });
   document.getElementById("verifyForm").addEventListener("submit", e => { e.preventDefault(); verifyCode(); });
   resendBtn.addEventListener("click", () => requestCode(err2, resendBtn));
   document.getElementById("changeEmail").addEventListener("click", () => { step2.hidden = true; step1.hidden = false; clearInterval(cooldown); emailIn.select(); });
   codeIn.addEventListener("input", () => {
     const v = codeIn.value.replace(/\D/g, "").slice(0, 6);
     if (v !== codeIn.value) codeIn.value = v;
-    if (v.length === 6 && !verifyBtn.disabled) verifyCode();
+    if (v.length === 6 && !verifyBtn.disabled) {
+      if (mode === "reset") newPassIn.focus(); else verifyCode();
+    }
   });
   document.getElementById("logout").addEventListener("click", async () => {
     await post("/api/auth/logout");
@@ -833,6 +927,8 @@ footer { padding-block: 8px 14px; }
     let status = { ready: true, authRequired: false };
     try { status = await (await fetch("/api/status")).json(); } catch (e) {}
     if (!status.ready) { fine.textContent = "STARS AI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
+    passwordsOn = status.passwords !== false;
+    passwordMin = status.passwordMin || 8;
     if (status.authRequired) {
       try {
         const r = await fetch("/api/me");

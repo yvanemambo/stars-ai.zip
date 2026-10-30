@@ -189,23 +189,91 @@ function cleanName(s) {
   return String(s || "").replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/^[=+\-@]+/, "").trim().slice(0, 40);
 }
 
+// ---------- Mots de passe (seul un hachage scrypt est stocké) ----------
+const PASSWORD_MIN = 8;
+const passwordOk = pw => typeof pw === "string" && pw.length >= PASSWORD_MIN && pw.length <= 200;
+const scryptAsync = (pw, salt, keylen, opts) => new Promise((ok, ko) => crypto.scrypt(pw, salt, keylen, opts, (e, k) => e ? ko(e) : ok(k)));
+async function hashPassword(pw) {
+  const salt = crypto.randomBytes(16);
+  const key = await scryptAsync(pw.normalize("NFC"), salt, 32, { N: 16384, r: 8, p: 1 });
+  return `scrypt$16384$8$1$${salt.toString("base64")}$${key.toString("base64")}`;
+}
+async function checkPassword(pw, stored) {
+  const parts = String(stored || "").split("$");
+  if (parts.length !== 6 || parts[0] !== "scrypt") return false;
+  const [, N, r, p, salt, hash] = parts;
+  const expected = Buffer.from(hash, "base64");
+  const key = await scryptAsync(String(pw).normalize("NFC"), Buffer.from(salt, "base64"), expected.length, { N: +N, r: +r, p: +p, maxmem: 64 * 1024 * 1024 });
+  return crypto.timingSafeEqual(key, expected);
+}
+// Le hachage voyage chiffré dans le jeton du code d'inscription (rien n'est gardé en mémoire).
+const ENC_KEY = crypto.createHash("sha256").update("enc|" + SESSION_SECRET).digest();
+function seal(text) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv("aes-256-gcm", ENC_KEY, iv);
+  const out = Buffer.concat([c.update(text, "utf8"), c.final()]);
+  return Buffer.concat([iv, c.getAuthTag(), out]).toString("base64url");
+}
+function unseal(b) {
+  try {
+    const buf = Buffer.from(b, "base64url");
+    const d = crypto.createDecipheriv("aes-256-gcm", ENC_KEY, buf.subarray(0, 12));
+    d.setAuthTag(buf.subarray(12, 28));
+    return Buffer.concat([d.update(buf.subarray(28)), d.final()]).toString("utf8");
+  } catch { return null; }
+}
+const mask = email => email.replace(/^(.).*(@.*)$/, "$1***$2");
+
+function openSession(req, res, email, name) {
+  const sess = makeToken("sess", { e: email, n: name, x: Date.now() + SESSION_DAYS * 86_400_000 });
+  res.setHeader("set-cookie", sessionCookie(req, sess, SESSION_DAYS * 86_400));
+}
+
+// Connexion directe : Gmail + mot de passe
+async function authPassword(req, res, ip) {
+  if (!AUTH_REQUIRED) return json(res, 400, { code: "auth_disabled" });
+  if (!MEMBERS) return json(res, 503, { code: "members_down" });
+  const body = await readJson(req);
+  const email = String(body?.email || "").trim().toLowerCase();
+  const password = String(body?.password || "");
+  if (email.length > 254 || !EMAIL_RE.test(email)) return json(res, 400, { code: "bad_email" });
+  if (!password) return json(res, 400, { code: "bad_password" });
+  if (!allow("pw-ip:" + ip, 20, 15 * 60_000) || !allow("pw-mail:" + email, 8, 15 * 60_000)) return json(res, 429, { code: "too_many_passwords" });
+  let member;
+  try {
+    const rows = await rpc("stars_member_auth", { p_email: email });
+    member = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch (e) { console.error("[comptes]", e.message); return json(res, 503, { code: "members_down" }); }
+  if (!member) return json(res, 404, { code: "not_registered" });
+  if (!member.password_hash) return json(res, 409, { code: "no_password" });
+  if (!(await checkPassword(password, member.password_hash))) return json(res, 401, { code: "bad_password" });
+  const name = cleanName(member.name) || cleanName(email.split("@")[0]);
+  rpc("stars_member_login", { p_email: email, p_name: name }).catch(e => console.warn("[comptes]", e.message));
+  ensured.add(email);
+  openSession(req, res, email, name);
+  console.log(`[auth] connexion par mot de passe de ${mask(email)}`);
+  json(res, 200, { email, name });
+}
+
+// Envoi d'un code : « signup » (inscription, avec mot de passe), « reset » (mot de passe oublié), « login » (code seul)
 async function authStart(req, res, ip) {
   if (!AUTH_REQUIRED) return json(res, 400, { code: "auth_disabled" });
   const body = await readJson(req);
-  const mode = body?.mode === "login" ? "login" : "signup";
+  const mode = ["login", "reset"].includes(body?.mode) ? body.mode : "signup";
   const email = String(body?.email || "").trim().toLowerCase();
   let name = cleanName(body?.name);
   if (email.length > 254 || !EMAIL_RE.test(email)) return json(res, 400, { code: "bad_email" });
   if (mode === "signup" && !name) return json(res, 400, { code: "bad_name" });
+  if (mode === "signup" && MEMBERS && !passwordOk(body?.password)) return json(res, 400, { code: "weak_password" });
 
-  // Inscription : refusée si le compte existe déjà. Connexion : refusée si le compte n'existe pas.
+  // Inscription : refusée si le compte existe déjà. Connexion / mot de passe oublié : refusés si le compte n'existe pas.
   if (MEMBERS) {
     if (!allow("lookup-ip:" + ip, 20, 10 * 60_000)) return json(res, 429, { code: "too_many_codes" });
     let member;
     try { member = await findMember(email); }
     catch (e) { console.error("[comptes]", e.message); return json(res, 503, { code: "members_down" }); }
     if (mode === "signup" && member) return json(res, 409, { code: "already_registered" });
-    if (mode === "login" && !member) return json(res, 404, { code: "not_registered" });
+    if (mode !== "signup" && !member) return json(res, 404, { code: "not_registered" });
     if (member) name = cleanName(member.name) || name;
   }
   if (!name) name = cleanName(email.split("@")[0]) || "ami";
@@ -213,7 +281,8 @@ async function authStart(req, res, ip) {
   if (!allow("start-ip:" + ip, 6, 10 * 60_000) || !allow("start-mail:" + email, 3, 10 * 60_000)) return json(res, 429, { code: "too_many_codes" });
 
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
-  const payload = { e: email, n: name, x: Date.now() + CODE_MINUTES * 60_000, j: crypto.randomBytes(9).toString("base64url") };
+  const payload = { e: email, n: name, m: mode, x: Date.now() + CODE_MINUTES * 60_000, j: crypto.randomBytes(9).toString("base64url") };
+  if (mode === "signup" && MEMBERS) payload.h = seal(await hashPassword(body.password));
   const token = makeToken("code", payload, code);
   try {
     await callMailer({ action: "send_code", email, name, code });
@@ -233,6 +302,8 @@ async function authVerify(req, res, ip) {
   const peek = peekToken(token);
   if (!peek?.j || !peek?.x) return json(res, 400, { code: "bad_token" });
   if (peek.x < Date.now()) return json(res, 400, { code: "code_expired" });
+  // Mot de passe oublié : le nouveau mot de passe est vérifié avant de consommer un essai.
+  if (peek.m === "reset" && !passwordOk(body?.password)) return json(res, 400, { code: "weak_password" });
   const a = attempts.get(peek.j) || { n: 0, exp: peek.x, used: false };
   if (a.used) return json(res, 400, { code: "code_used" });
   if (a.n >= CODE_ATTEMPTS) return json(res, 429, { code: "too_many_attempts" });
@@ -243,17 +314,23 @@ async function authVerify(req, res, ip) {
   }
   a.used = true; attempts.set(peek.j, a);
   if (MEMBERS) {
+    let newHash = null;
+    if (p.m === "reset") newHash = await hashPassword(body.password);
+    else if (p.h) newHash = unseal(p.h);
     try {
       const rows = await rpc("stars_member_login", { p_email: p.e, p_name: p.n });
       if (Array.isArray(rows) && rows[0]?.name) p.n = cleanName(rows[0].name) || p.n;
-      if (rows?.[0]?.created) console.log(`[comptes] nouveau compte : ${p.e.replace(/^(.).*(@.*)$/, "$1***$2")}`);
+      if (rows?.[0]?.created) console.log(`[comptes] nouveau compte : ${mask(p.e)}`);
+      if (newHash) await rpc("stars_member_set_password", { p_email: p.e, p_hash: newHash });
       ensured.add(p.e);
-    } catch (e) { console.error("[comptes] enregistrement impossible :", e.message); }
+    } catch (e) {
+      console.error("[comptes] enregistrement impossible :", e.message);
+      if (newHash) { a.used = false; return json(res, 503, { code: "members_down" }); } // le code reste valable : on peut réessayer
+    }
   }
-  const sess = makeToken("sess", { e: p.e, n: p.n, x: Date.now() + SESSION_DAYS * 86_400_000 });
-  res.setHeader("set-cookie", sessionCookie(req, sess, SESSION_DAYS * 86_400));
+  openSession(req, res, p.e, p.n);
   callMailer({ action: "verified", email: p.e, name: p.n }).catch(e => console.warn("[auth] note dans la Google Sheet impossible :", e.message));
-  console.log(`[auth] connexion de ${p.e.replace(/^(.).*(@.*)$/, "$1***$2")}`);
+  console.log(`[auth] ${p.m === "reset" ? "nouveau mot de passe et connexion" : "connexion"} de ${mask(p.e)}`);
   json(res, 200, { email: p.e, name: p.n });
 }
 
@@ -510,7 +587,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(await page());
     }
     if (req.method === "GET" && url.pathname === "/healthz") return json(res, 200, { ok: true });
-    if (req.method === "GET" && url.pathname === "/api/status") return json(res, 200, { ready: !!provider, provider, authRequired: AUTH_REQUIRED });
+    if (req.method === "GET" && url.pathname === "/api/status") return json(res, 200, { ready: !!provider, provider, authRequired: AUTH_REQUIRED, passwords: MEMBERS, passwordMin: PASSWORD_MIN });
     if (req.method === "GET" && url.pathname === "/api/me") {
       const u = currentUser(req);
       if (u) ensureMember(u);
@@ -518,6 +595,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/auth/start") return await authStart(req, res, ip);
     if (req.method === "POST" && url.pathname === "/api/auth/verify") return await authVerify(req, res, ip);
+    if (req.method === "POST" && url.pathname === "/api/auth/password") return await authPassword(req, res, ip);
     if (req.method === "POST" && url.pathname === "/api/auth/logout") {
       res.setHeader("set-cookie", sessionCookie(req, "", 0));
       return json(res, 200, { ok: true });
