@@ -19,7 +19,7 @@ const ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY");
 const GEMINI_API_KEY = env("GEMINI_API_KEY");
 const CLAUDE_MODEL = env("CLAUDE_MODEL") || "claude-haiku-5-5";
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
-const MAX_TOKENS = Number(env("MAX_TOKENS")) || 2048;
+const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
 const DAILY_LIMIT = Number(env("DAILY_LIMIT")) || 500;              // messages / jour pour tout le site
 const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 40000;
@@ -51,7 +51,17 @@ function rules(name) {
 - Va droit au but ; développe quand la question le demande.
 - Utilise du Markdown simple quand c'est utile : **gras**, listes, titres ###, blocs de code.
 - Si on te demande qui tu es : tu es STARS AI. Si on te demande sur quelle technologie tu fonctionnes, dis honnêtement que ${tech}.
-- Ne prétends jamais avoir fait une action que tu ne peux pas faire (naviguer sur internet, envoyer un message…).${name ? `\n- L'utilisateur s'appelle ${name}. Tu peux l'appeler par son prénom de temps en temps, sans en abuser.` : ""}`;
+- Ne prétends jamais avoir fait une action que tu ne peux pas faire (naviguer sur internet, envoyer un message…).
+- Tu peux voir les photos que l'utilisateur envoie (exercices, documents, schémas…).
+
+Mode prof — quand on te donne un exercice (maths, physique-chimie, SVT, français, anglais, philo, etc.), tape ou en photo :
+- Lis tout l'énoncé avec attention. Si une photo est floue ou qu'une partie est illisible, dis précisément ce que tu n'arrives pas à lire et demande une nouvelle photo, au lieu d'inventer.
+- Explique comme un bon professeur, étape par étape : ce qu'on cherche, la méthode ou la règle utilisée, puis les calculs détaillés ligne par ligne.
+- Donne le résultat final en **gras**, avec l'unité s'il y en a une. Traite chaque question de l'exercice dans l'ordre (1, 2, 3…).
+- Écris les formules en texte lisible avec des symboles : x², x³, √, ×, ÷, ±, ≤, ≥, ≠, ≈, π, Δ, →, °. N'utilise JAMAIS de LaTeX (pas de $…$, pas de \\frac, pas de \\sqrt). Écris les fractions comme 3/4 ou (x + 1)/(x − 2).
+- Utilise des méthodes du niveau de l'élève (collège ou lycée, programme francophone) quand c'est possible.
+- Si l'élève demande seulement un indice ou de l'aide pour commencer, donne un indice sans la solution complète.
+- À la fin d'un exercice résolu, propose en une phrase un exercice similaire pour s'entraîner, sans donner sa réponse.${name ? `\n\nL'utilisateur s'appelle ${name}. Tu peux l'appeler par son prénom de temps en temps, sans en abuser.` : ""}`;
 }
 
 // Combine l'annulation par le visiteur et un délai maximum.
@@ -197,25 +207,61 @@ async function authVerify(req, res, ip) {
 }
 
 // ---------- Nettoyage de la conversation ----------
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_IMAGES_PER_MSG = 3;
+const MAX_IMAGES_TOTAL = 6;
+const MAX_IMAGE_B64 = 3_500_000; // ≈ 2,6 Mo par image
+const PHOTO_ONLY_TEXT = "Voici une photo. Si c'est un exercice, lis l'énoncé et résous-le étape par étape.";
+
+function cleanImages(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter(i => i && IMAGE_TYPES.has(i.mime) && typeof i.data === "string" && i.data.length > 100 && i.data.length <= MAX_IMAGE_B64 && /^[A-Za-z0-9+/=]+$/.test(i.data))
+    .slice(0, MAX_IMAGES_PER_MSG)
+    .map(i => ({ mime: i.mime, data: i.data }));
+}
+
 function cleanMessages(raw) {
   if (!Array.isArray(raw)) return null;
   let msgs = raw
     .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-    .map(m => ({ role: m.role, content: m.content.slice(0, 12000) }))
-    .filter(m => m.content.trim());
+    .map(m => ({ role: m.role, content: m.content.slice(0, 12000), images: m.role === "user" ? cleanImages(m.images) : [] }))
+    .filter(m => m.content.trim() || m.images.length);
   msgs = msgs.slice(-20);
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
   const merged = [];
   for (const m of msgs) {
     const last = merged[merged.length - 1];
-    if (last && last.role === m.role) last.content += "\n\n" + m.content;
-    else merged.push({ ...m });
+    if (last && last.role === m.role) {
+      last.content = [last.content, m.content].filter(s => s.trim()).join("\n\n");
+      last.images.push(...m.images);
+    } else merged.push({ ...m, images: [...m.images] });
   }
   if (!merged.length || merged[merged.length - 1].role !== "user") return null;
+  // Garde seulement les images les plus récentes.
+  let budget = MAX_IMAGES_TOTAL;
+  for (let i = merged.length - 1; i >= 0; i--) {
+    const m = merged[i];
+    if (m.images.length > budget) m.images = m.images.slice(m.images.length - budget);
+    budget -= m.images.length;
+    if (!m.content.trim()) m.content = PHOTO_ONLY_TEXT;
+  }
   const total = merged.reduce((n, m) => n + m.content.length, 0);
   if (total > 60000) return "too_large";
   return merged;
 }
+
+const toClaude = messages => messages.map(m => ({
+  role: m.role,
+  content: m.images.length
+    ? [...m.images.map(i => ({ type: "image", source: { type: "base64", media_type: i.mime, data: i.data } })), { type: "text", text: m.content }]
+    : m.content
+}));
+
+const toGemini = messages => messages.map(m => ({
+  role: m.role === "assistant" ? "model" : "user",
+  parts: [...m.images.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } })), { text: m.content }]
+}));
 
 // ---------- Lecture d'un flux SSE ----------
 async function* sse(body) {
@@ -258,7 +304,7 @@ async function callClaude(messages, signal, name) {
         method: "POST",
         signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
         headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name), messages })
+        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name), messages: toClaude(messages) })
       });
     } catch (e) {
       if (signal.aborted) throw e;
@@ -288,7 +334,7 @@ async function* streamClaude(res) {
 // ---------- Gemini (Google) ----------
 async function callGemini(messages, signal, name) {
   const models = [GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)];
-  const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+  const contents = toGemini(messages);
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Gemini disponible");
   for (const model of models) {
     let res;
@@ -355,7 +401,7 @@ async function handleChat(req, res, ip) {
   if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
   if (!provider) return json(res, 503, { code: "no_key" });
 
-  const payload = await readJson(req);
+  const payload = await readJson(req, 16_000_000);
   const messages = cleanMessages(payload?.messages);
   if (messages === "too_large") return json(res, 413, { code: "too_large" });
   if (!messages) return json(res, 400, { code: "bad_request" });

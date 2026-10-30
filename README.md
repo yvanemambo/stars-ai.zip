@@ -16,6 +16,11 @@ Dans Render › ton service `stars-ai` › **Environment**, ajoute **une** de ce
 
 Si les deux sont présentes, Claude est utilisé.
 
+## Exercices et photos
+
+Le bouton appareil photo (ou coller / glisser une image) envoie jusqu'à 3 photos par message, réduites à 1600 px.
+STARS AI répond en « mode prof » : étape par étape, formules lisibles (x², √, ×), résultat en gras, et un exercice similaire pour s'entraîner.
+
 ## Inscription par code Gmail
 
 Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.
