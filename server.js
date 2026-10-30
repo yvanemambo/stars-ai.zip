@@ -1018,7 +1018,13 @@ async function handleScan(req, res, ip) {
     total: n("malicious") + n("suspicious") + n("undetected") + n("harmless"),
     label: a.popular_threat_classification?.suggested_threat_label || null,
     type: a.type_description || null,
-    analysed: a.last_analysis_date ? new Date(a.last_analysis_date * 1000).toISOString() : null
+    analysed: a.last_analysis_date ? new Date(a.last_analysis_date * 1000).toISOString() : null,
+    // Les moteurs antivirus qui le détectent, avec le nom de la menace (comme dans un vrai rapport d'analyse)
+    detections: Object.entries(a.last_analysis_results || {})
+      .filter(([, v]) => v && (v.category === "malicious" || v.category === "suspicious"))
+      .sort((x, y) => (x[1].category === "malicious" ? 0 : 1) - (y[1].category === "malicious" ? 0 : 1))
+      .slice(0, 12)
+      .map(([engine, v]) => ({ engine: String(v.engine_name || engine).slice(0, 40), result: String(v.result || (v.category === "malicious" ? "malveillant" : "suspect")).slice(0, 80) }))
   };
   vtRemember(sha, data);
   console.log(`[antivirus] fichier vérifié : ${data.malicious}/${data.total} antivirus le signalent`);
