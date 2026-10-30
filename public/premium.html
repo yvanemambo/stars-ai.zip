@@ -42,6 +42,8 @@
   .paybox .to { color: var(--dim); font-size: 14px; }
   .paybox .phone { font-size: 26px; font-weight: 800; letter-spacing: .06em; overflow-wrap: anywhere; }
   .paybox .amount { color: var(--star); font-weight: 700; }
+  .copied { color: var(--ok); font-size: 14px; font-weight: 600; }
+  .how { margin: 0; font-size: 14px; color: var(--dim); line-height: 1.5; }
   label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--star); }
   .field { display: grid; gap: 6px; }
   input {
@@ -119,6 +121,9 @@
     <div class="paybox" id="paybox" hidden>
       <div class="to">Envoie <span class="amount" id="amountTxt">1 000 FCFA</span> par <strong id="methodName"></strong> au numéro :</div>
       <div class="phone" id="payNumber"></div>
+      <div class="copied" id="copiedTxt" hidden>✓ Numéro copié : colle-le dans le service</div>
+      <a class="btn" id="openApp" href="#">Ouvrir</a>
+      <p class="how" id="howTxt"></p>
       <button class="btn small ghost" type="button" id="copyNumber" style="justify-self:center">Copier le numéro</button>
     </div>
   </section>
@@ -162,14 +167,32 @@
     return parts.join("");
   }
 
-  function pick(m) {
+  const onPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  async function copyNumber(m) {
+    try { await navigator.clipboard.writeText(m.number.replace(/\s/g, "")); $("copiedTxt").hidden = false; return true; }
+    catch (e) { return false; }
+  }
+
+  // Tapping a service selects it, copies the number and (on a phone) opens Wave or dials the USSD menu right away.
+  async function pick(m, go) {
     method = m;
     document.querySelectorAll(".method").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === m.id)));
     $("methodName").textContent = m.label;
     $("payNumber").textContent = m.number;
+    $("openApp").href = m.open || "#";
+    $("openApp").textContent = m.openLabel || ("Ouvrir " + m.label);
+    $("openApp").hidden = !m.open;
+    $("howTxt").textContent = m.how || "";
+    $("copiedTxt").hidden = true;
     $("paybox").hidden = false;
     $("step2").hidden = false;
+    if (go) {
+      await copyNumber(m);
+      if (onPhone && m.open) window.location.href = m.open;
+    }
   }
+  $("openApp").addEventListener("click", () => { if (method) copyNumber(method); });
 
   function showPayment() {
     hide("activeCard");
@@ -179,15 +202,14 @@
     for (const m of info.methods) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "method"; b.dataset.id = m.id; b.textContent = m.label; b.setAttribute("aria-pressed", "false");
-      b.addEventListener("click", () => pick(m));
+      b.addEventListener("click", () => pick(m, true));
       box.appendChild(b);
     }
-    if (info.methods.length === 1) pick(info.methods[0]);
+    if (info.methods.length === 1) pick(info.methods[0], false);
   }
 
   $("copyNumber").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(method.number.replace(/\s/g, "")); $("copyNumber").textContent = "Copié !"; }
-    catch (e) { $("copyNumber").textContent = "Copie impossible"; }
+    $("copyNumber").textContent = (await copyNumber(method)) ? "Copié !" : "Copie impossible";
     setTimeout(() => { $("copyNumber").textContent = "Copier le numéro"; }, 1500);
   });
   $("extendBtn").addEventListener("click", () => { show("perks"); showPayment(); });

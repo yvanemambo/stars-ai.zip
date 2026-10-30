@@ -42,8 +42,25 @@ const MEMBERS = !!(SUPABASE_URL && SUPABASE_KEY && MEMBERS_SECRET);
 // Premium (paiement mobile money validé à la main dans /admin)
 const FREE_DAILY = Number(env("FREE_DAILY_MESSAGES")) || 25;
 const PREMIUM_PRICE = Number(env("PREMIUM_PRICE")) || 1000;
+// Toucher un service ouvre directement l'appli (Wave) ou le menu USSD (Orange #144#, MTN *133#, Moov *155#).
+const WAVE_LINK = /^https:\/\/([a-z0-9-]+\.)*wave\.com\//i.test(env("PAY_WAVE_LINK")) ? env("PAY_WAVE_LINK") : "";
+const PAY_OPEN = {
+  wave: WAVE_LINK || "intent://#Intent;package=com.wave.personal;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url="
+    + encodeURIComponent("https://play.google.com/store/apps/details?id=com.wave.personal") + ";end",
+  orange: "tel:%23144%23",
+  mtn: "tel:*133%23",
+  moov: "tel:*155%23"
+};
+const PAY_HOW = {
+  wave: WAVE_LINK ? "Wave s'ouvre directement sur le paiement : vérifie le montant et confirme."
+    : "Wave s'ouvre (touche « Ouvrir » si le Play Store s'affiche). Choisis « Envoyer », colle le numéro et mets le montant.",
+  orange: "Ton téléphone compose #144# : choisis « Transfert d'argent », colle le numéro et entre le montant.",
+  mtn: "Ton téléphone compose *133# : choisis « Transfert », colle le numéro et entre le montant.",
+  moov: "Ton téléphone compose *155# : choisis « Transfert », colle le numéro et entre le montant."
+};
+const PAY_OPEN_LABEL = { wave: "Ouvrir Wave", orange: "Composer #144#", mtn: "Composer *133#", moov: "Composer *155#" };
 const PAY_METHODS = [["wave", "Wave", env("PAY_WAVE")], ["orange", "Orange Money", env("PAY_ORANGE")], ["mtn", "MTN MoMo", env("PAY_MTN")], ["moov", "Moov Money", env("PAY_MOOV")]]
-  .filter(m => m[2]).map(([id, label, number]) => ({ id, label, number }));
+  .filter(m => m[2]).map(([id, label, number]) => ({ id, label, number, open: PAY_OPEN[id], openLabel: PAY_OPEN_LABEL[id], how: PAY_HOW[id] }));
 const CONTACT_WHATSAPP = env("CONTACT_WHATSAPP").replace(/[^\d]/g, "");
 const CONTACT_EMAIL = env("CONTACT_EMAIL") || "yvanemambo@gmail.com";
 const ADMIN_EMAILS = new Set(env("ADMIN_EMAILS").toLowerCase().split(/[,\s]+/).filter(Boolean));
