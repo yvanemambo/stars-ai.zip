@@ -152,7 +152,25 @@ MODE VOCAL — ta réponse va être lue à voix haute pendant un appel :
 - Pour un exercice, explique une étape à la fois, simplement, puis demande si l'élève veut la suite.
 - Si tu n'as pas bien compris la phrase (la reconnaissance vocale peut se tromper), demande gentiment de répéter.`;
 
-function rules(name, voice) {
+// Guide des langages informatiques (fourni par Yvan Mambo). Il est ajouté aux consignes
+// seulement quand la conversation parle de programmation, pour garder les autres réponses rapides.
+const GUIDE_LANGAGES = await readFile(path.join(__dirname, "knowledge", "langages.md"), "utf8")
+  .catch(() => { console.warn("[guide] knowledge/langages.md introuvable"); return ""; });
+if (GUIDE_LANGAGES) console.log(`[guide] Guide des langages chargé (${GUIDE_LANGAGES.length} caractères).`);
+const GUIDE_TRIGGER = /langages? (?:de programmation|informatiques?)|quels? langages?|meilleurs? langages?|premier langage|langage c\b|programm(?:ation|er|eur|euse|ez|ons)\b|programme (?:informatique|python|en)|\bcod(?:er|age|eur|euse)s?\b|\b(?:du|ce|mon|ton) code\b|code (?:source|informatique)|d[ée]velopp(?:eur|euse)|d[ée]veloppement (?:web|mobile|logiciel|d'appli)|informatique|logiciel|algorithm|framework|front-?end|back-?end|bases? de donn[ée]es|site (?:web|internet)|appli(?:cation)?s? (?:mobile|android|iphone|ios)|cybers[ée]curit|blockchain|arduino|microcontr|python|javascript|typescript|\bjs\b|\bjava\b|kotlin|\bswift\b|html|\bcss\b|\bsql\b|\bphp\b|c\+\+|c#|\brust\b|golang|\bruby\b|\bdart\b|flutter|\breact\b|node\.?js|\bperl\b|\blua\b|haskell|cobol|fortran|assembleur|\bbash\b|powershell|solidity|matlab|scratch/i;
+function guideFor(messages) {
+  if (!GUIDE_LANGAGES) return "";
+  const recent = messages.filter(m => m.role === "user").slice(-3).map(m => m.content).join("\n");
+  return GUIDE_TRIGGER.test(recent) ? GUIDE_LANGAGES : "";
+}
+const GUIDE_INTRO = `
+
+Guide de référence sur les langages informatiques (document fourni par Yvan Mambo, le créateur de STARS AI). Sers-t'en quand la question porte sur les langages de programmation : à quoi sert un langage, son année, ses usages, lequel choisir, comment apprendre. Réponds à la question posée sans recopier le guide en entier ; complète avec tes connaissances si le guide ne suffit pas.
+
+<guide>
+`;
+
+function rules(name, voice, guide) {
   const tech = provider === "gemini"
     ? "STARS AI est propulsé par Gemini, un modèle de Google"
     : "STARS AI est propulsé par Claude, un modèle d'Anthropic";
@@ -174,7 +192,7 @@ Mode prof — quand on te donne un exercice (maths, physique-chimie, SVT, franç
 - Écris les formules en texte lisible avec des symboles : x², x³, √, ×, ÷, ±, ≤, ≥, ≠, ≈, π, Δ, →, °. N'utilise JAMAIS de LaTeX (pas de $…$, pas de \\frac, pas de \\sqrt). Écris les fractions comme 3/4 ou (x + 1)/(x − 2).
 - Utilise des méthodes du niveau de l'élève (collège ou lycée, programme francophone) quand c'est possible.
 - Si l'élève demande seulement un indice ou de l'aide pour commencer, donne un indice sans la solution complète.
-- À la fin d'un exercice résolu, propose en une phrase un exercice similaire pour s'entraîner, sans donner sa réponse.${name ? `\n\nL'utilisateur s'appelle ${name}. Tu peux l'appeler par son prénom de temps en temps, sans en abuser.` : ""}${voice ? VOICE_RULES : ""}`;
+- À la fin d'un exercice résolu, propose en une phrase un exercice similaire pour s'entraîner, sans donner sa réponse.${guide ? GUIDE_INTRO + guide.trim() + "\n</guide>" : ""}${name ? `\n\nL'utilisateur s'appelle ${name}. Tu peux l'appeler par son prénom de temps en temps, sans en abuser.` : ""}${voice ? VOICE_RULES : ""}`;
 }
 
 // Combine l'annulation par le visiteur et un délai maximum.
@@ -544,7 +562,7 @@ function usableModels(list) {
 const PAUSE_FOR = { 429: 15 * 60_000, 404: 6 * 3600_000, 500: 60_000, 503: 2 * 60_000, 529: 2 * 60_000 };
 
 // ---------- Claude (Anthropic) ----------
-async function callClaude(messages, signal, name, voice) {
+async function callClaude(messages, signal, name, voice, guide) {
   const models = usableModels([CLAUDE_MODEL, ...CLAUDE_FALLBACKS.filter(m => m !== CLAUDE_MODEL)]);
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Claude disponible");
   for (const model of models) {
@@ -554,7 +572,7 @@ async function callClaude(messages, signal, name, voice) {
         method: "POST",
         signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
         headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name, voice), messages: toClaude(messages) })
+        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name, voice, guide), messages: toClaude(messages) })
       });
     } catch (e) {
       if (signal.aborted) throw e;
@@ -582,7 +600,7 @@ async function* streamClaude(res) {
 }
 
 // ---------- Gemini (Google) ----------
-async function callGemini(messages, signal, name, voice) {
+async function callGemini(messages, signal, name, voice, guide) {
   const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
   const contents = toGemini(messages);
   let last = new UpstreamError("upstream_error", 404, "Aucun modèle Gemini disponible");
@@ -594,7 +612,7 @@ async function callGemini(messages, signal, name, voice) {
         signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
         headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: rules(name, voice) }] },
+          systemInstruction: { parts: [{ text: rules(name, voice, guide) }] },
           contents,
           generationConfig: { maxOutputTokens: MAX_TOKENS }
         })
@@ -676,7 +694,8 @@ async function handleChat(req, res, ip) {
   let upstream;
   try {
     const voice = payload?.voice === true;
-    upstream = provider === "claude" ? await callClaude(messages, ac.signal, user?.name, voice) : await callGemini(messages, ac.signal, user?.name, voice);
+    const guide = guideFor(messages);
+    upstream = provider === "claude" ? await callClaude(messages, ac.signal, user?.name, voice, guide) : await callGemini(messages, ac.signal, user?.name, voice, guide);
   } catch (e) {
     if (ac.signal.aborted) return;
     console.error(`[${provider}]`, e.code || e.message, e.status || "", (e.detail || "").slice(0, 300));
