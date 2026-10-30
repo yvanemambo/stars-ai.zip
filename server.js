@@ -688,14 +688,15 @@ async function handleChat(req, res, ip) {
   if (!messages) return json(res, 400, { code: "bad_request" });
 
   if (!allow("chat:" + (user ? user.email : ip), PER_MINUTE, 60_000)) return json(res, 429, { code: "rate_limited" });
-  // Compte gratuit : FREE_DAILY messages par jour ; Premium : illimité.
-  let premium = false;
+  // Compte gratuit : FREE_DAILY messages par jour ; Premium et propriétaire (ADMIN_EMAILS) : illimité.
+  const owner = isAdmin(user);
+  let premium = owner;
   if (MEMBERS && user) {
     try {
-      const rows = await rpc("stars_chat_allow", { p_email: user.email, p_limit: FREE_DAILY });
+      const rows = await rpc("stars_chat_allow", { p_email: user.email, p_limit: owner ? 1_000_000 : FREE_DAILY });
       const r = Array.isArray(rows) ? rows[0] : null;
       if (r && !r.allowed) return json(res, 402, { code: "free_limit", limit: FREE_DAILY, used: r.used, price: PREMIUM_PRICE });
-      premium = !!(r && r.premium_until && new Date(r.premium_until) > new Date());
+      premium = owner || !!(r && r.premium_until && new Date(r.premium_until) > new Date());
     } catch (e) { console.warn("[premium] compteur indisponible :", e.message); }
   }
   const limited = checkSiteCap(premium);

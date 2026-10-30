@@ -1339,7 +1339,10 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     adminLink.classList.toggle("gold", todo > 0);
     document.getElementById("avatar").classList.toggle("alert", todo > 0);
     const until = me.premiumUntil ? new Date(me.premiumUntil) : null;
-    if (until && until > new Date()) {
+    if (me.admin) {
+      plan.innerHTML = "👑 <b>Propriétaire</b> : messages illimités";
+      prem.textContent = "Voir la page Premium"; prem.classList.remove("gold");
+    } else if (until && until > new Date()) {
       plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
       prem.textContent = "Prolonger mon Premium"; prem.classList.remove("gold");
     } else if (me.freeDaily) {
