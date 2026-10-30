@@ -44,16 +44,23 @@ const FREE_DAILY = Number(env("FREE_DAILY_MESSAGES")) || 25;
 const PREMIUM_PRICE = Number(env("PREMIUM_PRICE")) || 1000;
 // Toucher un service ouvre directement l'appli (Wave) ou le menu USSD (Orange #144#, MTN *133#, Moov *155#).
 const WAVE_LINK = /^https:\/\/([a-z0-9-]+\.)*wave\.com\//i.test(env("PAY_WAVE_LINK")) ? env("PAY_WAVE_LINK") : "";
+const WAVE_STORE = "https://play.google.com/store/apps/details?id=com.wave.personal";
+// Le lien du code QR Wave (qr.wave.com) n'est pas un site web : on le confie directement à l'appli Wave (Android).
+// Si l'appli ne sait pas l'ouvrir, Android affiche la page Play Store de Wave (bouton « Ouvrir »).
+function waveIntent(link) {
+  const tail = ";S.browser_fallback_url=" + encodeURIComponent(WAVE_STORE) + ";end";
+  if (!link) return "intent://#Intent;package=com.wave.personal;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER" + tail;
+  const u = new URL(link);
+  return "intent://" + u.host + u.pathname + u.search + "#Intent;scheme=https;package=com.wave.personal;action=android.intent.action.VIEW" + tail;
+}
 const PAY_OPEN = {
-  wave: WAVE_LINK || "intent://#Intent;package=com.wave.personal;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url="
-    + encodeURIComponent("https://play.google.com/store/apps/details?id=com.wave.personal") + ";end",
+  wave: waveIntent(WAVE_LINK),
   orange: "tel:%23144%23",
   mtn: "tel:*133%23",
   moov: "tel:*155%23"
 };
 const PAY_HOW = {
-  wave: WAVE_LINK ? "Wave s'ouvre directement sur l'envoi vers STARS AI : entre le montant et confirme."
-    : "Wave s'ouvre (touche « Ouvrir » si le Play Store s'affiche). Choisis « Envoyer », colle le numéro et mets le montant.",
+  wave: "Wave s'ouvre (si le Play Store s'affiche, touche « Ouvrir »). Envoie le montant au numéro copié, puis reviens ici.",
   orange: "Ton téléphone compose #144# : choisis « Transfert d'argent », colle le numéro et entre le montant.",
   mtn: "Ton téléphone compose *133# : choisis « Transfert », colle le numéro et entre le montant.",
   moov: "Ton téléphone compose *155# : choisis « Transfert », colle le numéro et entre le montant."
