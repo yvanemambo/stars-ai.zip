@@ -686,6 +686,7 @@ async function premiumRequest(req, res) {
   const phone = String(body?.phone || "").replace(/[^\d+ ]/g, "").trim();
   if (phone.replace(/\D/g, "").length < 8 || phone.length > 30) return json(res, 400, { code: "bad_phone" });
   const reference = String(body?.reference || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80);
+  if (reference.replace(/\s/g, "").length < 6) return json(res, 400, { code: "bad_reference" }); // la référence du SMS prouve qu'un paiement a eu lieu
   if (!allow("payreq:" + u.email, 5, 60 * 60_000)) return json(res, 429, { code: "rate_limited" });
   try {
     await rpc("stars_payment_add", { p_email: u.email, p_name: u.name || "", p_method: method, p_phone: phone, p_reference: reference, p_amount: PREMIUM_PRICE });

@@ -104,8 +104,8 @@
   </section>
 
   <section class="card" id="pendingCard" hidden>
-    <h2>⏳ Paiement en cours de vérification</h2>
-    <p>Ta demande est bien reçue. Ton Premium sera activé dès que le paiement est vérifié, en général sous 24 h. Tu n'as rien d'autre à faire.</p>
+    <h2>⏳ Demande envoyée : Premium pas encore actif</h2>
+    <p>Ton Premium n'est <strong>pas encore actif</strong>. Il sera activé seulement quand nous aurons vérifié que les <strong id="pendingAmount">1 000 FCFA</strong> sont bien arrivés (en général sous 24 h). Sans paiement reçu, la demande est refusée.</p>
   </section>
 
   <section class="card" id="noMethods" hidden>
@@ -135,18 +135,18 @@
       <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ex. 07 00 00 00 00" maxlength="30">
     </div>
     <div class="field">
-      <label for="reference">Référence de la transaction (facultatif)</label>
-      <input id="reference" maxlength="80" placeholder="Dans le SMS de confirmation">
-      <span class="hint">La référence nous aide à retrouver ton paiement plus vite.</span>
+      <label for="reference">Référence de la transaction (obligatoire)</label>
+      <input id="reference" maxlength="80" placeholder="Ex. : CI231030.1234.A56789" autocapitalize="characters">
+      <span class="hint">Tu la trouves dans le SMS de confirmation reçu juste après avoir payé. Pas de paiement = pas de référence.</span>
     </div>
     <div class="err" id="err" role="alert"></div>
     <button class="btn" type="submit" id="sendBtn">J'ai payé, activer mon Premium</button>
-    <p class="hint center">Ton Premium est activé après vérification du paiement, en général sous 24 h.</p>
+    <p class="hint center">Ton Premium sera activé seulement après vérification que l'argent est bien arrivé (en général sous 24 h).</p>
   </form>
 
   <section class="card" id="doneCard" hidden>
-    <h2 class="ok">✓ Merci !</h2>
-    <p>Ta demande est enregistrée. Ton Premium sera activé dès que le paiement est vérifié (en général sous 24 h). Tu le verras dans le menu de ton compte.</p>
+    <h2 class="ok">✓ Demande envoyée</h2>
+    <p>Ton Premium n'est <strong>pas encore actif</strong> : il sera activé dès que nous aurons vérifié que ton paiement est bien arrivé (en général sous 24 h). Tu le verras alors dans le menu de ton compte.</p>
     <a class="btn" href="/">Retour au chat</a>
   </section>
 
@@ -220,6 +220,7 @@
     if (!method) { $("err").textContent = "Choisis le service utilisé pour payer."; return; }
     const phone = $("phone").value.trim();
     if (phone.replace(/\D/g, "").length < 8) { $("err").textContent = "Écris le numéro qui a envoyé l'argent."; $("phone").focus(); return; }
+    if ($("reference").value.replace(/\s/g, "").length < 6) { $("err").textContent = "Écris la référence de la transaction (dans le SMS reçu après le paiement)."; $("reference").focus(); return; }
     $("sendBtn").disabled = true; $("sendBtn").textContent = "Envoi…";
     let res, data = {};
     try {
@@ -232,6 +233,7 @@
         too_many_pending: "Tu as déjà des demandes en attente. Patiente pendant la vérification.",
         rate_limited: "Trop de demandes. Réessaie dans une heure.",
         bad_phone: "Ce numéro ne semble pas valide.",
+        bad_reference: "Écris la référence de la transaction (dans le SMS reçu après le paiement).",
         auth_required: "Ta session a expiré : reconnecte-toi.",
         network: "Connexion impossible. Vérifie ton internet."
       }[data.code] || "La demande n'a pas pu être envoyée. Réessaie dans un instant.";
@@ -250,6 +252,7 @@
     try { info = await (await fetch("/api/premium/info")).json(); } catch (e) { info = { methods: [], price: me.price || 1000, freeDaily: me.freeDaily || 25, contactEmail: "yvanemambo@gmail.com" }; }
     $("price").innerHTML = fmt(info.price) + " FCFA <small>/ mois</small>";
     $("amountTxt").textContent = fmt(info.price) + " FCFA";
+    $("pendingAmount").textContent = fmt(info.price) + " FCFA";
     $("freeDaily").textContent = info.freeDaily;
     if (info.whatsapp || info.contactEmail) {
       $("helpLine").innerHTML = "Une question ? " + (info.whatsapp ? '<a style="color:var(--star)" href="https://wa.me/' + info.whatsapp + '">WhatsApp</a> ou ' : "") + '<a style="color:var(--star)" href="mailto:' + info.contactEmail + '">' + info.contactEmail + "</a>";
