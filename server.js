@@ -39,6 +39,15 @@ const SUPABASE_URL = env("SUPABASE_URL").replace(/\/+$/, "");
 const SUPABASE_KEY = env("SUPABASE_KEY");
 const MEMBERS_SECRET = env("MEMBERS_SECRET");
 const MEMBERS = !!(SUPABASE_URL && SUPABASE_KEY && MEMBERS_SECRET);
+// Premium (paiement mobile money validé à la main dans /admin)
+const FREE_DAILY = Number(env("FREE_DAILY_MESSAGES")) || 25;
+const PREMIUM_PRICE = Number(env("PREMIUM_PRICE")) || 1000;
+const PAY_METHODS = [["wave", "Wave", env("PAY_WAVE")], ["orange", "Orange Money", env("PAY_ORANGE")], ["mtn", "MTN MoMo", env("PAY_MTN")], ["moov", "Moov Money", env("PAY_MOOV")]]
+  .filter(m => m[2]).map(([id, label, number]) => ({ id, label, number }));
+const CONTACT_WHATSAPP = env("CONTACT_WHATSAPP").replace(/[^\d]/g, "");
+const CONTACT_EMAIL = env("CONTACT_EMAIL") || "yvanemambo@gmail.com";
+const ADMIN_EMAILS = new Set(env("ADMIN_EMAILS").toLowerCase().split(/[,\s]+/).filter(Boolean));
+const isAdmin = u => !!u && ADMIN_EMAILS.has(u.email);
 if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les connexions seront perdues à chaque redémarrage.");
 
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
@@ -99,13 +108,13 @@ setInterval(() => {
   for (const [k, v] of attempts) if (v.exp < now) attempts.delete(k);
 }, 5 * 60_000).unref();
 
+// Plafond global du jour (protège le quota de la clé IA) : ne s'applique pas aux abonnés Premium.
 let day = new Date().toISOString().slice(0, 10);
 let dayCount = 0;
-function checkChatLimits(who) {
+function checkSiteCap(premium) {
   const today = new Date().toISOString().slice(0, 10);
   if (today !== day) { day = today; dayCount = 0; }
-  if (dayCount >= DAILY_LIMIT) return "daily_limit";
-  if (!allow("chat:" + who, PER_MINUTE, 60_000)) return "rate_limited";
+  if (!premium && dayCount >= DAILY_LIMIT) return "daily_limit";
   dayCount++;
   return null;
 }
@@ -543,7 +552,18 @@ async function handleChat(req, res, ip) {
   if (messages === "too_large") return json(res, 413, { code: "too_large" });
   if (!messages) return json(res, 400, { code: "bad_request" });
 
-  const limited = checkChatLimits(user ? user.email : ip);
+  if (!allow("chat:" + (user ? user.email : ip), PER_MINUTE, 60_000)) return json(res, 429, { code: "rate_limited" });
+  // Compte gratuit : FREE_DAILY messages par jour ; Premium : illimité.
+  let premium = false;
+  if (MEMBERS && user) {
+    try {
+      const rows = await rpc("stars_chat_allow", { p_email: user.email, p_limit: FREE_DAILY });
+      const r = Array.isArray(rows) ? rows[0] : null;
+      if (r && !r.allowed) return json(res, 402, { code: "free_limit", limit: FREE_DAILY, used: r.used, price: PREMIUM_PRICE });
+      premium = !!(r && r.premium_until && new Date(r.premium_until) > new Date());
+    } catch (e) { console.warn("[premium] compteur indisponible :", e.message); }
+  }
+  const limited = checkSiteCap(premium);
   if (limited) return json(res, 429, { code: limited });
 
   const ac = new AbortController();
@@ -591,7 +611,7 @@ async function page() {
 // ---------- Fichiers de l'appli (icônes, manifeste, service worker, pages) ----------
 const PUBLIC_DIR = path.join(__dirname, "public");
 const TYPES = { ".apk": "application/vnd.android.package-archive", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
-const PAGES = { "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
+const PAGES = { "/premium": "premium.html", "/admin": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
 async function serveStatic(req, res, pathname) {
   let rel = PAGES[pathname];
   if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg)$/.test(pathname)) rel = pathname.slice(1);
@@ -632,6 +652,70 @@ async function handleReport(req, res, ip) {
   json(res, 200, { ok: true });
 }
 
+// ---------- Premium ----------
+function premiumInfo(req, res) {
+  const u = currentUser(req);
+  if (!u) return json(res, 401, { code: "auth_required" });
+  json(res, 200, { price: PREMIUM_PRICE, freeDaily: FREE_DAILY, methods: PAY_METHODS, contactEmail: CONTACT_EMAIL, whatsapp: CONTACT_WHATSAPP || null });
+}
+
+async function premiumRequest(req, res) {
+  const u = currentUser(req);
+  if (!u) return json(res, 401, { code: "auth_required" });
+  if (!MEMBERS) return json(res, 503, { code: "members_down" });
+  const body = await readJson(req);
+  const method = String(body?.method || "");
+  if (!PAY_METHODS.some(m => m.id === method)) return json(res, 400, { code: "bad_method" });
+  const phone = String(body?.phone || "").replace(/[^\d+ ]/g, "").trim();
+  if (phone.replace(/\D/g, "").length < 8 || phone.length > 30) return json(res, 400, { code: "bad_phone" });
+  const reference = String(body?.reference || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80);
+  if (!allow("payreq:" + u.email, 5, 60 * 60_000)) return json(res, 429, { code: "rate_limited" });
+  try {
+    await rpc("stars_payment_add", { p_email: u.email, p_name: u.name || "", p_method: method, p_phone: phone, p_reference: reference, p_amount: PREMIUM_PRICE });
+  } catch (e) {
+    if (/too_many_pending/.test(e.message)) return json(res, 429, { code: "too_many_pending" });
+    console.error("[premium] demande impossible :", e.message);
+    return json(res, 503, { code: "members_down" });
+  }
+  console.log(`[premium] demande de ${mask(u.email)} via ${method}`);
+  json(res, 200, { ok: true });
+}
+
+// ---------- Tableau de bord du propriétaire ----------
+async function adminApi(req, res, url) {
+  const u = currentUser(req);
+  if (!u) return json(res, 401, { code: "auth_required" });
+  if (!isAdmin(u)) return json(res, 403, { code: "forbidden" });
+  if (!MEMBERS) return json(res, 503, { code: "members_down" });
+  try {
+    if (req.method === "GET" && url.pathname === "/api/admin/overview") {
+      return json(res, 200, { ...(await rpc("stars_admin_overview", {})), price: PREMIUM_PRICE, freeDaily: FREE_DAILY });
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/payment") {
+      const b = await readJson(req);
+      const rows = await rpc("stars_payment_decide", { p_id: Number(b?.id), p_approve: b?.approve === true });
+      console.log(`[admin] paiement ${b?.id} ${b?.approve === true ? "validé" : "refusé"}`);
+      return json(res, 200, { ok: true, premiumUntil: rows?.[0]?.premium_until || null });
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/grant") {
+      const b = await readJson(req);
+      const until = await rpc("stars_premium_grant", { p_email: String(b?.email || "").trim().toLowerCase(), p_months: Number(b?.months) || 1 });
+      return json(res, 200, { ok: true, premiumUntil: until });
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/report") {
+      const b = await readJson(req);
+      await rpc("stars_report_mark", { p_id: Number(b?.id), p_status: b?.status === "traite" ? "traite" : "vu" });
+      return json(res, 200, { ok: true });
+    }
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    const known = /not_pending|not_registered|bad_months|bad_status/.exec(e.message);
+    if (!known) console.error("[admin]", e.message);
+    return json(res, known ? 400 : 503, { code: known ? known[0] : "members_down" });
+  }
+  json(res, 404, { code: "not_found" });
+}
+
 async function handleDeleteAccount(req, res) {
   const user = currentUser(req);
   if (!user) return json(res, 401, { code: "auth_required" });
@@ -666,8 +750,22 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/status") return json(res, 200, { ready: !!provider, provider, authRequired: AUTH_REQUIRED, passwords: MEMBERS, passwordMin: PASSWORD_MIN });
     if (req.method === "GET" && url.pathname === "/api/me") {
       const u = currentUser(req);
-      if (u) ensureMember(u);
-      return u ? json(res, 200, u) : json(res, 401, { code: "auth_required" });
+      if (!u) return json(res, 401, { code: "auth_required" });
+      ensureMember(u);
+      const out = { ...u, admin: isAdmin(u), freeDaily: FREE_DAILY, price: PREMIUM_PRICE };
+      if (MEMBERS) {
+        try {
+          const r = (await rpc("stars_me_status", { p_email: u.email }))?.[0];
+          if (r) { out.used = r.used; out.premiumUntil = r.premium_until; out.pending = r.pending; }
+        } catch (e) { console.warn("[premium]", e.message); }
+      }
+      return json(res, 200, out);
+    }
+    if (req.method === "GET" && url.pathname === "/api/premium/info") return premiumInfo(req, res);
+    if (req.method === "POST" && url.pathname === "/api/premium/request") return await premiumRequest(req, res);
+    if (url.pathname.startsWith("/api/admin/")) return await adminApi(req, res, url);
+    if (req.method === "GET" && url.pathname === "/api/contact") {
+      return json(res, 200, { email: CONTACT_EMAIL, whatsapp: CONTACT_WHATSAPP || null, price: PREMIUM_PRICE, freeDaily: FREE_DAILY });
     }
     if (req.method === "POST" && url.pathname === "/api/auth/start") return await authStart(req, res, ip);
     if (req.method === "POST" && url.pathname === "/api/auth/verify") return await authVerify(req, res, ip);

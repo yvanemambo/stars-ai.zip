@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b1f">
+<title>STARS AI Premium</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/favicon-48.png">
+<style>
+  /* Layout: one column — offer, then "1. pay" and "2. tell us", with the right card shown for the visitor's state. */
+  :root { color-scheme: dark; --ink: #e9ecfb; --dim: #9aa3cf; --star: #f4c96b; --star-ink: #1a1404; --line: rgba(160,172,230,.16); --panel: rgba(22,29,66,.72); --ok: #7ee2a8; --danger: #ff8a8a; }
+  * { box-sizing: border-box; }
+  html { background: #070b1f; }
+  body {
+    margin: 0; min-height: 100vh; padding: max(16px, env(safe-area-inset-top)) 16px 48px; color: var(--ink);
+    background: radial-gradient(120% 60% at 50% 0%, #141c46, #070b1f 70%) no-repeat; background-color: #070b1f;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 520px; margin: 0 auto; display: grid; gap: 18px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: .12em; }
+  .brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .brand span { color: var(--star); }
+  .back { color: var(--dim); font-size: 14px; }
+  .hero { text-align: center; padding: 10px 0 0; display: grid; gap: 6px; justify-items: center; }
+  .badge { display: inline-block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--star-ink); background: var(--star); border-radius: 999px; padding: 4px 12px; font-weight: 700; }
+  h1 { margin: 6px 0 0; font-size: clamp(26px, 7vw, 34px); line-height: 1.2; }
+  .price { font-size: 40px; font-weight: 800; color: var(--star); line-height: 1.1; margin-top: 6px; }
+  .price small { font-size: 16px; color: var(--dim); font-weight: 500; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: grid; gap: 12px; }
+  .card h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+  .num { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--star); color: var(--star-ink); font-size: 15px; font-weight: 800; flex: none; }
+  .card p { margin: 0; color: var(--dim); font-size: 15px; }
+  ul.perks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  ul.perks li { display: flex; gap: 10px; align-items: flex-start; }
+  ul.perks li::before { content: "★"; color: var(--star); flex: none; }
+  .methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+  .method { cursor: pointer; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(5,8,24,.5); color: var(--ink); font: 600 14px system-ui, sans-serif; }
+  .method[aria-pressed="true"] { border-color: var(--star); background: rgba(244,201,107,.12); color: var(--star); }
+  .paybox { border: 1px dashed rgba(244,201,107,.5); border-radius: 14px; padding: 14px; display: grid; gap: 8px; text-align: center; }
+  .paybox .to { color: var(--dim); font-size: 14px; }
+  .paybox .phone { font-size: 26px; font-weight: 800; letter-spacing: .06em; overflow-wrap: anywhere; }
+  .paybox .amount { color: var(--star); font-weight: 700; }
+  label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--star); }
+  .field { display: grid; gap: 6px; }
+  input {
+    width: 100%; font: 400 16px system-ui, sans-serif; color: var(--ink); background: rgba(5,8,24,.6);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; outline: none;
+  }
+  input:focus { border-color: rgba(244,201,107,.6); }
+  .hint { font-size: 13px; color: var(--dim); }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; text-decoration: none; cursor: pointer;
+    font: 600 16px system-ui, sans-serif; background: var(--star); color: var(--star-ink); border: 0; border-radius: 14px; padding: 14px 16px;
+  }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.small { width: auto; padding: 9px 14px; font-size: 14px; border-radius: 10px; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn:focus-visible, .method:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .ok { color: var(--ok); }
+  .err { color: var(--danger); font-size: 14px; }
+  .err:empty { display: none; }
+  .center { text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="brand" href="/"><img src="/icons/icon-192.png" alt="">STARS <span>AI</span></a>
+    <a class="back" href="/">← Retour au chat</a>
+  </header>
+
+  <section class="hero">
+    <span class="badge">Premium</span>
+    <h1>Utilise STARS AI sans limite</h1>
+    <div class="price" id="price">1 000 FCFA <small>/ mois</small></div>
+  </section>
+
+  <section class="card" id="loading"><p class="center">Chargement…</p></section>
+
+  <section class="card" id="needLogin" hidden>
+    <h2>Connecte-toi d'abord</h2>
+    <p>Pour passer à Premium, il faut un compte STARS AI.</p>
+    <a class="btn" href="/">Se connecter ou s'inscrire</a>
+  </section>
+
+  <section class="card" id="activeCard" hidden>
+    <h2 class="ok">⭐ Ton Premium est actif</h2>
+    <p id="activeText"></p>
+    <button class="btn ghost" type="button" id="extendBtn">Prolonger mon Premium</button>
+  </section>
+
+  <section class="card" id="perks" hidden>
+    <ul class="perks">
+      <li><span><strong>Messages illimités</strong>, au lieu de <span id="freeDaily">25</span> par jour</span></li>
+      <li><span><strong>Exercices en photo</strong> et <strong>mode vocal</strong> sans limite</span></li>
+      <li><span><strong>Toujours disponible</strong>, même quand le service gratuit atteint sa limite du jour</span></li>
+      <li><span>Tu <strong>soutiens STARS AI</strong> pour qu'elle continue de s'améliorer</span></li>
+    </ul>
+  </section>
+
+  <section class="card" id="pendingCard" hidden>
+    <h2>⏳ Paiement en cours de vérification</h2>
+    <p>Ta demande est bien reçue. Ton Premium sera activé dès que le paiement est vérifié, en général sous 24 h. Tu n'as rien d'autre à faire.</p>
+  </section>
+
+  <section class="card" id="noMethods" hidden>
+    <h2>Paiement bientôt disponible</h2>
+    <p>Le paiement mobile money arrive très vite. En attendant, contacte-nous :</p>
+    <div id="contactBox"></div>
+  </section>
+
+  <section class="card" id="step1" hidden>
+    <h2><span class="num">1</span> Envoie le paiement</h2>
+    <p>Choisis ton service :</p>
+    <div class="methods" id="methods" role="group" aria-label="Service de paiement"></div>
+    <div class="paybox" id="paybox" hidden>
+      <div class="to">Envoie <span class="amount" id="amountTxt">1 000 FCFA</span> par <strong id="methodName"></strong> au numéro :</div>
+      <div class="phone" id="payNumber"></div>
+      <button class="btn small ghost" type="button" id="copyNumber" style="justify-self:center">Copier le numéro</button>
+    </div>
+  </section>
+
+  <form class="card" id="step2" hidden novalidate>
+    <h2><span class="num">2</span> Dis-nous que tu as payé</h2>
+    <div class="field">
+      <label for="phone">Le numéro qui a payé</label>
+      <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ex. 07 00 00 00 00" maxlength="30">
+    </div>
+    <div class="field">
+      <label for="reference">Référence de la transaction (facultatif)</label>
+      <input id="reference" maxlength="80" placeholder="Dans le SMS de confirmation">
+      <span class="hint">La référence nous aide à retrouver ton paiement plus vite.</span>
+    </div>
+    <div class="err" id="err" role="alert"></div>
+    <button class="btn" type="submit" id="sendBtn">J'ai payé, activer mon Premium</button>
+    <p class="hint center">Ton Premium est activé après vérification du paiement, en général sous 24 h.</p>
+  </form>
+
+  <section class="card" id="doneCard" hidden>
+    <h2 class="ok">✓ Merci !</h2>
+    <p>Ta demande est enregistrée. Ton Premium sera activé dès que le paiement est vérifié (en général sous 24 h). Tu le verras dans le menu de ton compte.</p>
+    <a class="btn" href="/">Retour au chat</a>
+  </section>
+
+  <p class="hint center" id="helpLine" hidden></p>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n).toLocaleString("fr-FR").replace(/ | /g, " ");
+  const show = (...ids) => ids.forEach(id => { $(id).hidden = false; });
+  const hide = (...ids) => ids.forEach(id => { $(id).hidden = true; });
+  let method = null, info = null;
+
+  function contactHtml(i) {
+    const parts = [];
+    if (i.whatsapp) parts.push('<a class="btn" href="https://wa.me/' + i.whatsapp + '?text=' + encodeURIComponent("Bonjour, j'ai une question sur STARS AI Premium.") + '">Écrire sur WhatsApp</a>');
+    parts.push('<a class="btn ghost" href="mailto:' + i.contactEmail + '">' + i.contactEmail + '</a>');
+    return parts.join("");
+  }
+
+  function pick(m) {
+    method = m;
+    document.querySelectorAll(".method").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === m.id)));
+    $("methodName").textContent = m.label;
+    $("payNumber").textContent = m.number;
+    $("paybox").hidden = false;
+    $("step2").hidden = false;
+  }
+
+  function showPayment() {
+    hide("activeCard");
+    if (!info.methods.length) { show("noMethods"); $("contactBox").innerHTML = contactHtml(info); return; }
+    show("step1");
+    const box = $("methods"); box.innerHTML = "";
+    for (const m of info.methods) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "method"; b.dataset.id = m.id; b.textContent = m.label; b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => pick(m));
+      box.appendChild(b);
+    }
+    if (info.methods.length === 1) pick(info.methods[0]);
+  }
+
+  $("copyNumber").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(method.number.replace(/\s/g, "")); $("copyNumber").textContent = "Copié !"; }
+    catch (e) { $("copyNumber").textContent = "Copie impossible"; }
+    setTimeout(() => { $("copyNumber").textContent = "Copier le numéro"; }, 1500);
+  });
+  $("extendBtn").addEventListener("click", () => { show("perks"); showPayment(); });
+
+  $("step2").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("err").textContent = "";
+    if (!method) { $("err").textContent = "Choisis le service utilisé pour payer."; return; }
+    const phone = $("phone").value.trim();
+    if (phone.replace(/\D/g, "").length < 8) { $("err").textContent = "Écris le numéro qui a envoyé l'argent."; $("phone").focus(); return; }
+    $("sendBtn").disabled = true; $("sendBtn").textContent = "Envoi…";
+    let res, data = {};
+    try {
+      res = await fetch("/api/premium/request", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ method: method.id, phone, reference: $("reference").value.trim() }) });
+      data = await res.json().catch(() => ({}));
+    } catch (err) { res = { ok: false }; data = { code: "network" }; }
+    $("sendBtn").disabled = false; $("sendBtn").textContent = "J'ai payé, activer mon Premium";
+    if (!res.ok) {
+      $("err").textContent = {
+        too_many_pending: "Tu as déjà des demandes en attente. Patiente pendant la vérification.",
+        rate_limited: "Trop de demandes. Réessaie dans une heure.",
+        bad_phone: "Ce numéro ne semble pas valide.",
+        auth_required: "Ta session a expiré : reconnecte-toi.",
+        network: "Connexion impossible. Vérifie ton internet."
+      }[data.code] || "La demande n'a pas pu être envoyée. Réessaie dans un instant.";
+      return;
+    }
+    hide("step1", "step2", "perks");
+    show("doneCard");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  (async () => {
+    let me = null;
+    try { const r = await fetch("/api/me"); if (r.ok) me = await r.json(); } catch (e) {}
+    hide("loading");
+    if (!me) { show("needLogin"); return; }
+    try { info = await (await fetch("/api/premium/info")).json(); } catch (e) { info = { methods: [], price: me.price || 1000, freeDaily: me.freeDaily || 25, contactEmail: "yvanemambo@gmail.com" }; }
+    $("price").innerHTML = fmt(info.price) + " FCFA <small>/ mois</small>";
+    $("amountTxt").textContent = fmt(info.price) + " FCFA";
+    $("freeDaily").textContent = info.freeDaily;
+    if (info.whatsapp || info.contactEmail) {
+      $("helpLine").innerHTML = "Une question ? " + (info.whatsapp ? '<a style="color:var(--star)" href="https://wa.me/' + info.whatsapp + '">WhatsApp</a> ou ' : "") + '<a style="color:var(--star)" href="mailto:' + info.contactEmail + '">' + info.contactEmail + "</a>";
+      show("helpLine");
+    }
+    const until = me.premiumUntil ? new Date(me.premiumUntil) : null;
+    if (until && until > new Date()) {
+      $("activeText").textContent = "Messages illimités jusqu'au " + until.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) + ".";
+      show("activeCard");
+      return;
+    }
+    show("perks");
+    if (me.pending > 0) { show("pendingCard"); return; }
+    showPayment();
+  })();
+})();
+</script>
+</body>
+</html>

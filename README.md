@@ -41,6 +41,14 @@ Exigences Google Play déjà en place : bouton « Signaler » sous chaque répon
 « Supprimer mon compte » dans le menu (`/api/account/delete`, anonymise la ligne de `stars_members`),
 politique de confidentialité sur `/confidentialite`.
 
+## Premium, tableau de bord, offre écoles
+
+- Compte gratuit : `FREE_DAILY_MESSAGES` messages par jour (compteur `stars_usage` dans Supabase) ; Premium illimité.
+- `/premium` : paiement mobile money (numéros dans `PAY_WAVE`, `PAY_ORANGE`, `PAY_MTN`, `PAY_MOOV`), puis formulaire « J'ai payé » (`stars_payments`).
+- `/admin` (réservé à `ADMIN_EMAILS`) : chiffres du jour, paiements à valider (+30 jours de Premium), Premium offert, signalements, derniers inscrits.
+- `/ecoles` : offre pour les écoles, contact WhatsApp (`CONTACT_WHATSAPP`) et e-mail (`CONTACT_EMAIL`).
+- Prix : `PREMIUM_PRICE` (FCFA par mois).
+
 ## Inscription par code Gmail
 
 Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.

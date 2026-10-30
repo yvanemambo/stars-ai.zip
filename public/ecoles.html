@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b1f">
+<title>STARS AI pour les écoles</title>
+<meta name="description" content="STARS AI pour les écoles, les centres de cours et les répétiteurs : aide aux devoirs 24 h/24, exercices corrigés étape par étape, en français.">
+<meta property="og:title" content="STARS AI pour les écoles">
+<meta property="og:description" content="Aide aux devoirs 24 h/24 pour vos élèves : exercices en photo corrigés étape par étape, explications à l'oral, en français.">
+<meta property="og:image" content="https://stars-ai.onrender.com/icons/icon-512.png">
+<link rel="icon" href="/icons/favicon-48.png">
+<style>
+  /* Layout: pitch page for schools — promise, what pupils get, how the offer works, one clear contact action. */
+  :root { color-scheme: dark; --ink: #e9ecfb; --dim: #9aa3cf; --star: #f4c96b; --star-ink: #1a1404; --line: rgba(160,172,230,.16); --panel: rgba(22,29,66,.72); }
+  * { box-sizing: border-box; }
+  html { background: #070b1f; }
+  body {
+    margin: 0; min-height: 100vh; padding: max(16px, env(safe-area-inset-top)) 16px 56px; color: var(--ink);
+    background: radial-gradient(120% 60% at 50% 0%, #141c46, #070b1f 70%) no-repeat; background-color: #070b1f;
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; display: grid; gap: 22px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: .12em; }
+  .brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .brand span { color: var(--star); }
+  .try { color: var(--star); font-size: 14px; }
+  .hero { padding: 24px 0 4px; display: grid; gap: 12px; }
+  .eyebrow { color: var(--star); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; }
+  h1 { margin: 0; font-size: clamp(28px, 7vw, 42px); line-height: 1.15; text-wrap: balance; }
+  .lead { margin: 0; color: #d4d9f3; font-size: 18px; max-width: 58ch; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .feat { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 4px; }
+  .feat .ico { font-size: 22px; }
+  .feat b { color: #fff; }
+  .feat p { margin: 0; color: var(--dim); font-size: 15px; }
+  h2 { margin: 10px 0 0; font-size: 22px; }
+  ol { margin: 0; padding-left: 1.3em; color: #d4d9f3; }
+  ol li { margin-bottom: 8px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; display: grid; gap: 12px; }
+  .card p { margin: 0; color: var(--dim); }
+  .cta { border-color: rgba(244,201,107,.5); background: linear-gradient(160deg, rgba(244,201,107,.14), rgba(22,29,66,.72) 60%); }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; text-decoration: none; cursor: pointer;
+    font: 600 16px system-ui, sans-serif; background: var(--star); color: var(--star-ink); border: 0; border-radius: 14px; padding: 15px 18px;
+  }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn svg { width: 20px; height: 20px; }
+  .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .small { font-size: 13px; color: var(--dim); text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="brand" href="/"><img src="/icons/icon-192.png" alt="">STARS <span>AI</span></a>
+    <a class="try" href="/">Essayer STARS AI →</a>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Écoles · Centres de cours · Répétiteurs</div>
+    <h1>Un répétiteur disponible 24 h/24 pour chacun de vos élèves</h1>
+    <p class="lead">STARS AI aide vos élèves à comprendre leurs exercices, le soir, le week-end et pendant les vacances, en français et avec des explications étape par étape.</p>
+  </section>
+
+  <section class="grid" aria-label="Ce que vos élèves y gagnent">
+    <div class="feat"><span class="ico" aria-hidden="true">📷</span><b>Exercices en photo</b><p>L'élève photographie son exercice : STARS AI le lit et explique la méthode, les calculs et le résultat.</p></div>
+    <div class="feat"><span class="ico" aria-hidden="true">🧑‍🏫</span><b>Explications de prof</b><p>Ce qu'on cherche, la règle utilisée, chaque étape, puis un exercice similaire pour s'entraîner.</p></div>
+    <div class="feat"><span class="ico" aria-hidden="true">🎙️</span><b>Mode vocal</b><p>L'élève pose sa question à voix haute et reçoit une explication orale, comme avec un répétiteur.</p></div>
+    <div class="feat"><span class="ico" aria-hidden="true">📚</span><b>Toutes les matières</b><p>Maths, physique-chimie, SVT, français, anglais, philosophie… du collège au lycée.</p></div>
+    <div class="feat"><span class="ico" aria-hidden="true">💡</span><b>Indices plutôt que réponses</b><p>L'élève peut demander seulement un indice, pour chercher par lui-même avant de voir la solution.</p></div>
+    <div class="feat"><span class="ico" aria-hidden="true">🔒</span><b>Sans publicité</b><p>Aucune publicité, et les discussions restent sur le téléphone de l'élève.</p></div>
+  </section>
+
+  <h2>Comment ça marche</h2>
+  <section class="card">
+    <ol>
+      <li>Vous nous contactez et nous indiquez le nombre d'élèves.</li>
+      <li>Nous vous proposons un <strong>tarif de groupe</strong>, moins cher que l'abonnement individuel (<span id="price">1 000</span> FCFA par mois et par élève).</li>
+      <li>Chaque élève crée son compte gratuitement, et nous activons le <strong>Premium</strong> pour toute la classe : messages illimités, photos et mode vocal sans limite.</li>
+    </ol>
+    <p>Vous pouvez aussi essayer gratuitement : chaque compte a droit à <span id="free">25</span> messages par jour.</p>
+  </section>
+
+  <section class="card cta">
+    <h2 style="margin:0">Demander un devis</h2>
+    <p>Réponse rapide, sans engagement.</p>
+    <a class="btn" id="waBtn" href="#" hidden>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2m5.4 14.1c-.2.6-1.3 1.2-1.8 1.3-.5 0-1 .3-3.3-.7-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.2"/></svg>
+      Écrire sur WhatsApp
+    </a>
+    <a class="btn ghost" id="mailBtn" href="mailto:yvanemambo@gmail.com?subject=STARS%20AI%20pour%20mon%20%C3%A9cole">yvanemambo@gmail.com</a>
+  </section>
+
+  <p class="small"><a href="/confidentialite" style="color:var(--star)">Politique de confidentialité</a> · <a href="/telecharger" style="color:var(--star)">Installer l'appli</a></p>
+</main>
+<script>
+(async () => {
+  try {
+    const c = await (await fetch("/api/contact")).json();
+    const fmt = n => Number(n).toLocaleString("fr-FR").replace(/ | /g, " ");
+    if (c.price) document.getElementById("price").textContent = fmt(c.price);
+    if (c.freeDaily) document.getElementById("free").textContent = c.freeDaily;
+    if (c.whatsapp) {
+      const wa = document.getElementById("waBtn");
+      wa.href = "https://wa.me/" + c.whatsapp + "?text=" + encodeURIComponent("Bonjour, je souhaite un devis STARS AI pour mon école / mes élèves.");
+      wa.hidden = false;
+    }
+    if (c.email) {
+      const m = document.getElementById("mailBtn");
+      m.href = "mailto:" + c.email + "?subject=" + encodeURIComponent("STARS AI pour mon école");
+      m.textContent = c.email;
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

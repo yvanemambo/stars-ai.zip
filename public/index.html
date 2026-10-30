@@ -176,6 +176,14 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 }
 .menu-link:hover { color: var(--ink); text-decoration: underline; }
 .menu-link.danger { color: var(--danger); }
+.menu-link.gold { color: var(--star); font-weight: 600; }
+.plan { font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+.plan b { color: var(--star); font-weight: 600; }
+.note-cta {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; text-decoration: none;
+  background: var(--star); color: var(--star-ink); border-radius: 10px; padding: 9px 14px; font: 600 14px var(--f-body);
+}
+.note-cta:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .menu-sep { height: 1px; background: var(--line); }
 .install-cta {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
@@ -365,8 +373,12 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
         <div class="menu">
           <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
           <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
+          <div class="plan" id="planLine"></div>
+          <a class="menu-link gold" id="premiumLink" href="/premium">⭐ Passer à Premium</a>
+          <a class="menu-link" id="adminLink" href="/admin" hidden>🛠 Tableau de bord</a>
           <div class="menu-sep"></div>
           <button class="menu-link" type="button" data-install hidden>📲 Installer l'appli</button>
+          <a class="menu-link" href="/ecoles">🏫 Offre écoles</a>
           <a class="menu-link" href="/confidentialite">Confidentialité</a>
           <button class="menu-link danger" id="deleteAccount" type="button">Supprimer mon compte</button>
         </div>
@@ -747,6 +759,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       turns.push({ role: "assistant", content: answer }); save();
       if (truncated) b.insertAdjacentHTML("beforeend", '<div class="note">Réponse coupée. Demande la suite.</div>');
       addActions(b, text, answer);
+      if (me) { me.used = (me.used || 0) + 1; refreshPlan(); }
       return { ok: true, text: answer };
     } catch (e) {
       const code = (e && e.code) || (ctl.signal.aborted ? "cancelled" : "network");
@@ -754,7 +767,11 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       const partial = e && e.text;
       b.innerHTML = partial ? md(partial) : "";
       if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
-      if (code !== "cancelled") {
+      if (code === "free_limit") {
+        const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/ | /g, " ");
+        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">⭐ Passer à Premium</a>';
+        if (me) { me.used = lim; refreshPlan(); }
+      } else if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
       } else if (!partial) { b.innerHTML = '<span class="thinking">Arrêté.</span>'; }
       return { ok: false, code, text: partial || "" };
@@ -941,6 +958,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 
   function maybeListenAgain() {
     if (!call.active || !call.answerDone || call.queue > 0 || call.rec || call.state === "listening") return;
+    if (call.stopAfterSpeech) { endCall(); return; }
     listen();
   }
 
@@ -1001,6 +1019,10 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     call.answerDone = true;
     if (r.ok) { showYou(said, r.text); speakNew(r.text, true, turn); }
     else if (r.code === "auth_required") { endCall(); return; }
+    else if (r.code === "free_limit") {
+      call.stopAfterSpeech = true;
+      say("Tu as utilisé tes messages gratuits d'aujourd'hui. Passe à Premium pour continuer sans limite, ou reviens demain.", turn);
+    }
     else if (r.code !== "cancelled") {
       say(r.code === "rate_limited" ? "Trop de messages d'un coup. Attends une minute, puis reparle-moi."
         : r.code === "daily_limit" ? "La limite de messages du jour est atteinte. Reviens demain."
@@ -1235,6 +1257,8 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     document.getElementById("togglePass").textContent = document.getElementById("toggleNewPass").textContent = "Afficher";
     try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
     showChat();
+    // Fetch the Premium status / daily counter for the account menu
+    fetch("/api/me").then(r => r.ok ? r.json() : null).then(d => { if (d && me && d.email === me.email) { me = d; refreshPlan(); } }).catch(() => {});
   }
 
   const AUTH_ERRORS = {
@@ -1285,6 +1309,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       document.getElementById("avatar").textContent = (me.name || me.email).trim().charAt(0);
       document.getElementById("meName").textContent = me.name || "";
       document.getElementById("meEmail").textContent = me.email;
+      refreshPlan();
     }
     greet(me ? me.name : "");
     turns = load();
@@ -1296,6 +1321,22 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     }
     pending = []; renderAttach();
     input.focus();
+  }
+
+  // Account menu: free counter or Premium date, plus the admin link for the owner.
+  function refreshPlan() {
+    if (!me) return;
+    const plan = document.getElementById("planLine"), prem = document.getElementById("premiumLink");
+    document.getElementById("adminLink").hidden = !me.admin;
+    const until = me.premiumUntil ? new Date(me.premiumUntil) : null;
+    if (until && until > new Date()) {
+      plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
+      prem.textContent = "Prolonger mon Premium"; prem.classList.remove("gold");
+    } else if (me.freeDaily) {
+      const used = Math.min(me.used || 0, me.freeDaily);
+      plan.innerHTML = "Compte gratuit : <b>" + used + " / " + me.freeDaily + "</b> messages aujourd'hui" + (me.pending ? "<br>⏳ Paiement Premium en vérification" : "");
+      prem.textContent = "⭐ Passer à Premium"; prem.classList.add("gold");
+    } else plan.textContent = "";
   }
 
   function startCooldown(sec) {
