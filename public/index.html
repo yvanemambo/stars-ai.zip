@@ -6,6 +6,10 @@
 <title>STARS AI</title>
 <meta name="description" content="STARS AI — ton assistant d'intelligence artificielle en français.">
 <meta name="theme-color" content="#070b1f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="STARS AI">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23070b1f'/%3E%3Cpath d='M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z' fill='%23f4c96b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -131,6 +135,51 @@ footer { padding-block: 8px 14px; }
 .fine { text-align: center; color: var(--ink-dim); font-size: 12px; margin-top: 8px; }
 .fine.warn { color: var(--star); }
 
+/* Answer actions, dialogs, account menu links */
+.acts { display: flex; gap: 16px; margin-top: 8px; }
+.act {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 0; cursor: pointer;
+  background: none; border: 0; color: var(--ink-dim); font: 500 12px var(--f-body);
+}
+.act:hover { color: var(--ink); }
+.act:disabled { opacity: .6; cursor: default; }
+.act svg { width: 14px; height: 14px; }
+.act:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; border-radius: 4px; }
+dialog.sheet {
+  width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 18px; padding: 20px;
+  background: #111836; color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
+}
+dialog.sheet::backdrop { background: rgba(3, 5, 15, .72); }
+dialog.sheet h3 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 500; font-size: 18px; }
+dialog.sheet p { margin: 0 0 14px; color: var(--ink-dim); line-height: 1.55; font-size: 14px; }
+dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
+.choices { display: grid; gap: 8px; margin: 0 0 14px; }
+.choice {
+  display: flex; align-items: center; gap: 10px; padding: 11px 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; font-size: 14px;
+}
+.choice:has(input:checked) { border-color: rgba(244, 201, 107, .6); background: rgba(244, 201, 107, .08); }
+.choice input { accent-color: var(--star); width: 18px; height: 18px; margin: 0; }
+.field textarea {
+  width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); resize: vertical;
+  background: rgba(5, 8, 24, .6); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; outline: none;
+}
+.field textarea:focus { border-color: rgba(244, 201, 107, .6); }
+.sheet-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.btn-danger { background: #e5484d; color: #fff; border: 0; border-radius: 12px; padding: 12px 16px; font: 600 14px var(--f-body); cursor: pointer; }
+.btn-danger:disabled { opacity: .6; cursor: default; }
+.btn-danger:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.menu-link {
+  background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: none;
+  font: 500 13px var(--f-body); color: var(--ink-dim);
+}
+.menu-link:hover { color: var(--ink); text-decoration: underline; }
+.menu-link.danger { color: var(--danger); }
+.menu-sep { height: 1px; background: var(--line); }
+.legal { margin: 0; font-size: 12px; color: var(--ink-dim); text-align: center; line-height: 1.5; }
+.legal a { color: var(--star); }
+
 /* Voice call */
 #micBtn {
   width: 40px; height: 40px; flex: none; border-radius: 50%; cursor: pointer;
@@ -142,7 +191,7 @@ footer { padding-block: 8px 14px; }
 #micBtn:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
 .voice {
   position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; overflow-y: auto;
-  background: radial-gradient(120% 80% at 50% 25%, rgba(20, 28, 70, .97), rgba(7, 11, 31, .985));
+  background: radial-gradient(120% 80% at 50% 25%, #141c46, #070b1f); background-color: #070b1f;
   padding: max(24px, env(safe-area-inset-top, 0px)) 16px max(24px, env(safe-area-inset-bottom, 0px));
 }
 .voice-inner { width: 100%; max-width: 440px; display: grid; justify-items: center; gap: 18px; text-align: center; }
@@ -306,6 +355,9 @@ footer { padding-block: 8px 14px; }
         <div class="menu">
           <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
           <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
+          <div class="menu-sep"></div>
+          <a class="menu-link" href="/confidentialite">Confidentialité</a>
+          <button class="menu-link danger" id="deleteAccount" type="button">Supprimer mon compte</button>
         </div>
       </details>
     </div>
@@ -351,6 +403,7 @@ footer { padding-block: 8px 14px; }
           <button class="btn-star" id="startBtn" type="submit">Créer mon compte</button>
           <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
+        <p class="legal">En utilisant STARS AI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
       </div>
       <div id="step2" hidden>
         <h2>Regarde ton <em>Gmail</em></h2>
@@ -394,6 +447,38 @@ footer { padding-block: 8px 14px; }
     <div class="fine" id="fine">STARS AI peut se tromper. Vérifie les informations importantes.</div>
   </footer>
 </div>
+
+<dialog class="sheet" id="reportDlg" aria-labelledby="reportTitle">
+  <form id="reportForm" novalidate>
+    <h3 id="reportTitle">Signaler cette réponse</h3>
+    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre STARS AI plus sûre.</p>
+    <div class="choices" role="radiogroup" aria-label="Raison du signalement">
+      <label class="choice"><input type="radio" name="reason" value="offensant"> Contenu choquant ou offensant</label>
+      <label class="choice"><input type="radio" name="reason" value="faux_dangereux"> Information fausse ou dangereuse</label>
+      <label class="choice"><input type="radio" name="reason" value="inapproprie_jeunes"> Pas adapté aux jeunes</label>
+      <label class="choice"><input type="radio" name="reason" value="autre"> Autre problème</label>
+    </div>
+    <div class="field">
+      <label for="reportComment">Commentaire (facultatif)</label>
+      <textarea id="reportComment" maxlength="500" rows="3" placeholder="Explique en quelques mots…"></textarea>
+    </div>
+    <div class="err" id="reportErr" role="alert"></div>
+    <div class="sheet-btns">
+      <button class="btn-ghost" type="button" id="reportCancel">Annuler</button>
+      <button class="btn-star" type="submit" id="reportSend">Envoyer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="deleteDlg" aria-labelledby="deleteTitle">
+  <h3 id="deleteTitle">Supprimer ton compte ?</h3>
+  <p>Le compte <strong id="deleteEmail"></strong> sera supprimé définitivement, et tes discussions enregistrées sur cet appareil seront effacées. Tu pourras te réinscrire plus tard avec la même adresse.</p>
+  <div class="err" id="deleteErr" role="alert"></div>
+  <div class="sheet-btns">
+    <button class="btn-ghost" type="button" id="deleteCancel">Annuler</button>
+    <button class="btn-danger" type="button" id="deleteConfirm">Supprimer mon compte</button>
+  </div>
+</dialog>
 
 <div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec STARS AI" hidden>
   <div class="voice-inner">
@@ -645,13 +730,14 @@ footer { padding-block: 8px 14px; }
       }, opts.voice);
       turns.push({ role: "assistant", content: answer }); save();
       if (truncated) b.insertAdjacentHTML("beforeend", '<div class="note">Réponse coupée. Demande la suite.</div>');
+      addActions(b, text, answer);
       return { ok: true, text: answer };
     } catch (e) {
       const code = (e && e.code) || (ctl.signal.aborted ? "cancelled" : "network");
       if (code === "auth_required") { turns.pop(); me = null; showAuth("Ta session a expiré. Reconnecte-toi pour continuer."); return { ok: false, code }; }
       const partial = e && e.text;
       b.innerHTML = partial ? md(partial) : "";
-      if (partial) { turns.push({ role: "assistant", content: partial }); save(); }
+      if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
       if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
       } else if (!partial) { b.innerHTML = '<span class="thinking">Arrêté.</span>'; }
@@ -945,6 +1031,88 @@ footer { padding-block: 8px 14px; }
   document.addEventListener("keydown", e => { if (e.key === "Escape" && call.active) endCall(); });
   document.addEventListener("visibilitychange", () => { if (document.hidden) endCall(); });
 
+  /* ---------- Under each answer: Copier / Signaler (Google Play requires in-app reporting for AI chat) ---------- */
+  const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const ICON_FLAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>';
+  const reportDlg = document.getElementById("reportDlg"), reportForm = document.getElementById("reportForm");
+  const reportErr = document.getElementById("reportErr"), reportSend = document.getElementById("reportSend");
+  let reportCtx = null;
+
+  function addActions(b, question, answer) {
+    if (!b || !answer || !String(answer).trim()) return;
+    const acts = document.createElement("div"); acts.className = "acts";
+    const copy = document.createElement("button");
+    copy.type = "button"; copy.className = "act"; copy.innerHTML = ICON_COPY + "<span>Copier</span>";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(String(answer));
+        copy.lastChild.textContent = "Copié !";
+        setTimeout(() => { copy.lastChild.textContent = "Copier"; }, 1500);
+      } catch (e) { flash("Impossible de copier sur cet appareil."); }
+    });
+    const rep = document.createElement("button");
+    rep.type = "button"; rep.className = "act"; rep.innerHTML = ICON_FLAG + "<span>Signaler</span>";
+    rep.addEventListener("click", () => openReport(question, answer, rep));
+    acts.append(copy, rep);
+    b.appendChild(acts);
+  }
+
+  function openReport(question, answer, btn) {
+    reportCtx = { question: String(question || ""), answer: String(answer), btn };
+    reportForm.reset(); reportErr.textContent = "";
+    reportSend.disabled = false; reportSend.textContent = "Envoyer";
+    reportDlg.showModal();
+  }
+  document.getElementById("reportCancel").addEventListener("click", () => reportDlg.close());
+  reportForm.addEventListener("change", () => { reportErr.textContent = ""; });
+  reportForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    const picked = reportForm.querySelector('input[name="reason"]:checked');
+    if (!picked) { reportErr.textContent = "Choisis une raison."; return; }
+    reportSend.disabled = true; reportSend.textContent = "Envoi…";
+    const { ok, data } = await post("/api/report", {
+      reason: picked.value, comment: document.getElementById("reportComment").value.trim(),
+      question: reportCtx.question, answer: reportCtx.answer
+    });
+    reportSend.disabled = false; reportSend.textContent = "Envoyer";
+    if (!ok) {
+      reportErr.textContent = data.code === "rate_limited" ? "Tu as envoyé beaucoup de signalements. Réessaie plus tard."
+        : data.code === "auth_required" ? "Reconnecte-toi pour envoyer un signalement."
+        : "Le signalement n'a pas pu être envoyé. Réessaie dans un instant.";
+      return;
+    }
+    reportDlg.close();
+    if (reportCtx.btn) { reportCtx.btn.lastChild.textContent = "Signalé"; reportCtx.btn.disabled = true; }
+    flash("Merci ! Ton signalement a bien été envoyé.");
+  });
+
+  /* ---------- Delete my account (required by Google Play for apps with accounts) ---------- */
+  const deleteDlg = document.getElementById("deleteDlg"), deleteErr = document.getElementById("deleteErr");
+  const deleteConfirm = document.getElementById("deleteConfirm");
+  document.getElementById("deleteAccount").addEventListener("click", () => {
+    if (!me) return;
+    account.open = false;
+    document.getElementById("deleteEmail").textContent = me.email;
+    deleteErr.textContent = ""; deleteConfirm.disabled = false; deleteConfirm.textContent = "Supprimer mon compte";
+    deleteDlg.showModal();
+  });
+  document.getElementById("deleteCancel").addEventListener("click", () => deleteDlg.close());
+  deleteConfirm.addEventListener("click", async () => {
+    deleteConfirm.disabled = true; deleteConfirm.textContent = "Suppression…";
+    const { ok } = await post("/api/account/delete", {});
+    if (!ok) {
+      deleteConfirm.disabled = false; deleteConfirm.textContent = "Supprimer mon compte";
+      deleteErr.textContent = "La suppression n'a pas pu se faire. Réessaie dans un instant, ou écris à yvanemambo@gmail.com.";
+      return;
+    }
+    try { localStorage.removeItem(key()); localStorage.removeItem(LAST_EMAIL); } catch (e) {}
+    deleteDlg.close();
+    me = null; turns = [];
+    emailIn.value = ""; nameIn.value = "";
+    showAuth("");
+    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur STARS AI !";
+  });
+
   /* ---------- Sign-up / sign-in ---------- */
   const auth = document.getElementById("auth");
   const composerWrap = document.getElementById("composerWrap");
@@ -1105,7 +1273,11 @@ footer { padding-block: 8px 14px; }
     greet(me ? me.name : "");
     turns = load();
     welcome.hidden = turns.length > 0;
-    for (const t of turns) addMsg(t.role === "user" ? "user" : "ai", t.content, t.thumbs);
+    let lastQuestion = "";
+    for (const t of turns) {
+      if (t.role === "user") { addMsg("user", t.content, t.thumbs); lastQuestion = t.content || ""; }
+      else addActions(addMsg("ai", t.content), lastQuestion, t.content);
+    }
     pending = []; renderAttach();
     input.focus();
   }
@@ -1202,6 +1374,11 @@ footer { padding-block: 8px 14px; }
     me = null; turns = []; showAuth("");
   });
   document.addEventListener("click", e => { if (account.open && !account.contains(e.target)) account.open = false; });
+
+  /* ---------- Installable app (service worker) ---------- */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
+  }
 
   /* ---------- Start ---------- */
   (async () => {

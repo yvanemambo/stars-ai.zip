@@ -27,6 +27,17 @@ Le bouton micro ouvre un appel : le navigateur écoute (reconnaissance vocale de
 en version courte « pour l'oral » (`voice: true` envoyé à `/api/chat`), la réponse est lue à voix haute phrase par phrase,
 puis l'écoute reprend. Toucher le cercle coupe la parole ; « Raccrocher » termine. Les échanges restent dans la discussion.
 
+## Application Android (Play Store)
+
+Le site est installable (PWA) : `public/manifest.webmanifest`, `public/sw.js` (page hors ligne `offline.html`), icônes dans `public/icons/`.
+Le paquet Android se génère sur https://www.pwabuilder.com à partir de https://stars-ai.onrender.com.
+Une fois l'appli signée, mettre le contenu de `assetlinks.json` dans la variable Render `ASSETLINKS_JSON`
+(servi sur `/.well-known/assetlinks.json`) pour enlever la barre d'adresse dans l'appli.
+
+Exigences Google Play déjà en place : bouton « Signaler » sous chaque réponse (`/api/report`, table `stars_reports`),
+« Supprimer mon compte » dans le menu (`/api/account/delete`, anonymise la ligne de `stars_members`),
+politique de confidentialité sur `/confidentialite`.
+
 ## Inscription par code Gmail
 
 Les visiteurs donnent leur prénom et leur adresse Gmail, reçoivent un code à 6 chiffres (valable 10 minutes) et restent connectés 30 jours.

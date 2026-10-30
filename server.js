@@ -588,6 +588,63 @@ async function page() {
   return indexHtml;
 }
 
+// ---------- Fichiers de l'appli (icônes, manifeste, service worker, pages) ----------
+const PUBLIC_DIR = path.join(__dirname, "public");
+const TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
+const PAGES = { "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
+async function serveStatic(req, res, pathname) {
+  let rel = PAGES[pathname];
+  if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg)$/.test(pathname)) rel = pathname.slice(1);
+  if (!rel) return false;
+  const file = path.join(PUBLIC_DIR, rel);
+  if (!file.startsWith(PUBLIC_DIR + path.sep)) return false;
+  let data;
+  try { data = await readFile(file); } catch { return false; }
+  const ext = path.extname(file);
+  const cache = rel.startsWith("icons/") ? "public, max-age=604800" : rel === "sw.js" ? "no-cache" : "public, max-age=3600";
+  res.writeHead(200, { "content-type": TYPES[ext] || "application/octet-stream", "cache-control": cache });
+  res.end(req.method === "HEAD" ? undefined : data);
+  return true;
+}
+// Lien entre l'appli Android et le site (rempli plus tard avec l'empreinte donnée par PWABuilder / Google Play)
+const ASSETLINKS_JSON = env("ASSETLINKS_JSON");
+
+// ---------- Signalements et suppression de compte ----------
+const REPORT_REASONS = new Set(["offensant", "faux_dangereux", "inapproprie_jeunes", "autre"]);
+async function handleReport(req, res, ip) {
+  const user = currentUser(req);
+  if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
+  if (!MEMBERS) return json(res, 503, { code: "members_down" });
+  const body = await readJson(req, 100_000);
+  const reason = String(body?.reason || "");
+  const answer = String(body?.answer || "").slice(0, 8000);
+  if (!REPORT_REASONS.has(reason) || !answer.trim()) return json(res, 400, { code: "bad_request" });
+  if (!allow("report:" + (user ? user.email : ip), 15, 60 * 60_000)) return json(res, 429, { code: "rate_limited" });
+  try {
+    await rpc("stars_report_add", {
+      p_email: user ? user.email : "", p_reason: reason,
+      p_comment: String(body?.comment || "").slice(0, 500), p_question: String(body?.question || "").slice(0, 4000), p_answer: answer
+    });
+  } catch (e) { console.error("[signalement]", e.message); return json(res, 503, { code: "members_down" }); }
+  console.log(`[signalement] ${reason} par ${user ? mask(user.email) : "anonyme"}`);
+  json(res, 200, { ok: true });
+}
+
+async function handleDeleteAccount(req, res) {
+  const user = currentUser(req);
+  if (!user) return json(res, 401, { code: "auth_required" });
+  await readJson(req); // exige une requête JSON (protège contre les formulaires d'autres sites)
+  if (MEMBERS) {
+    try { await rpc("stars_member_remove", { p_email: user.email }); }
+    catch (e) { console.error("[comptes] suppression impossible :", e.message); return json(res, 503, { code: "members_down" }); }
+  }
+  ensured.delete(user.email);
+  callMailer({ action: "deleted", email: user.email, name: user.name }).catch(() => {}); // pour un futur script qui retire la ligne
+  res.setHeader("set-cookie", sessionCookie(req, "", 0));
+  console.log(`[comptes] compte supprimé : ${mask(user.email)}`);
+  json(res, 200, { ok: true });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const ip = clientIp(req);
@@ -597,6 +654,13 @@ const server = http.createServer(async (req, res) => {
       return res.end(await page());
     }
     if (req.method === "GET" && url.pathname === "/healthz") return json(res, 200, { ok: true });
+    if ((req.method === "GET" || req.method === "HEAD") && await serveStatic(req, res, url.pathname)) return;
+    if (req.method === "GET" && url.pathname === "/.well-known/assetlinks.json") {
+      res.writeHead(ASSETLINKS_JSON ? 200 : 404, { "content-type": "application/json", "cache-control": "public, max-age=300" });
+      return res.end(ASSETLINKS_JSON || "[]");
+    }
+    if (req.method === "POST" && url.pathname === "/api/report") return await handleReport(req, res, ip);
+    if (req.method === "POST" && url.pathname === "/api/account/delete") return await handleDeleteAccount(req, res);
     if (req.method === "GET" && url.pathname === "/api/status") return json(res, 200, { ready: !!provider, provider, authRequired: AUTH_REQUIRED, passwords: MEMBERS, passwordMin: PASSWORD_MIN });
     if (req.method === "GET" && url.pathname === "/api/me") {
       const u = currentUser(req);
