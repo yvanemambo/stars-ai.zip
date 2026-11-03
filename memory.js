@@ -66,7 +66,7 @@ export function isSecret(text) {
   if (KEY_PATTERNS.some(re => re.test(t))) return true;
   if (CREDENTIAL_WORDS.test(t)) return true;
   if (NIR.test(t)) return true;
-  if (ID_WORDS.test(t) && /\d[\d\s.-]{5,}\d/.test(t)) return true;
+  if (ID_WORDS.test(t) && (/\d[\d\s.-]{5,}\d/.test(t) || /\b(?=[A-Za-z0-9]{6,}\b)[A-Za-z0-9]*\d{4}[A-Za-z0-9]*/.test(t))) return true;
   // longue suite de lettres et de chiffres sans espace : ressemble à une clé ou un jeton
   for (const tok of t.match(/[A-Za-z0-9_-]{32,}/g) || []) if (/[A-Za-z]/.test(tok) && /\d/.test(tok)) return true;
   // numéros de carte bancaire (13 à 19 chiffres, test de Luhn)
@@ -149,7 +149,7 @@ export function decideForget(items, query) {
 // ---------- « Retiens que… » / « Oublie que… » ----------
 const LEAD = /^(?:(?:s'il\s+(?:te|vous)\s+pla[iî]t|stp|svp|ok|okay|d'accord|alors|bon|dis|hey|eh|[ée]coute|ah|oui|et|aussi|maintenant)[\s,;:!.-]+)+/i;
 const MODAL = /^(?:(?:est-ce\s+que|peux|pourrais|pourrait|peut|voudrais|pouvez|pourriez)[-\s]*(?:tu|vous)?[-\s]*(?:bien\s+)?(?:me\s+)?(?:s'il\s+(?:te|vous)\s+pla[iî]t\s+)?)/i;
-const REMEMBER = /^(?:(?:me\s+)?(?:retiens|retenir|retenez|m[ée]morise|m[ée]moriser|m[ée]morisez)|(?:souviens|rappelle|souvenez|rappelez)[-\s]+(?:toi|vous)|n['’](?:oublie|oubliez)\s+pas|garde(?:r|z)?\s+(?:en\s+m[ée]moire|[àa]\s+l['’]esprit|en\s+t[êe]te)|remember)\b[\s,:-]*/i;
+const REMEMBER = /^(?:(?:me\s+)?(?:retiens|retenir|retenez|m[ée]morise|m[ée]moriser|m[ée]morisez)(?!-(?:t-)?(?:tu|vous|il|elle|on)\b)|(?:souviens|rappelle|souvenez|rappelez)[-\s]+(?:toi|vous)|n['’](?:oublie|oubliez)\s+pas|garde(?:r|z)?\s+(?:en\s+m[ée]moire|[àa]\s+l['’]esprit|en\s+t[êe]te)|remember)\b[\s,:-]*/i;
 const AFTER_REMEMBER = /^(?:bien\s+)?(?:que\s+|qu['’]\s*|ceci\s*|cela\s*|[çc]a\s*|ce\s+qui\s+suit\s*)?[:,-]*\s*/i;
 const FORGET_ALL = /^(?:oublie|oubliez|efface|effacez|supprime|supprimez|vide|videz|r[ée]initialise)\s+(?:tout|tous\s+(?:mes|les|nos)\s+souvenirs|toute\s+(?:ta|la)\s+m[ée]moire|(?:tes|mes|les)\s+souvenirs|(?:ta|la)\s+m[ée]moire)(?:\s+(?:de\s+moi|sur\s+moi|me\s+concernant))?\s*[.!?]*$/i;
 const FORGET = /^(?:oublie|oubliez|oublier)\b(?:\s+(?:de\s+ta\s+m[ée]moire|ce\s+souvenir))?\s*(?:que\s+|qu['’]\s*|:|-|,)?\s*([\s\S]+)$/i;
