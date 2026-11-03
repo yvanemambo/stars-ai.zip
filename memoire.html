@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070b1f">
+<title>Mes souvenirs — STARS AI</title>
+<style>
+  :root { --bg:#070b1f; --card:#111838; --line:#222c5c; --text:#eef1ff; --muted:#9aa5d6; --gold:#f5c76b; --blue:#3b4cc0; --red:#ff7a7a; --ok:#6ee7a8; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:radial-gradient(1200px 600px at 50% -10%, #141c4d 0%, var(--bg) 60%) fixed; color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:max(16px, env(safe-area-inset-top)) 16px 80px; }
+  a { color:var(--gold); }
+  header { display:flex; align-items:center; gap:12px; margin:8px 0 18px; }
+  header .back { text-decoration:none; font-size:15px; border:1px solid var(--line); border-radius:10px; padding:6px 12px; color:var(--text); }
+  h1 { font-size:22px; margin:0; }
+  .star { color:var(--gold); }
+  p.intro { color:var(--muted); margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .switch { position:relative; width:52px; height:30px; flex:none; }
+  .switch input { opacity:0; width:100%; height:100%; margin:0; position:absolute; inset:0; cursor:pointer; z-index:1; }
+  .switch span { position:absolute; inset:0; background:#2a3466; border-radius:30px; transition:.2s; }
+  .switch span::after { content:""; position:absolute; width:24px; height:24px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+  .switch input:checked + span { background:var(--blue); }
+  .switch input:checked + span::after { transform:translateX(22px); }
+  .switch input:focus-visible + span { outline:2px solid var(--gold); outline-offset:2px; }
+  label.field { display:block; font-size:14px; color:var(--muted); margin-bottom:6px; }
+  input[type=text], textarea, select { width:100%; background:#0b1130; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; }
+  textarea { min-height:84px; resize:vertical; }
+  .add { display:grid; grid-template-columns:1fr; gap:8px; }
+  .add .line { display:flex; gap:8px; }
+  .add select { width:auto; flex:none; }
+  button { font:inherit; cursor:pointer; border-radius:10px; border:1px solid var(--line); background:#1a2250; color:var(--text); padding:9px 14px; }
+  button.primary { background:var(--blue); border-color:var(--blue); }
+  button.danger { color:var(--red); border-color:#5a2a3a; background:transparent; }
+  button:disabled { opacity:.5; cursor:default; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--gold); margin:22px 0 8px; }
+  .item { display:flex; flex-direction:column; gap:8px; }
+  .item .txt { white-space:pre-wrap; word-break:break-word; }
+  .meta { font-size:13px; color:var(--muted); }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .empty, .state { text-align:center; color:var(--muted); padding:26px 8px; }
+  .toast { position:fixed; left:50%; bottom:max(18px, env(safe-area-inset-bottom)); transform:translateX(-50%); background:#1b2358; border:1px solid var(--line); padding:10px 16px; border-radius:12px; max-width:90vw; opacity:0; pointer-events:none; transition:.25s; }
+  .toast.show { opacity:1; }
+  .toast.err { border-color:#7a2f3f; color:#ffd1d1; }
+  .note { font-size:13px; color:var(--muted); margin-top:18px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="back" href="/">← Retour</a>
+    <h1><span class="star">✦</span> Mes souvenirs</h1>
+  </header>
+  <p class="intro">STARS AI peut retenir ce qui l'aide à mieux te répondre : tes projets, tes préférences. Tu gardes le contrôle : tu vois tout, tu modifies, tu supprimes. Elle ne retient jamais de mot de passe, de clé, de donnée bancaire.</p>
+
+  <div id="state" class="state">Chargement…</div>
+
+  <div id="app" hidden>
+    <div class="card">
+      <div class="row">
+        <div><strong>Mémoire activée</strong><div class="meta" id="toggleHint"></div></div>
+        <label class="switch"><input type="checkbox" id="enabled" aria-label="Activer la mémoire"><span></span></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="field" for="newText">Ajouter un souvenir</label>
+      <div class="add">
+        <input type="text" id="newText" maxlength="500" placeholder="Ex. : Je prépare un exposé sur les volcans">
+        <div class="line">
+          <select id="newKind" aria-label="Type de souvenir">
+            <option value="">Type : auto</option>
+            <option value="projet">Projet</option>
+            <option value="preference">Préférence</option>
+            <option value="info">Info</option>
+          </select>
+          <button class="primary" id="addBtn" type="button" style="flex:1">Ajouter</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="list"></div>
+
+    <div class="card" id="dangerCard" hidden>
+      <div class="row">
+        <div><strong>Tout effacer</strong><div class="meta">Supprime tous tes souvenirs, définitivement.</div></div>
+        <button class="danger" id="clearBtn" type="button">Tout effacer</button>
+      </div>
+    </div>
+    <p class="note">Tu peux aussi le demander dans le chat : « Retiens que… » ou « Oublie que… ». Tes souvenirs ne sont visibles que par toi.</p>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var KINDS = { projet: "Projets en cours", preference: "Préférences", info: "À savoir" };
+  var SOURCES = { auto: "Retenu automatiquement", demande: "Retenu sur ta demande", manuel: "Ajouté par toi" };
+  var ERRORS = {
+    sensitive: "Ce texte ressemble à une information confidentielle (mot de passe, clé, carte…) : STARS AI ne les retient jamais.",
+    duplicate: "Ce souvenir existe déjà.",
+    full: "Tu as atteint 100 souvenirs : supprime-en un pour en ajouter.",
+    bad_text: "Écris au moins quelques mots.",
+    bad_content: "Le texte est vide ou trop long (500 caractères maximum).",
+    not_found: "Ce souvenir n'existe plus.",
+    rate_limited: "Trop de demandes. Réessaie dans une minute.",
+    memory_down: "La mémoire est indisponible pour l'instant. Réessaie plus tard."
+  };
+  var data = { enabled: true, items: [], max: 100 };
+  var editing = null;
+  var toastTimer = null;
+
+  function toast(msg, isErr) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = "toast" + (isErr ? " err" : ""); }, 3200);
+  }
+
+  async function api(path, body) {
+    var opt = { credentials: "same-origin", headers: {} };
+    if (body !== undefined) { opt.method = "POST"; opt.headers["content-type"] = "application/json"; opt.body = JSON.stringify(body); }
+    var r = await fetch(path, opt);
+    var j = null;
+    try { j = await r.json(); } catch (e) {}
+    if (!r.ok) { var err = new Error((j && j.code) || "error"); err.status = r.status; err.code = (j && j.code) || "error"; throw err; }
+    return j;
+  }
+  function showError(e) { toast(ERRORS[e.code] || "Une erreur est survenue. Réessaie.", true); }
+
+  function fmtDate(s) {
+    try { return new Date(s).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }); } catch (e) { return ""; }
+  }
+
+  function render() {
+    $("enabled").checked = !!data.enabled;
+    $("toggleHint").textContent = data.enabled
+      ? "STARS AI retient et utilise tes souvenirs."
+      : "Désactivée : rien de nouveau n'est retenu ni utilisé. Tes souvenirs actuels sont conservés.";
+    var list = $("list");
+    list.textContent = "";
+    if (!data.items.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Aucun souvenir pour l'instant. Parle de tes projets à STARS AI, ou ajoute-en un ci-dessus.";
+      list.appendChild(empty);
+    }
+    ["projet", "preference", "info"].forEach(function (kind) {
+      var items = data.items.filter(function (i) { return (KINDS[i.kind] ? i.kind : "info") === kind; });
+      if (!items.length) return;
+      var h = document.createElement("h2");
+      h.textContent = KINDS[kind] + " (" + items.length + ")";
+      list.appendChild(h);
+      items.forEach(function (it) { list.appendChild(renderItem(it)); });
+    });
+    $("dangerCard").hidden = !data.items.length;
+  }
+
+  function button(label, cls, fn) {
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = label;
+    if (cls) b.className = cls;
+    b.addEventListener("click", fn);
+    return b;
+  }
+
+  function renderItem(it) {
+    var card = document.createElement("div");
+    card.className = "card item";
+    if (editing === it.id) {
+      var ta = document.createElement("textarea");
+      ta.maxLength = 500; ta.value = it.content;
+      var sel = document.createElement("select");
+      Object.keys(KINDS).forEach(function (k) { var o = document.createElement("option"); o.value = k; o.textContent = KINDS[k]; if (k === it.kind) o.selected = true; sel.appendChild(o); });
+      var act = document.createElement("div");
+      act.className = "actions";
+      act.appendChild(button("Enregistrer", "primary", async function () {
+        try { await api("/api/memory/update", { id: it.id, text: ta.value, kind: sel.value }); editing = null; toast("Souvenir modifié."); await load(); } catch (e) { showError(e); }
+      }));
+      act.appendChild(button("Annuler", "", function () { editing = null; render(); }));
+      card.appendChild(ta); card.appendChild(sel); card.appendChild(act);
+      return card;
+    }
+    var txt = document.createElement("div");
+    txt.className = "txt"; txt.textContent = it.content;
+    var meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = (SOURCES[it.source] || "") + (it.updatedAt ? " · " + fmtDate(it.updatedAt) : "");
+    var actions = document.createElement("div");
+    actions.className = "actions";
+    actions.appendChild(button("Modifier", "", function () { editing = it.id; render(); }));
+    actions.appendChild(button("Supprimer", "danger", async function () {
+      try { await api("/api/memory/delete", { id: it.id }); toast("Souvenir supprimé."); await load(); } catch (e) { showError(e); }
+    }));
+    card.appendChild(txt); card.appendChild(meta); card.appendChild(actions);
+    return card;
+  }
+
+  async function load() {
+    try {
+      data = await api("/api/memory");
+      $("state").hidden = true; $("app").hidden = false;
+      render();
+    } catch (e) {
+      $("app").hidden = true; $("state").hidden = false;
+      var st = $("state");
+      st.textContent = "";
+      if (e.status === 401) {
+        st.appendChild(document.createTextNode("Connecte-toi pour voir tes souvenirs. "));
+        var a = document.createElement("a"); a.href = "/"; a.textContent = "Ouvrir STARS AI";
+        st.appendChild(a);
+      } else if (e.code === "memory_off") {
+        st.textContent = "La mémoire n'est pas activée sur ce site.";
+      } else {
+        st.textContent = "Impossible de charger tes souvenirs pour l'instant. Réessaie plus tard.";
+      }
+    }
+  }
+
+  $("enabled").addEventListener("change", async function (ev) {
+    var want = ev.target.checked;
+    try { var r = await api("/api/memory/setting", { enabled: want }); data.enabled = r.enabled; render(); toast(want ? "Mémoire activée." : "Mémoire désactivée."); }
+    catch (e) { ev.target.checked = !want; showError(e); }
+  });
+
+  $("addBtn").addEventListener("click", async function () {
+    var text = $("newText").value;
+    var kind = $("newKind").value;
+    var btn = $("addBtn");
+    btn.disabled = true;
+    try {
+      await api("/api/memory/add", kind ? { text: text, kind: kind } : { text: text });
+      $("newText").value = ""; toast("Souvenir ajouté."); await load();
+    } catch (e) { showError(e); }
+    btn.disabled = false;
+  });
+  $("newText").addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); $("addBtn").click(); } });
+
+  $("clearBtn").addEventListener("click", async function () {
+    if (!confirm("Effacer tous tes souvenirs ? Cette action est définitive.")) return;
+    try { var r = await api("/api/memory/clear", {}); toast(r.deleted + " souvenir(s) effacé(s)."); await load(); } catch (e) { showError(e); }
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
