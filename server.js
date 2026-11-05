@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 // STARS AI — petit serveur pour Render.
 // - Sert la page (public/index.html)
 // - Inscription : un code à 6 chiffres est envoyé par e-mail via un script Google (depuis le Gmail du propriétaire)
@@ -1406,3 +1407,20 @@ server.listen(PORT, () => {
   console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${provider ? provider + " (" + (provider === "claude" ? CLAUDE_MODEL : GEMINI_MODEL) + ")" : "AUCUNE CLÉ"} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
   if (process.env.SKIP_SELF_CHECK !== "1") selfCheck();
 });
+if (req.url === "/api/generer-image" && req.method === "POST") {
+  const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+  if (!openai) return json(res, 503, { code: "openai_not_configured" });
+  try {
+    const body = await readJson(req);
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: String(body?.prompt || ""),
+      n: 1,
+      size: "1024x1024",
+    });
+    json(res, 200, { url: response.data[0].url });
+  } catch (e) {
+    json(res, 500, { code: "generation_failed" });
+  }
+  return;
+}
