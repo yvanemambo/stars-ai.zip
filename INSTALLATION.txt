@@ -1,0 +1,21 @@
+STARS AI — ajout de l'historique des conversations
+
+CONTENU
+- public/index.html : interface avec panneau Historique, nouvelle discussion, ouverture, renommage et suppression.
+- server.js : routes sécurisées de l'historique via la session STARS AI et Supabase.
+- stars-ai-conversations.sql : tables et fonctions SQL à ajouter dans Supabase.
+
+INSTALLATION
+1. Fais une copie de sauvegarde de tes fichiers actuels.
+2. Dans Supabase, ouvre SQL Editor, colle le contenu de stars-ai-conversations.sql et exécute-le une seule fois.
+3. Dans GitHub, remplace public/index.html par celui du dossier public/.
+4. Remplace server.js à la racine du dépôt.
+5. Ne supprime pas memory.js, package.json, les autres fichiers, ni les variables Render existantes.
+6. Vérifie dans Render que SUPABASE_URL, SUPABASE_KEY et MEMBERS_SECRET sont toujours configurées.
+7. Déploie. Après le déploiement, connecte-toi à STARS AI et teste Historique, Nouvelle discussion, ouverture, renommage et suppression.
+
+NOTES
+- Aucun nouveau service ni abonnement n'est requis. L'historique utilise la configuration Supabase existante.
+- L'historique conserve les textes des messages. Les fichiers photo eux-mêmes ne sont pas archivés dans cette version ; les photos précédentes ne pourront donc pas être renvoyées à Gemini lors de la reprise d'une ancienne discussion.
+- Les anciennes discussions qui n'existaient que dans localStorage ne peuvent pas être transférées automatiquement vers Supabase par cette version. Elles restent dans le navigateur d'origine.
+- Le serveur détermine toujours l'adresse e-mail depuis la session signée, jamais depuis une adresse envoyée par le navigateur.

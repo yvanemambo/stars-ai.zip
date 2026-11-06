@@ -890,6 +890,60 @@ async function imageApi(req, res, url) {
   }
 }
 
+// ---------- Historique des conversations (Supabase, isolé par compte) ----------
+const CONVERSATIONS_ON = MEMBERS && env("CONVERSATIONS_ENABLED") !== "0";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function cleanConversationTitle(value) {
+  return String(value || "Nouvelle discussion").replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 72) || "Nouvelle discussion";
+}
+async function conversationsApi(req, res, url) {
+  const user = currentUser(req);
+  if (!user) return json(res, 401, { code: "auth_required" });
+  if (!CONVERSATIONS_ON) return json(res, 503, { code: "history_not_configured" });
+  if (!allow("history:" + user.email, 120, 60_000)) return json(res, 429, { code: "rate_limited" });
+  const email = user.email; // l'identité vient exclusivement du cookie de session signé
+  try {
+    if (req.method === "GET" && url.pathname === "/api/conversations") {
+      const d = await rpc("stars_conversations_list", { p_email: email });
+      return json(res, 200, { items: Array.isArray(d?.items) ? d.items : [] });
+    }
+    if (req.method === "GET" && url.pathname.startsWith("/api/conversations/")) {
+      const id = decodeURIComponent(url.pathname.slice("/api/conversations/".length));
+      if (!UUID_RE.test(id)) return json(res, 400, { code: "bad_id" });
+      const item = await rpc("stars_conversation_get", { p_email: email, p_id: id });
+      if (!item) return json(res, 404, { code: "not_found" });
+      return json(res, 200, { item });
+    }
+    if (req.method !== "POST") return json(res, 404, { code: "not_found" });
+    const b = await readJson(req, 300_000);
+    const id = String(b?.id || "");
+    if (!UUID_RE.test(id)) return json(res, 400, { code: "bad_id" });
+    if (url.pathname === "/api/conversations/save") {
+      if (!Array.isArray(b.messages) || b.messages.length > 40) return json(res, 400, { code: "bad_messages" });
+      const messages = [];
+      for (const m of b.messages) {
+        if (!m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 30000) return json(res, 400, { code: "bad_messages" });
+        messages.push({ role: m.role, content: m.content });
+      }
+      const item = await rpc("stars_conversation_save", { p_email: email, p_id: id, p_title: cleanConversationTitle(b.title), p_messages: messages });
+      return json(res, 200, { ok: true, item });
+    }
+    if (url.pathname === "/api/conversations/rename") {
+      const item = await rpc("stars_conversation_rename", { p_email: email, p_id: id, p_title: cleanConversationTitle(b.title) });
+      return item ? json(res, 200, { ok: true }) : json(res, 404, { code: "not_found" });
+    }
+    if (url.pathname === "/api/conversations/delete") {
+      const deleted = await rpc("stars_conversation_delete", { p_email: email, p_id: id });
+      return deleted ? json(res, 200, { ok: true }) : json(res, 404, { code: "not_found" });
+    }
+    return json(res, 404, { code: "not_found" });
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    console.error("[historique]", e.message);
+    return json(res, 503, { code: "history_unavailable" });
+  }
+}
+
 const MEM_ERRORS = { bad_content: 400, duplicate: 409, full: 409, not_found: 404, disabled: 409 };
 async function memoryApi(req, res, url) {
   const u = currentUser(req);
@@ -1456,6 +1510,7 @@ const server = http.createServer(async (req, res) => {
       res.setHeader("set-cookie", sessionCookie(req, "", 0));
       return json(res, 200, { ok: true });
     }
+    if (url.pathname === "/api/conversations" || url.pathname.startsWith("/api/conversations/")) return await conversationsApi(req, res, url);
     if (url.pathname === "/api/image" || url.pathname.startsWith("/api/image/")) return await imageApi(req, res, url);
     if (url.pathname === "/api/memory" || url.pathname.startsWith("/api/memory/")) return await memoryApi(req, res, url);
     if (req.method === "POST" && url.pathname === "/api/chat") return await handleChat(req, res, ip);
