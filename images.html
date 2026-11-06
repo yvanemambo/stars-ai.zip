@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<title>Images — STARS AI</title>
+<style>
+  :root { --bg:#070b1f; --card:#111836; --line:#243063; --text:#e8ecff; --muted:#9aa6d6; --gold:#f5c76b; --blue:#2c3a8c; --red:#ff7b8a; --ok:#6fe3a5; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+         background:radial-gradient(1200px 600px at 50% -10%,#16205a 0%,var(--bg) 60%) fixed; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 90px; }
+  a { color:var(--gold); }
+  h1 { font-size:1.6rem; margin:.5em 0 .2em; }
+  h2 { font-size:1.05rem; margin:1.4em 0 .4em; color:var(--gold); }
+  .sub { color:var(--muted); margin:0 0 1em; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:12px 0; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  button, .btn { font:inherit; cursor:pointer; border:1px solid var(--line); background:#18214a; color:var(--text); border-radius:10px; padding:10px 16px; text-decoration:none; display:inline-block; }
+  button:hover, .btn:hover { border-color:var(--gold); }
+  button.primary { background:var(--blue); border-color:#3d4fb5; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  textarea, select { width:100%; font:inherit; color:var(--text); background:#0b1230; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  textarea { resize:vertical; min-height:96px; }
+  .grid { display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:8px; }
+  .result { text-align:center; }
+  .result img { max-width:100%; height:auto; border-radius:12px; border:1px solid var(--line); background:#0b1230; }
+  .actions { display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap; }
+  .thumbs { display:flex; gap:8px; flex-wrap:wrap; }
+  .thumbs img { width:84px; height:84px; object-fit:cover; border-radius:10px; border:1px solid var(--line); cursor:pointer; }
+  .thumbs img:hover { border-color:var(--gold); }
+  .spin { display:inline-block; width:16px; height:16px; border:3px solid var(--line); border-top-color:var(--gold); border-radius:50%; animation:r 1s linear infinite; vertical-align:-3px; margin-right:8px; }
+  @keyframes r { to { transform:rotate(360deg); } }
+  #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#1b2557; border:1px solid var(--gold); color:var(--text);
+           padding:10px 16px; border-radius:12px; max-width:90vw; opacity:0; pointer-events:none; transition:opacity .2s; }
+  #toast.show { opacity:1; }
+  #toast.err { border-color:var(--red); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/">← Retour à STARS AI</a></p>
+  <h1>🎨 Images</h1>
+  <p class="sub">Décris l'image que tu imagines, STARS AI la crée pour toi.</p>
+
+  <div id="status" class="card muted">Chargement…</div>
+
+  <div id="app" class="hidden">
+    <div class="card">
+      <textarea id="prompt" maxlength="1000" placeholder="Ex. : Un astronaute qui dessine des étoiles sur un tableau noir, style aquarelle."></textarea>
+      <div class="grid">
+        <select id="size" aria-label="Format de l'image">
+          <option value="carre">Carré</option>
+          <option value="portrait">Portrait (vertical)</option>
+          <option value="paysage">Paysage (horizontal)</option>
+        </select>
+        <button class="primary" id="go">Créer l'image</button>
+      </div>
+      <div class="muted" id="quota" style="margin-top:8px"></div>
+    </div>
+
+    <div id="loading" class="card hidden"><span class="spin"></span>Création en cours… cela peut prendre une minute. Ne ferme pas la page.</div>
+
+    <div id="resultBox" class="card result hidden">
+      <img id="resultImg" alt="Image créée par STARS AI">
+      <div class="actions">
+        <a class="btn primary" id="download" download="stars-ai-image.jpg">Télécharger</a>
+        <button id="again">Nouvelle image</button>
+      </div>
+    </div>
+
+    <div id="galleryBox" class="hidden">
+      <h2>Tes images de cette visite</h2>
+      <div class="card"><div class="thumbs" id="thumbs"></div></div>
+    </div>
+
+    <div class="card muted">
+      <p style="margin:0">Les images ne sont pas conservées sur nos serveurs : télécharge celles que tu veux garder. Les demandes à caractère sexuel, violent ou visant une personne réelle sont refusées.</p>
+    </div>
+  </div>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+  var busy = false, toastTimer, quota = { used: 0, limit: 0 };
+  var ERR = {
+    user_limit: "Tu as utilisé toutes tes images du jour. Reviens demain, ou passe Premium pour en créer davantage.",
+    site_limit: "STARS AI a atteint sa limite d'images pour aujourd'hui. Réessaie demain.",
+    refused: "Cette demande n'est pas acceptée (contenu non autorisé). Reformule-la autrement.",
+    bad_prompt: "Décris ton image avec quelques mots.",
+    prompt_too_long: "Ta description est trop longue (1000 caractères maximum).",
+    busy: "Une image est déjà en cours de création pour toi. Patiente un instant.",
+    rate_limited: "Trop de demandes : réessaie dans une minute.",
+    upstream_busy: "Le service d'images est très demandé. Réessaie dans un instant.",
+    auth_required: "Ta session a expiré : reconnecte-toi sur STARS AI."
+  };
+  var GENERIC = "La création d'images est momentanément indisponible. Réessaie plus tard.";
+
+  function toast(msg, isErr) {
+    var t = $("#toast");
+    t.textContent = msg;
+    t.className = "show" + (isErr ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ""; }, 5000);
+  }
+  async function api(path, body) {
+    var opt = { credentials: "same-origin", headers: {} };
+    if (body !== undefined) { opt.method = "POST"; opt.headers["content-type"] = "application/json"; opt.body = JSON.stringify(body); }
+    var r = await fetch(path, opt);
+    var data = null;
+    try { data = await r.json(); } catch (e) {}
+    if (!r.ok) { var err = new Error((data && data.code) || "error"); err.status = r.status; err.code = data && data.code; err.data = data; throw err; }
+    return data;
+  }
+  function showStatus(text, link) {
+    var s = $("#status");
+    s.className = "card muted";
+    s.textContent = text;
+    if (link) { s.appendChild(document.createTextNode(" ")); var a = document.createElement("a"); a.href = link.href; a.textContent = link.text; s.appendChild(a); }
+  }
+  function renderQuota() {
+    var left = Math.max(0, quota.limit - quota.used);
+    $("#quota").textContent = left > 0
+      ? "Il te reste " + left + " image" + (left > 1 ? "s" : "") + " aujourd'hui (sur " + quota.limit + ")."
+      : "Tu as utilisé tes " + quota.limit + " images d'aujourd'hui. Reviens demain.";
+    $("#go").disabled = busy || left === 0;
+  }
+
+  async function load() {
+    try {
+      var q = await api("/api/image/quota");
+      quota = { used: q.used, limit: q.limit };
+      $("#status").className = "hidden";
+      $("#app").className = "";
+      renderQuota();
+    } catch (e) {
+      $("#app").className = "hidden";
+      if (e.status === 401) showStatus("Connecte-toi pour créer des images.", { href: "/", text: "Aller à STARS AI" });
+      else if (e.code === "images_off") showStatus("La création d'images n'est pas activée sur ce site.");
+      else showStatus(GENERIC);
+    }
+  }
+
+  function show(src, add) {
+    var img = $("#resultImg");
+    img.src = src;
+    $("#download").href = src;
+    $("#resultBox").className = "card result";
+    if (add) {
+      var t = document.createElement("img");
+      t.src = src; t.alt = "Image précédente";
+      t.onclick = function () { show(src, false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      $("#thumbs").insertBefore(t, $("#thumbs").firstChild);
+      $("#galleryBox").className = "";
+    }
+  }
+
+  $("#go").addEventListener("click", async function () {
+    var prompt = $("#prompt").value.trim();
+    if (prompt.length < 3) return toast(ERR.bad_prompt, true);
+    busy = true; renderQuota();
+    $("#loading").className = "card";
+    $("#resultBox").className = "card result hidden";
+    try {
+      var r = await api("/api/image", { prompt: prompt, size: $("#size").value });
+      quota = { used: r.used, limit: r.limit };
+      show(r.image, true);
+    } catch (e) {
+      if (e.data && typeof e.data.used === "number") quota = { used: e.data.used, limit: e.data.limit || quota.limit };
+      toast(ERR[e.code] || GENERIC, true);
+    }
+    busy = false;
+    $("#loading").className = "card hidden";
+    renderQuota();
+  });
+
+  $("#again").addEventListener("click", function () {
+    $("#resultBox").className = "card result hidden";
+    $("#prompt").focus();
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
