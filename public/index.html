@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>STARS AI</title>
+<meta name="description" content="STARS AI — ton assistant d'intelligence artificielle en français.">
+<meta name="theme-color" content="#070b1f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="STARS AI">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23070b1f'/%3E%3Cpath d='M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z' fill='%23f4c96b'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one-screen chat under a live star field; header, scrolling thread, composer docked at the bottom. Single committed night look. */
+:root {
+  --sky: #070b1f;
+  --sky-2: #0f1534;
+  --panel: rgba(22, 29, 66, 0.72);
+  --line: rgba(160, 172, 230, 0.16);
+  --ink: #e9ecfb;
+  --ink-dim: #9aa3cf;
+  --star: #f4c96b;
+  --star-ink: #1a1404;
+  --user: #2a3473;
+  --danger: #ff8a8a;
+  --f-display: "Unbounded", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+  box-sizing: border-box;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html, body { height: 100%; margin: 0; padding: 0; }
+body {
+  background: radial-gradient(120% 80% at 50% 0%, var(--sky-2), var(--sky) 70%);
+  background-color: var(--sky);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+[hidden] { display: none !important; }
+#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.app {
+  position: relative; z-index: 1;
+  height: 100%;
+  display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr);
+  max-width: 820px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-block: 16px 10px;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { width: 28px; height: 28px; flex: none; }
+.brand h1 {
+  margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 18px; letter-spacing: 0.14em;
+}
+.brand h1 span { color: var(--star); }
+.btn-ghost {
+  font: 500 13px var(--f-body); color: var(--ink-dim);
+  background: transparent; border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 14px; cursor: pointer;
+}
+.btn-ghost:hover { color: var(--ink); border-color: var(--ink-dim); }
+button:focus-visible, textarea:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+
+#thread { overflow-y: auto; padding-block: 8px 24px; min-height: 0; scroll-behavior: smooth; }
+.welcome { padding-block: 9vh 16px; display: grid; gap: 22px; }
+.welcome h2 {
+  margin: 0; font-family: var(--f-display); font-weight: 500; font-size: clamp(26px, 6vw, 40px);
+  line-height: 1.15; text-wrap: balance; max-width: 18ch;
+}
+.welcome h2 em { font-style: normal; color: var(--star); }
+.welcome p { margin: 0; color: var(--ink-dim); max-width: 52ch; line-height: 1.6; }
+.chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.chip {
+  text-align: left; font: 400 14px/1.4 var(--f-body); color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; cursor: pointer; backdrop-filter: blur(6px);
+}
+.chip small { display: block; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--star); margin-bottom: 4px; }
+.chip:hover { border-color: rgba(244, 201, 107, 0.5); }
+
+.msg { display: flex; gap: 12px; padding-block: 12px; min-width: 0; }
+.msg.user { justify-content: flex-end; }
+.msg .avatar { width: 30px; height: 30px; flex: none; margin-top: 2px; }
+.bubble { min-width: 0; line-height: 1.65; overflow-wrap: anywhere; }
+.msg.user .bubble {
+  background: var(--user); border-radius: 18px 18px 4px 18px; padding: 10px 15px; max-width: 80%;
+  white-space: pre-wrap;
+}
+.msg.ai .bubble { flex: 1; }
+.bubble p { margin: 0 0 0.8em; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble ul, .bubble ol { margin: 0 0 0.8em; padding-left: 1.3em; }
+.bubble li { margin-bottom: 0.3em; }
+.bubble h3 { font-family: var(--f-display); font-weight: 500; font-size: 15px; margin: 1em 0 0.5em; letter-spacing: 0.02em; }
+.bubble strong { color: #fff; font-weight: 600; }
+.bubble code { font-family: var(--f-mono); font-size: 13px; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 5px; }
+.bubble pre { background: rgba(5, 8, 24, 0.85); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 0 0 0.8em; }
+.bubble pre code { background: none; padding: 0; white-space: pre; }
+.thinking { color: var(--ink-dim); display: inline-flex; align-items: center; gap: 8px; }
+.thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--star); animation: twinkle 1.2s infinite ease-in-out; }
+.thinking i:nth-child(2) { animation-delay: .2s; } .thinking i:nth-child(3) { animation-delay: .4s; }
+@keyframes twinkle { 0%,100% { opacity: .25; transform: scale(.7) } 50% { opacity: 1; transform: scale(1) } }
+.note { color: var(--danger); font-size: 13px; margin-top: 6px; }
+
+footer { padding-block: 8px 14px; }
+.composer {
+  display: flex; align-items: flex-end; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+  padding: 8px 8px 8px 16px; backdrop-filter: blur(10px);
+}
+.composer:focus-within { border-color: rgba(244, 201, 107, 0.55); }
+#input {
+  flex: 1 1 0; width: 0; min-width: 0; resize: none; border: 0; background: transparent; color: var(--ink);
+  font: 400 15px/1.5 var(--f-body); padding: 7px 0; max-height: 180px; outline: none;
+}
+#input::placeholder { color: var(--ink-dim); }
+#send {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--star); color: var(--star-ink); display: grid; place-items: center;
+}
+#send:disabled { opacity: .35; cursor: default; }
+#send svg { width: 18px; height: 18px; }
+.fine { text-align: center; color: var(--ink-dim); font-size: 12px; margin-top: 8px; }
+.fine.warn { color: var(--star); }
+
+/* Answer actions, dialogs, account menu links */
+.acts { display: flex; gap: 16px; margin-top: 8px; }
+.act {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 0; cursor: pointer;
+  background: none; border: 0; color: var(--ink-dim); font: 500 12px var(--f-body);
+}
+.act:hover { color: var(--ink); }
+.act:disabled { opacity: .6; cursor: default; }
+.act svg { width: 14px; height: 14px; }
+.act:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; border-radius: 4px; }
+dialog.sheet {
+  width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 18px; padding: 20px;
+  background: #111836; color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
+}
+dialog.sheet::backdrop { background: rgba(3, 5, 15, .72); }
+dialog.sheet h3 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 500; font-size: 18px; }
+dialog.sheet p { margin: 0 0 14px; color: var(--ink-dim); line-height: 1.55; font-size: 14px; }
+dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
+.choices { display: grid; gap: 8px; margin: 0 0 14px; }
+.choice {
+  display: flex; align-items: center; gap: 10px; padding: 11px 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; font-size: 14px;
+}
+.choice:has(input:checked) { border-color: rgba(244, 201, 107, .6); background: rgba(244, 201, 107, .08); }
+.choice input { accent-color: var(--star); width: 18px; height: 18px; margin: 0; }
+.field textarea {
+  width: 100%; font: 400 15px/1.5 var(--f-body); color: var(--ink); resize: vertical;
+  background: rgba(5, 8, 24, .6); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; outline: none;
+}
+.field textarea:focus { border-color: rgba(244, 201, 107, .6); }
+.sheet-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.btn-danger { background: #e5484d; color: #fff; border: 0; border-radius: 12px; padding: 12px 16px; font: 600 14px var(--f-body); cursor: pointer; }
+.btn-danger:disabled { opacity: .6; cursor: default; }
+.btn-danger:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.menu-link {
+  background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: none;
+  font: 500 13px var(--f-body); color: var(--ink-dim);
+}
+.menu-link:hover { color: var(--ink); text-decoration: underline; }
+.menu-link.danger { color: var(--danger); }
+.menu-link.gold { color: var(--star); font-weight: 600; }
+.plan { font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+.plan b { color: var(--star); font-weight: 600; }
+.note-cta {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; text-decoration: none;
+  background: var(--star); color: var(--star-ink); border-radius: 10px; padding: 9px 14px; font: 600 14px var(--f-body);
+}
+.note-cta:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.menu-sep { height: 1px; background: var(--line); }
+.install-cta {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  background: linear-gradient(90deg, rgba(244, 201, 107, .16), rgba(244, 201, 107, .05));
+  border: 1px solid rgba(244, 201, 107, .45); border-radius: 14px; padding: 12px 14px; color: var(--ink);
+  font: 400 14px/1.4 var(--f-body);
+}
+.install-cta img { width: 38px; height: 38px; border-radius: 10px; flex: none; }
+.install-cta strong { display: block; color: var(--star); font-weight: 600; font-size: 15px; }
+.install-cta:hover { border-color: var(--star); }
+.install-cta:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.legal { margin: 0; font-size: 12px; color: var(--ink-dim); text-align: center; line-height: 1.5; }
+.legal a { color: var(--star); }
+
+/* Voice call */
+#micBtn {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; cursor: pointer;
+  background: transparent; color: var(--ink-dim); border: 1px solid var(--line);
+  display: grid; place-items: center;
+}
+#micBtn:hover { color: var(--star); border-color: rgba(244, 201, 107, .5); }
+#micBtn svg { width: 19px; height: 19px; }
+#micBtn:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.voice {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; overflow-y: auto;
+  background: radial-gradient(120% 80% at 50% 25%, #141c46, #070b1f); background-color: #070b1f;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 16px max(24px, env(safe-area-inset-bottom, 0px));
+}
+.voice-inner { width: 100%; max-width: 440px; display: grid; justify-items: center; gap: 18px; text-align: center; }
+.vtitle { margin: 0; font-family: var(--f-display); font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-dim); }
+.vtitle span { color: var(--star); }
+.orb {
+  position: relative; width: 168px; height: 168px; margin: 18px 0 6px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #fff4d2 0%, #f4c96b 45%, #a97a22 100%);
+  box-shadow: 0 0 70px rgba(244, 201, 107, .35), inset 0 -10px 30px rgba(120, 80, 10, .35);
+  transition: filter .3s, transform .3s;
+}
+.orb svg { width: 54px; height: 54px; }
+.orb:focus-visible { outline: 3px solid var(--ink); outline-offset: 6px; }
+.orb::before, .orb::after {
+  content: ""; position: absolute; inset: -10px; border-radius: 50%;
+  border: 2px solid rgba(244, 201, 107, .45); opacity: 0; pointer-events: none;
+}
+.voice[data-state="listening"] .orb::before { animation: ring 1.8s infinite ease-out; }
+.voice[data-state="listening"] .orb::after { animation: ring 1.8s .9s infinite ease-out; }
+@keyframes ring { from { transform: scale(.92); opacity: .9; } to { transform: scale(1.45); opacity: 0; } }
+.voice[data-state="thinking"] .orb { animation: breathe 1.4s infinite ease-in-out; filter: saturate(.6) brightness(.8); }
+@keyframes breathe { 50% { transform: scale(.9); } }
+.voice[data-state="speaking"] .orb { animation: talk .42s infinite alternate ease-in-out; }
+@keyframes talk { from { transform: scale(1); } to { transform: scale(1.07); } }
+.voice[data-state="idle"] .orb { filter: grayscale(.45) brightness(.7); }
+.vstatus { margin: 0; font-family: var(--f-display); font-weight: 500; font-size: 20px; }
+.vhint { margin: -8px 0 0; font-size: 13px; color: var(--ink-dim); max-width: 34ch; line-height: 1.5; }
+.vtext {
+  width: 100%; min-height: 3.2em; max-height: 28vh; overflow-y: auto; overflow-wrap: anywhere;
+  color: var(--ink); line-height: 1.6; font-size: 15px;
+}
+.vtext .you { color: var(--ink-dim); font-style: italic; }
+.hang {
+  margin-top: 6px; display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+  background: #e5484d; color: #fff; border: 0; border-radius: 999px; padding: 13px 24px; font: 600 15px var(--f-body);
+}
+.hang svg { width: 22px; height: 22px; }
+.hang:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .orb, .orb::before, .orb::after { animation: none !important; }
+}
+
+/* Photos */
+#photoBtn {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; cursor: pointer;
+  background: transparent; color: var(--ink-dim); border: 1px solid var(--line);
+  display: grid; place-items: center; margin-left: -8px;
+}
+#photoBtn:hover { color: var(--star); border-color: rgba(244, 201, 107, .5); }
+#photoBtn:disabled { opacity: .35; cursor: default; }
+#photoBtn svg { width: 19px; height: 19px; }
+#photoBtn:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.attach { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 4px 8px; }
+.attach .pic { position: relative; width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #000; }
+.attach .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attach .pic button {
+  position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(7, 11, 31, .85); color: var(--ink); font: 600 14px/22px var(--f-body); padding: 0;
+}
+.attach .pic.loading::after { content: ""; position: absolute; inset: 0; background: rgba(7,11,31,.55); }
+.bubble .pics { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.bubble .pics + .txt:not(:empty) { margin-top: 8px; }
+.bubble .pics img { max-width: min(220px, 100%); max-height: 220px; border-radius: 12px; display: block; }
+.msg.user .bubble.has-pics { background: transparent; padding: 0; }
+.msg.user .bubble.has-pics .txt:not(:empty) { background: var(--user); border-radius: 18px 18px 4px 18px; padding: 10px 15px; }
+.welcome .tip { font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 8px; }
+.welcome .tip svg { width: 16px; height: 16px; color: var(--star); flex: none; }
+
+/* Header actions + account menu */
+.actions { display: flex; align-items: center; gap: 8px; }
+#newChat .short { display: none; }
+@media (max-width: 420px) { #newChat .long { display: none; } #newChat .short { display: inline; } }
+.account { position: relative; }
+.account summary {
+  list-style: none; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  background: var(--user); border: 1px solid var(--line); display: grid; place-items: center;
+  font: 600 14px var(--f-body); color: var(--ink); text-transform: uppercase;
+}
+.account summary::-webkit-details-marker { display: none; }
+.account summary { position: relative; }
+.account summary.alert::after {
+  content: ""; position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%;
+  background: #ff5a5f; border: 2px solid var(--sky);
+}
+.account summary:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.account .menu {
+  position: absolute; right: 0; top: 42px; z-index: 5; min-width: 220px; max-width: calc(100vw - 32px);
+  background: #111836; border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+  display: grid; gap: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.45);
+}
+.account .menu small { color: var(--ink-dim); overflow-wrap: anywhere; }
+
+/* Sign-up screen */
+.auth { padding-block: 7vh 24px; max-width: 440px; }
+.auth > div { display: grid; gap: 18px; }
+.auth h2 {
+  margin: 0; font-family: var(--f-display); font-weight: 500; font-size: clamp(26px, 6vw, 36px);
+  line-height: 1.15; text-wrap: balance;
+}
+.auth h2 em { font-style: normal; color: var(--star); }
+.auth p { margin: 0; color: var(--ink-dim); line-height: 1.6; }
+.auth p strong { color: var(--ink); overflow-wrap: anywhere; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px;
+  display: grid; gap: 14px; backdrop-filter: blur(8px);
+}
+.field { display: grid; gap: 6px; }
+.field label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--star); }
+.field input {
+  width: 100%; font: 400 16px var(--f-body); color: var(--ink);
+  background: rgba(5, 8, 24, .6); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; outline: none;
+}
+.field input::placeholder { color: rgba(154, 163, 207, .6); }
+.field input:focus { border-color: rgba(244, 201, 107, .6); }
+.field input.code-input { font-family: var(--f-mono); font-size: 26px; letter-spacing: .45em; text-align: center; padding-left: calc(14px + .45em); }
+.btn-star {
+  font: 600 15px var(--f-body); background: var(--star); color: var(--star-ink);
+  border: 0; border-radius: 12px; padding: 13px 16px; cursor: pointer;
+}
+.btn-star:disabled { opacity: .55; cursor: default; }
+.btn-star:focus-visible, .link:focus-visible, .field input:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; }
+.link { background: none; border: 0; padding: 0; color: var(--ink-dim); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: inherit; }
+.link:disabled { opacity: .55; cursor: default; text-decoration: none; }
+.err { color: var(--danger); font-size: 13px; }
+.err:empty { display: none; }
+.info { color: var(--star); font-size: 13px; line-height: 1.5; }
+.info:empty { display: none; }
+.tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
+  background: rgba(5, 8, 24, .6); border: 1px solid var(--line); border-radius: 14px;
+}
+.tabs button {
+  font: 600 14px var(--f-body); color: var(--ink-dim); background: transparent;
+  border: 0; border-radius: 10px; padding: 10px 8px; cursor: pointer;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--user); color: var(--ink); }
+.tabs button:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+.switch { margin: 0; font-size: 13px; color: var(--ink-dim); text-align: center; }
+.label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.link.small { font-size: 12px; }
+.forgot { margin: -4px 0 0; text-align: right; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking i { animation: none; opacity: .8; }
+  #thread { scroll-behavior: auto; }
+}
+
+/* Historique des conversations */
+#historyToggle { margin-left:auto; }
+#historyPanel { position:fixed; z-index:20; inset:0 auto 0 0; width:min(340px,88vw); padding:18px; background:#0d1430; border-right:1px solid var(--line); box-shadow:18px 0 48px rgba(0,0,0,.38); display:flex; flex-direction:column; gap:14px; transform:translateX(-105%); transition:transform .22s ease; }
+#historyPanel.open { transform:translateX(0); }
+#historyPanel .history-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#historyPanel h2 { margin:0; font:500 16px var(--f-display); }
+#historyList { overflow:auto; display:grid; align-content:start; gap:7px; min-height:0; }
+.history-item { display:flex; align-items:center; gap:6px; border:1px solid transparent; border-radius:11px; padding:8px; background:rgba(255,255,255,.035); }
+.history-item.active { border-color:rgba(244,201,107,.45); background:rgba(244,201,107,.08); }
+.history-open { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:var(--ink); border:0; background:none; padding:5px; font:13px var(--f-body); cursor:pointer; }
+.history-action { border:0; background:transparent; color:var(--ink-dim); cursor:pointer; padding:5px 7px; border-radius:7px; }
+.history-action:hover { color:var(--ink); background:rgba(255,255,255,.08); }
+#historyShade { position:fixed; z-index:19; inset:0; background:rgba(0,0,0,.48); }
+.history-empty { color:var(--ink-dim); font-size:13px; line-height:1.5; padding:12px 4px; }
+@media (prefers-reduced-motion:reduce) { #historyPanel { transition:none; } }
+
+</style>
+</head>
+<body>
+
+<canvas id="sky" aria-hidden="true"></canvas>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L19.2 12.8 L30 16 L19.2 19.2 L16 30 L12.8 19.2 L2 16 L12.8 12.8 Z" fill="#f4c96b"/><circle cx="26" cy="6" r="1.6" fill="#e9ecfb"/></svg>
+      <h1>STARS <span>AI</span></h1>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" id="historyToggle" type="button" aria-expanded="false">Historique</button>
+      <button class="btn-ghost" id="newChat" type="button"><span class="long">Nouvelle discussion</span><span class="short">+ Nouveau</span></button>
+      <details class="account" id="account" hidden>
+        <summary id="avatar" aria-label="Mon compte"></summary>
+        <div class="menu">
+          <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
+          <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
+          <div class="plan" id="planLine"></div>
+          <a class="menu-link gold" id="premiumLink" href="/premium">⭐ Passer à Premium</a>
+          <a class="menu-link" id="adminLink" href="/admin" hidden>🛠 Tableau de bord</a>
+          <div class="menu-sep"></div>
+          <button class="menu-link" type="button" data-install hidden>📲 Installer l'appli</button>
+          <a class="menu-link" href="/ecoles">🏫 Offre écoles</a>
+          <a class="menu-link" href="/confidentialite">Confidentialité</a>
+          <button class="menu-link danger" id="deleteAccount" type="button">Supprimer mon compte</button>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <div id="historyShade" hidden></div>
+  <aside id="historyPanel" aria-label="Historique des discussions" aria-hidden="true">
+    <div class="history-head"><h2>Mes discussions</h2><button class="history-action" id="historyClose" type="button" aria-label="Fermer">✕</button></div>
+    <button class="btn-ghost" id="historyNew" type="button">＋ Nouvelle discussion</button>
+    <div id="historyList"><div class="history-empty">Chargement de tes discussions…</div></div>
+  </aside>
+  <main id="thread" aria-live="polite">
+    <section class="welcome" id="welcome" hidden>
+      <h2 id="greet">Bonsoir. Que veux-tu <em>explorer</em> aujourd'hui ?</h2>
+      <p>Je suis STARS AI. Pose-moi une question, envoie-moi un exercice, demande-moi d'écrire, d'expliquer, de traduire ou de coder. Je réponds en français ou dans ta langue.</p>
+      <button class="install-cta" type="button" data-install hidden>
+        <img src="/icons/icon-192.png" alt="">
+        <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
+      </button>
+      <div class="chips">
+        <button class="chip" type="button" data-q="Résous cette équation en expliquant chaque étape : 3x + 7 = 2x − 5"><small>Exercice</small>Résoudre 3x + 7 = 2x − 5</button>
+        <button class="chip" type="button" data-q="Explique-moi comment naissent les étoiles, simplement."><small>Apprendre</small>Comment naissent les étoiles ?</button>
+        <button class="chip" type="button" data-q="Donne-moi 5 idées de petit business à lancer à Abidjan avec peu d'argent."><small>Idées</small>5 idées de petit business</button>
+        <button class="chip" type="button" data-q="Écris une fonction Python qui vérifie si un mot est un palindrome, avec une explication."><small>Coder</small>Une fonction Python palindrome</button>
+      </div>
+      <div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Envoie la photo d'un exercice avec l'appareil photo, ou touche le micro pour me parler à voix haute.</div>
+    </section>
+
+    <section class="auth" id="auth" hidden>
+      <div id="step1">
+        <div class="tabs" role="tablist" aria-label="Inscription ou connexion">
+          <button type="button" role="tab" id="tabSignup" aria-selected="true">S'inscrire</button>
+          <button type="button" role="tab" id="tabLogin" aria-selected="false">Se connecter</button>
+        </div>
+        <h2 id="authTitle">Rejoins <em>STARS AI</em></h2>
+        <p id="authLead">Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.</p>
+        <form class="card" id="startForm" novalidate>
+          <div class="field" id="nameField">
+            <label for="name">Prénom</label>
+            <input id="name" autocomplete="given-name" maxlength="40" placeholder="Ton prénom">
+          </div>
+          <div class="field">
+            <label for="email">Adresse Gmail</label>
+            <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="toi@gmail.com">
+          </div>
+          <div class="field" id="passField">
+            <div class="label-row"><label for="pass">Mot de passe</label><button class="link small" id="togglePass" type="button" aria-controls="pass">Afficher</button></div>
+            <input id="pass" type="password" autocomplete="new-password" maxlength="200" placeholder="Au moins 8 caractères">
+          </div>
+          <p class="forgot" id="forgotLine" hidden><button class="link" id="forgotBtn" type="button">Mot de passe oublié ?</button></p>
+          <div class="info" id="info1" role="status"></div>
+          <div class="err" id="err1" role="alert"></div>
+          <button class="btn-star" id="startBtn" type="submit">Créer mon compte</button>
+          <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
+        </form>
+        <p class="legal">En utilisant STARS AI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
+        <p class="legal" data-install-link hidden><a href="/telecharger">📲 Installer l'appli sur ton téléphone</a></p>
+      </div>
+      <div id="step2" hidden>
+        <h2>Regarde ton <em>Gmail</em></h2>
+        <p>Code envoyé à <strong id="sentTo"></strong>. S'il n'arrive pas, regarde dans les spams ou l'onglet Promotions.</p>
+        <form class="card" id="verifyForm" novalidate>
+          <div class="field">
+            <label for="code">Code à 6 chiffres</label>
+            <input id="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······">
+          </div>
+          <div class="field" id="newPassField" hidden>
+            <div class="label-row"><label for="newPass">Nouveau mot de passe</label><button class="link small" id="toggleNewPass" type="button" aria-controls="newPass">Afficher</button></div>
+            <input id="newPass" type="password" autocomplete="new-password" maxlength="200" placeholder="Au moins 8 caractères">
+          </div>
+          <div class="err" id="err2" role="alert"></div>
+          <button class="btn-star" id="verifyBtn" type="submit">Valider</button>
+          <div class="links">
+            <button class="link" id="resend" type="button">Renvoyer le code</button>
+            <button class="link" id="changeEmail" type="button">Changer d'adresse</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer id="composerWrap" hidden>
+    <div class="attach" id="attach" hidden></div>
+    <form class="composer" id="form">
+      <button id="photoBtn" type="button" aria-label="Ajouter une photo" title="Ajouter une photo d'exercice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      </button>
+      <input id="photoInput" type="file" accept="image/*" multiple hidden>
+      <label for="input" hidden>Message</label>
+      <textarea id="input" rows="1" placeholder="Écris à STARS AI…"></textarea>
+      <button id="micBtn" type="button" aria-label="Parler avec STARS AI (mode vocal)" title="Mode vocal : parler avec STARS AI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+      <button id="send" type="submit" aria-label="Envoyer" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </form>
+    <div class="fine" id="fine">STARS AI peut se tromper. Vérifie les informations importantes.</div>
+  </footer>
+</div>
+
+<dialog class="sheet" id="reportDlg" aria-labelledby="reportTitle">
+  <form id="reportForm" novalidate>
+    <h3 id="reportTitle">Signaler cette réponse</h3>
+    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre STARS AI plus sûre.</p>
+    <div class="choices" role="radiogroup" aria-label="Raison du signalement">
+      <label class="choice"><input type="radio" name="reason" value="offensant"> Contenu choquant ou offensant</label>
+      <label class="choice"><input type="radio" name="reason" value="faux_dangereux"> Information fausse ou dangereuse</label>
+      <label class="choice"><input type="radio" name="reason" value="inapproprie_jeunes"> Pas adapté aux jeunes</label>
+      <label class="choice"><input type="radio" name="reason" value="autre"> Autre problème</label>
+    </div>
+    <div class="field">
+      <label for="reportComment">Commentaire (facultatif)</label>
+      <textarea id="reportComment" maxlength="500" rows="3" placeholder="Explique en quelques mots…"></textarea>
+    </div>
+    <div class="err" id="reportErr" role="alert"></div>
+    <div class="sheet-btns">
+      <button class="btn-ghost" type="button" id="reportCancel">Annuler</button>
+      <button class="btn-star" type="submit" id="reportSend">Envoyer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="deleteDlg" aria-labelledby="deleteTitle">
+  <h3 id="deleteTitle">Supprimer ton compte ?</h3>
+  <p>Le compte <strong id="deleteEmail"></strong> sera supprimé définitivement, et tes discussions enregistrées sur cet appareil seront effacées. Tu pourras te réinscrire plus tard avec la même adresse.</p>
+  <div class="err" id="deleteErr" role="alert"></div>
+  <div class="sheet-btns">
+    <button class="btn-ghost" type="button" id="deleteCancel">Annuler</button>
+    <button class="btn-danger" type="button" id="deleteConfirm">Supprimer mon compte</button>
+  </div>
+</dialog>
+
+<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec STARS AI" hidden>
+  <div class="voice-inner">
+    <p class="vtitle">STARS <span>AI</span> · appel vocal</p>
+    <button class="orb" id="orb" type="button" aria-label="Parler">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z" fill="#1a1404" opacity=".85"/></svg>
+    </button>
+    <p class="vstatus" id="vstatus" aria-live="polite">Je t'écoute…</p>
+    <p class="vhint" id="vhint">Parle normalement. Touche le cercle pour me couper la parole.</p>
+    <div class="vtext" id="vtext"></div>
+    <button class="hang" id="hangup" type="button">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+      Raccrocher
+    </button>
+  </div>
+</div>
+
+<script>
+(() => {
+  /* ---------- Star field ---------- */
+  const cv = document.getElementById("sky"), cx = cv.getContext("2d");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let stars = [], W = 0, H = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round((W * H) / 5200);
+    stars = Array.from({ length: n }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      r: Math.random() < 0.08 ? 1.4 + Math.random() : 0.4 + Math.random() * 0.8,
+      p: Math.random() * Math.PI * 2, s: 0.4 + Math.random() * 1.4,
+      gold: Math.random() < 0.12
+    }));
+  }
+  function draw(t) {
+    cx.clearRect(0, 0, W, H);
+    for (const s of stars) {
+      const a = reduce ? 0.7 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(s.p + t * 0.001 * s.s));
+      cx.globalAlpha = a;
+      cx.fillStyle = s.gold ? "#f4c96b" : "#dfe4ff";
+      cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.fill();
+    }
+    cx.globalAlpha = 1;
+    if (!reduce) requestAnimationFrame(draw);
+  }
+  addEventListener("resize", resize); resize(); requestAnimationFrame(draw);
+
+  /* ---------- Greeting by time of day ---------- */
+  function greet(name) {
+    const h = new Date().getHours();
+    const hello = h >= 5 && h < 18 ? "Bonjour" : "Bonsoir";
+    const g = document.getElementById("greet");
+    g.textContent = hello + (name ? ", " + name : "") + ". Que veux-tu ";
+    const em = document.createElement("em"); em.textContent = "explorer";
+    g.append(em, " aujourd'hui ?");
+  }
+  greet("");
+
+  /* ---------- Chat ---------- */
+  const thread = document.getElementById("thread");
+  const welcome = document.getElementById("welcome");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const send = document.getElementById("send");
+  const fine = document.getElementById("fine");
+  const SEND_ICON = send.innerHTML;
+  const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+  const AVATAR = '<svg class="avatar" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#161d42" stroke="rgba(244,201,107,.45)"/><path d="M16 6 L18.2 13.8 L26 16 L18.2 18.2 L16 26 L13.8 18.2 L6 16 L13.8 13.8 Z" fill="#f4c96b"/></svg>';
+
+  let turns = [], ctl = null, busy = false, me = null;
+  let activeConversationId = null, saveTimer = null, historyItems = [], cloudHistoryReady = false;
+  const key = () => "stars-ai-chat-v1" + (me ? ":" + me.email : "");
+  const activeKey = () => "stars-ai-active-v1" + (me ? ":" + me.email : "");
+  const makeId = () => (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c === "x" ? r : (r&3|8)).toString(16); }));
+  function save() {
+    const slim = keepThumbs => turns.slice(-40).map(t => ({ role: t.role, content: t.content, thumbs: keepThumbs ? t.thumbs : undefined }));
+    try { localStorage.setItem(key(), JSON.stringify(slim(true))); }
+    catch (e) { try { localStorage.setItem(key(), JSON.stringify(slim(false))); } catch (e2) {} }
+    if (me && activeConversationId && cloudHistoryReady) {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => persistConversation().catch(() => flashHistory("Enregistrement cloud impossible. Vérifie ta connexion.")), 450);
+    }
+  }
+  function load() { try { const v = JSON.parse(localStorage.getItem(key()) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function conversationTitle(messages) {
+    const first = (messages || []).find(t => t.role === "user" && t.content && t.content.trim());
+    return (first ? first.content.trim() : "Nouvelle discussion").replace(/\s+/g, " ").slice(0, 72);
+  }
+  async function apiGet(url) { const r = await fetch(url); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
+  async function apiPost(url, body) { const r = await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
+  function flashHistory(message) { if (typeof flash === "function") flash(message); }
+  async function persistConversation() {
+    if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
+    const messages = turns.slice(-40).map(t => ({ role:t.role, content:String(t.content||"").slice(0,30000) }));
+    await apiPost("/api/conversations/save", { id:activeConversationId, title:conversationTitle(messages), messages });
+    await refreshHistory();
+  }
+  async function refreshHistory() {
+    if (!me) return;
+    const d = await apiGet("/api/conversations"); historyItems = Array.isArray(d.items) ? d.items : []; renderHistory();
+  }
+  function renderHistory() {
+    const list = document.getElementById("historyList"); if (!list) return;
+    list.replaceChildren();
+    if (!historyItems.length) { const e=document.createElement("div"); e.className="history-empty"; e.textContent="Tes discussions enregistrées apparaîtront ici."; list.append(e); return; }
+    for (const item of historyItems) {
+      const row=document.createElement("div"); row.className="history-item"+(item.id===activeConversationId?" active":"");
+      const open=document.createElement("button"); open.type="button"; open.className="history-open"; open.textContent=item.title||"Nouvelle discussion"; open.title=open.textContent;
+      open.addEventListener("click",()=>openConversation(item.id));
+      const rename=document.createElement("button"); rename.type="button"; rename.className="history-action"; rename.textContent="✎"; rename.title="Renommer"; rename.setAttribute("aria-label","Renommer la discussion");
+      rename.addEventListener("click",async()=>{ const value=prompt("Nouveau titre :",item.title||""); if(value===null||!value.trim())return; try{await apiPost("/api/conversations/rename",{id:item.id,title:value.trim().slice(0,72)});await refreshHistory();}catch(e){flashHistory("Impossible de renommer cette discussion.");} });
+      const del=document.createElement("button"); del.type="button"; del.className="history-action"; del.textContent="×"; del.title="Supprimer"; del.setAttribute("aria-label","Supprimer la discussion");
+      del.addEventListener("click",async()=>{if(!confirm("Supprimer définitivement cette discussion ?"))return;try{await apiPost("/api/conversations/delete",{id:item.id});if(activeConversationId===item.id){activeConversationId=null;turns=[];saveLocalOnly();showTurns();}await refreshHistory();}catch(e){flashHistory("Impossible de supprimer cette discussion.");}});
+      row.append(open,rename,del); list.append(row);
+    }
+  }
+  function saveLocalOnly() { try { localStorage.setItem(key(), JSON.stringify(turns.slice(-40).map(t=>({role:t.role,content:t.content,thumbs:t.thumbs})))); } catch(e) {} }
+  function showTurns() {
+    thread.querySelectorAll(".msg").forEach(n=>n.remove());
+    welcome.hidden = turns.length > 0; let lastQuestion="";
+    for(const t of turns){ if(t.role==="user"){addMsg("user",t.content,t.thumbs);lastQuestion=t.content||"";} else addActions(addMsg("ai",t.content),lastQuestion,t.content); }
+  }
+  async function openConversation(id) {
+    try {
+      if (busy && ctl) ctl.abort();
+      if (activeConversationId && turns.length) await persistConversation();
+      clearTimeout(saveTimer);
+      const d=await apiGet("/api/conversations/"+encodeURIComponent(id));
+      activeConversationId=d.item.id; try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){}
+      turns=(d.item.messages||[]).map(m=>({role:m.role,content:m.content})); saveLocalOnly(); showTurns(); closeHistory(); input.focus(); renderHistory();
+    } catch(e) { flashHistory("Impossible de charger cette discussion."); }
+  }
+  async function startNewConversation() {
+    try { if (activeConversationId && turns.length) await persistConversation(); } catch(e) { flashHistory("La dernière discussion n'a pas pu être synchronisée."); }
+    if(busy&&ctl)ctl.abort();
+    clearTimeout(saveTimer); activeConversationId=makeId();
+    try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){}
+    turns=[]; saveLocalOnly(); pending=[]; renderAttach();
+    thread.querySelectorAll(".msg").forEach(n=>n.remove()); welcome.hidden=false; input.focus(); closeHistory(); renderHistory();
+  }
+  function openHistory() { const panel=document.getElementById("historyPanel");panel.classList.add("open");panel.setAttribute("aria-hidden","false");document.getElementById("historyShade").hidden=false;document.getElementById("historyToggle").setAttribute("aria-expanded","true"); }
+  function closeHistory() { const panel=document.getElementById("historyPanel");panel.classList.remove("open");panel.setAttribute("aria-hidden","true");document.getElementById("historyShade").hidden=true;document.getElementById("historyToggle").setAttribute("aria-expanded","false"); }
+
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function inline(s) {
+    return s.replace(/`([^`]+)`/g, "<code>$1</code>")
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  }
+  /* Turns any LaTeX the model still writes into readable symbols (x², √, ×, 3/4…). */
+  const SUP = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "n": "ⁿ", "-": "⁻", "+": "⁺" };
+  const SUB = { "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉" };
+  const SYM = { times: "×", cdot: "·", div: "÷", pm: "±", mp: "∓", leq: "≤", le: "≤", geq: "≥", ge: "≥", neq: "≠", ne: "≠", approx: "≈",
+    infty: "∞", pi: "π", alpha: "α", beta: "β", gamma: "γ", delta: "δ", Delta: "Δ", theta: "θ", lambda: "λ", mu: "μ", sigma: "σ",
+    omega: "ω", Omega: "Ω", rightarrow: "→", to: "→", Rightarrow: "⇒", Leftrightarrow: "⇔", leftarrow: "←", in: "∈", notin: "∉",
+    subset: "⊂", cup: "∪", cap: "∩", emptyset: "∅", forall: "∀", exists: "∃", degree: "°", circ: "°", ldots: "…", dots: "…",
+    cdots: "⋯", quad: " ", qquad: "  ", angle: "∠", perp: "⊥", parallel: "∥", sum: "∑", int: "∫", partial: "∂", vec: "", overrightarrow: "" };
+  const wrapTerm = a => /^[\w.,²³√πΔθαβλμσω]+$/.test(a.trim()) ? a.trim() : "(" + a.trim() + ")";
+  const wrapDen = a => /^([\d.,]+|[a-zA-Zπ])$/.test(a.trim()) ? a.trim() : "(" + a.trim() + ")";
+  function mathToText(m) {
+    let t = m.replace(/\\left|\\right/g, "")
+      .replace(/\^\s*\{?\s*\\circ\s*\}?/g, "°")
+      .replace(/\\([a-zA-Z]+)/g, (all, w) => w in SYM ? SYM[w] : all);
+    for (let k = 0; k < 3; k++) {
+      t = t.replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (_, a, b) => wrapTerm(a) + "/" + wrapDen(b))
+           .replace(/\\sqrt\s*\{([^{}]*)\}/g, (_, a) => "√" + wrapTerm(a))
+           .replace(/\\(?:text|mathrm|mathbf|operatorname|textbf|boxed)\s*\{([^{}]*)\}/g, "$1");
+    }
+    return t
+      .replace(/\^\{([0-9n+\-]+)\}|\^([0-9n])/g, (all, a, b) => [...(a || b)].map(c => SUP[c] || c).join(""))
+      .replace(/_\{([0-9]+)\}|_([0-9])/g, (all, a, b) => [...(a || b)].map(c => SUB[c] || c).join(""))
+      .replace(/\\[,;:!]/g, " ").replace(/\\\\/g, "\n").replace(/\\%/g, "%").replace(/[{}]/g, "");
+  }
+  function delatex(s) {
+    if (!/[\\$]/.test(s)) return s;
+    return s.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => mathToText(m))
+      .replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => mathToText(m))
+      .replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => mathToText(m))
+      .replace(/\$([^$\n]+?)\$/g, (all, m) => /[\\^_{}=]/.test(m) ? mathToText(m) : all)
+      .replace(/\\(times|cdot|div|pm|leq|geq|neq|approx|infty|pi|Delta|rightarrow|Rightarrow)(?![a-zA-Z])/g, (_, w) => SYM[w]);
+  }
+
+  function md(src) {
+    const parts = src.split(/```/);
+    let out = "";
+    parts.forEach((chunk, i) => {
+      if (i % 2) { const body = chunk.replace(/^[\w+-]*\n/, ""); out += "<pre><code>" + esc(body.replace(/\n$/, "")) + "</code></pre>"; return; }
+      const lines = esc(delatex(chunk)).split("\n"); let list = null, para = [];
+      const flushP = () => { if (para.length) { out += "<p>" + inline(para.join("<br>")) + "</p>"; para = []; } };
+      const flushL = () => { if (list) { out += `<${list.t}>` + list.items.map(x => "<li>" + inline(x) + "</li>").join("") + `</${list.t}>`; list = null; } };
+      for (const raw of lines) {
+        const l = raw.trimEnd();
+        let m;
+        if (!l.trim()) { flushP(); flushL(); continue; }
+        if ((m = l.match(/^#{1,6}\s+(.*)/))) { flushP(); flushL(); out += "<h3>" + inline(m[1]) + "</h3>"; continue; }
+        if ((m = l.match(/^\s*[-*•]\s+(.*)/))) { flushP(); if (!list || list.t !== "ul") { flushL(); list = { t: "ul", items: [] }; } list.items.push(m[1]); continue; }
+        if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { flushP(); if (!list || list.t !== "ol") { flushL(); list = { t: "ol", items: [] }; } list.items.push(m[1]); continue; }
+        flushL(); para.push(l);
+      }
+      flushP(); flushL();
+    });
+    return out;
+  }
+
+  function addMsg(role, text, thumbs) {
+    welcome.hidden = true;
+    const row = document.createElement("div");
+    row.className = "msg " + (role === "user" ? "user" : "ai");
+    const b = document.createElement("div"); b.className = "bubble";
+    if (role === "user") {
+      const pics = (thumbs || []).filter(t => typeof t === "string" && t.startsWith("data:image/"));
+      if (pics.length) {
+        b.classList.add("has-pics");
+        const box = document.createElement("div"); box.className = "pics";
+        for (const t of pics) { const im = new Image(); im.src = t; im.alt = "Photo envoyée"; box.appendChild(im); }
+        b.appendChild(box);
+      }
+      const tx = document.createElement("div"); tx.className = "txt"; tx.textContent = text || "";
+      b.appendChild(tx);
+    } else b.innerHTML = md(text);
+    if (role !== "user") row.insertAdjacentHTML("beforeend", AVATAR);
+    row.appendChild(b); thread.appendChild(row);
+    thread.scrollTop = thread.scrollHeight;
+    return b;
+  }
+
+  const ERRORS = {
+    no_key: "STARS AI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
+    bad_key: "La clé API a été refusée. Vérifie-la dans Render (Environment).",
+    no_credit: "Le compte de l'IA n'a plus de crédit.",
+    upstream_busy: "L'IA est très demandée en ce moment. Réessaie dans un instant.",
+    rate_limited: "Trop de messages d'un coup. Attends une minute puis réessaie.",
+    daily_limit: "La limite de messages du jour est atteinte. Reviens demain.",
+    refused: "Je ne peux pas répondre à cette demande. Essaie de la formuler autrement.",
+    empty_completion: "Aucune réponse reçue. Essaie une question plus courte.",
+    too_large: "La conversation est trop longue. Lance une nouvelle discussion.",
+    upstream_error: "L'IA n'a pas pu répondre. Réessaie.",
+    server_error: "Le serveur a eu un souci. Réessaie."
+  };
+
+  function setBusy(v) {
+    busy = v;
+    send.innerHTML = v ? STOP_ICON : SEND_ICON;
+    send.setAttribute("aria-label", v ? "Arrêter" : "Envoyer");
+    send.disabled = v ? false : !canSend();
+  }
+  const canSend = () => loadingPics === 0 && (!!input.value.trim() || pending.length > 0);
+
+  // Sends the conversation to the server and streams the answer back (one JSON object per line).
+  async function chat(history, signal, onText, voice) {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: history, voice: !!voice }),
+      signal
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw { code: j.code || "server_error" };
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "", text = "", truncated = false, error = null;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          if (!line.trim()) continue;
+          let ev; try { ev = JSON.parse(line); } catch (e) { continue; }
+          if (ev.t) { text += ev.t; onText(text); }
+          if (ev.error) error = ev.error;
+          if (ev.done) truncated = !!ev.truncated;
+        }
+      }
+    } catch (e) {
+      if (signal.aborted) throw { code: "cancelled", text };
+      throw { code: "network", text };
+    }
+    if (error) throw { code: error, text };
+    return { text, truncated };
+  }
+
+  // opts.voice: answer for the ear (short, read aloud); opts.onText(fullTextSoFar) follows the stream.
+  // Returns { ok, text, code } so the voice call knows what happened.
+  async function ask(text, opts = {}) {
+    if (busy || loadingPics > 0) return { ok: false, code: "busy" };
+    const imgs = pending.slice();
+    if (!text.trim() && !imgs.length) return { ok: false, code: "empty" };
+    const thumbs = imgs.map(i => i.thumb);
+    if (me && !activeConversationId) { activeConversationId = makeId(); try { localStorage.setItem(activeKey(), activeConversationId); } catch(e) {} }
+    addMsg("user", text, thumbs);
+    turns.push({ role: "user", content: text, images: imgs.map(i => ({ mime: i.mime, data: i.data })), thumbs }); save();
+    pending = []; renderAttach();
+    input.value = ""; autosize();
+    const b = addMsg("ai", "");
+    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> STARS AI ' + (imgs.length ? "lit ta photo…" : "réfléchit…") + '</span>';
+    ctl = new AbortController(); setBusy(true);
+    const recent = turns.slice(-20);
+    const history = recent.map((t, i) => {
+      const imgsOk = i >= recent.length - 6 && t.images && t.images.length ? t.images : undefined;
+      const lostPhoto = !imgsOk && t.thumbs && t.thumbs.length ? "[Photo envoyée plus tôt, plus disponible] " : "";
+      return { role: t.role, content: lostPhoto + (t.content || ""), images: imgsOk };
+    });
+    while (history.length && history[0].role !== "user") history.shift();
+    try {
+      const { text: answer, truncated } = await chat(history, ctl.signal, t => {
+        b.innerHTML = md(t); thread.scrollTop = thread.scrollHeight;
+        if (opts.onText) opts.onText(t);
+      }, opts.voice);
+      turns.push({ role: "assistant", content: answer }); save();
+      if (truncated) b.insertAdjacentHTML("beforeend", '<div class="note">Réponse coupée. Demande la suite.</div>');
+      addActions(b, text, answer);
+      if (me) { me.used = (me.used || 0) + 1; refreshPlan(); }
+      return { ok: true, text: answer };
+    } catch (e) {
+      const code = (e && e.code) || (ctl.signal.aborted ? "cancelled" : "network");
+      if (code === "auth_required") { turns.pop(); me = null; showAuth("Ta session a expiré. Reconnecte-toi pour continuer."); return { ok: false, code }; }
+      const partial = e && e.text;
+      b.innerHTML = partial ? md(partial) : "";
+      if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
+      if (code === "free_limit") {
+        const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/ | /g, " ");
+        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">⭐ Passer à Premium</a>';
+        if (me) { me.used = lim; refreshPlan(); }
+      } else if (code !== "cancelled") {
+        b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
+      } else if (!partial) { b.innerHTML = '<span class="thinking">Arrêté.</span>'; }
+      return { ok: false, code, text: partial || "" };
+    } finally { setBusy(false); if (!opts.voice) input.focus(); }
+  }
+
+  function autosize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 180) + "px"; if (!busy) send.disabled = !canSend(); }
+
+  /* ---------- Photos ---------- */
+  const attach = document.getElementById("attach");
+  const photoBtn = document.getElementById("photoBtn"), photoInput = document.getElementById("photoInput");
+  const FINE_TEXT = fine.textContent;
+  let pending = [], loadingPics = 0, flashTimer = null;
+
+  function flash(msg) {
+    fine.textContent = msg; fine.classList.add("warn");
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { fine.textContent = FINE_TEXT; fine.classList.remove("warn"); }, 5000);
+  }
+
+  // Shrinks the photo (max 1600 px) so it uploads fast even on a slow connection.
+  async function prepImage(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = url; });
+      const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * scale)), h = Math.max(1, Math.round(img.naturalHeight * scale));
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+      const full = c.toDataURL("image/jpeg", 0.85);
+      const ts = Math.min(1, 360 / Math.max(w, h));
+      const tc = document.createElement("canvas"); tc.width = Math.max(1, Math.round(w * ts)); tc.height = Math.max(1, Math.round(h * ts));
+      tc.getContext("2d").drawImage(c, 0, 0, tc.width, tc.height);
+      return { mime: "image/jpeg", data: full.slice(full.indexOf(",") + 1), thumb: tc.toDataURL("image/jpeg", 0.7) };
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  function renderAttach() {
+    attach.innerHTML = "";
+    pending.forEach((p, i) => {
+      const d = document.createElement("div"); d.className = "pic";
+      const im = new Image(); im.src = p.thumb; im.alt = "Photo " + (i + 1);
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "Retirer la photo");
+      x.addEventListener("click", () => { pending.splice(i, 1); renderAttach(); });
+      d.append(im, x); attach.appendChild(d);
+    });
+    for (let k = 0; k < loadingPics; k++) { const d = document.createElement("div"); d.className = "pic loading"; attach.appendChild(d); }
+    attach.hidden = !pending.length && !loadingPics;
+    photoBtn.disabled = pending.length + loadingPics >= 3;
+    autosize();
+  }
+
+  async function addFiles(files) {
+    const room = 3 - pending.length - loadingPics;
+    const all = [...files].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+    if (!all.length) return;
+    if (all.length > room) flash("3 photos maximum par message.");
+    const list = all.slice(0, room);
+    loadingPics += list.length; renderAttach();
+    for (const f of list) {
+      try { pending.push(await prepImage(f)); }
+      catch (e) { flash("Impossible de lire cette photo. Essaie avec une photo JPG ou PNG."); }
+      loadingPics--; renderAttach();
+    }
+    input.focus();
+  }
+
+  photoBtn.addEventListener("click", () => photoInput.click());
+  photoInput.addEventListener("change", () => { addFiles(photoInput.files); photoInput.value = ""; });
+  input.addEventListener("paste", e => {
+    const fs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => f.type.startsWith("image/"));
+    if (fs.length) { e.preventDefault(); addFiles(fs); }
+  });
+  document.addEventListener("dragover", e => { if (!composerWrap.hidden) e.preventDefault(); });
+  document.addEventListener("drop", e => {
+    if (composerWrap.hidden || !e.dataTransfer || !e.dataTransfer.files.length) return;
+    e.preventDefault(); addFiles(e.dataTransfer.files);
+  });
+  input.addEventListener("input", autosize);
+  input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); } });
+  form.addEventListener("submit", e => { e.preventDefault(); if (busy) ctl && ctl.abort(); else ask(input.value); });
+  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => ask(c.dataset.q)));
+  document.getElementById("newChat").addEventListener("click", startNewConversation);
+  document.getElementById("historyNew").addEventListener("click", startNewConversation);
+  document.getElementById("historyToggle").addEventListener("click", async () => { openHistory(); try { await refreshHistory(); } catch(e) { flashHistory("Historique indisponible pour le moment."); } });
+  document.getElementById("historyClose").addEventListener("click", closeHistory);
+  document.getElementById("historyShade").addEventListener("click", closeHistory);
+
+  /* ---------- Voice call: the browser listens (speech recognition) and reads answers aloud (speech synthesis) ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const synth = window.speechSynthesis;
+  const voiceEl = document.getElementById("voice"), orb = document.getElementById("orb");
+  const vstatus = document.getElementById("vstatus"), vhint = document.getElementById("vhint"), vtext = document.getElementById("vtext");
+  const micBtn = document.getElementById("micBtn"), hangBtn = document.getElementById("hangup");
+  const navLang = navigator.language || "fr-FR";
+  const isFr = /^fr/i.test(navLang);
+  const recLang = isFr ? "fr-FR" : navLang;
+  const HINT = "Parle normalement. Touche le cercle pour me couper la parole.";
+  const STATUS = { listening: "Je t'écoute…", thinking: "STARS AI réfléchit…", speaking: "STARS AI parle…", idle: "Touche le cercle pour parler" };
+  let call = { active: false };
+  let ttsVoice = null;
+
+  function pickVoice() {
+    if (!synth) return null;
+    const want = recLang.slice(0, 2).toLowerCase();
+    const list = synth.getVoices().filter(v => (v.lang || "").toLowerCase().replace("_", "-").startsWith(want));
+    const score = v => (/natural|neural|online|premium|enhanced/i.test(v.name) ? 4 : 0) + (/google/i.test(v.name) ? 2 : 0) + ((v.lang || "").replace("_", "-") === recLang ? 1 : 0);
+    list.sort((a, b) => score(b) - score(a));
+    return list[0] || null;
+  }
+  if (synth) {
+    ttsVoice = pickVoice();
+    if ("onvoiceschanged" in synth) synth.onvoiceschanged = () => { ttsVoice = pickVoice(); };
+  }
+
+  // Makes a written answer sound right when read aloud (no Markdown, maths said in words).
+  function toSpeech(t) {
+    let s = delatex(t)
+      .replace(/```[\s\S]*?(```|$)/g, isFr ? " Le code est affiché à l'écran. " : " The code is shown on screen. ")
+      .replace(/`([^`]*)`/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/^\s*#{1,6}\s*/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/\*\*|__/g, "")
+      .replace(/[*_~>|]/g, " ");
+    if (isFr) {
+      s = s.replace(/²/g, " au carré").replace(/³/g, " au cube").replace(/√\s*/g, "racine de ").replace(/×/g, " fois ")
+        .replace(/÷/g, " divisé par ").replace(/≤/g, " inférieur ou égal à ").replace(/≥/g, " supérieur ou égal à ")
+        .replace(/≠/g, " différent de ").replace(/≈/g, " environ ").replace(/π/g, " pi ").replace(/[→⇒]/g, ", donc ")
+        .replace(/±/g, " plus ou moins ").replace(/(\d)\s*\/\s*(\d)/g, "$1 sur $2").replace(/\s=\s/g, " égale ");
+    }
+    return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/\s+/g, " ").trim();
+  }
+
+  function chunks(text, max) {
+    const parts = text.replace(/([.!?…,;:])\s+/g, "$1\u0001").split("\u0001");
+    const out = []; let cur = "";
+    for (const part of parts) {
+      if (cur && (cur + " " + part).length > max) { out.push(cur); cur = part; }
+      else cur = cur ? cur + " " + part : part;
+    }
+    if (cur) out.push(cur);
+    return out.flatMap(c => c.length <= max * 1.5 ? [c] : (c.match(new RegExp("[^]{1," + max + "}(\\s|$)", "g")) || [c]));
+  }
+
+  function setState(s) {
+    call.state = s; voiceEl.dataset.state = s; vstatus.textContent = STATUS[s];
+    orb.setAttribute("aria-label", s === "speaking" || s === "thinking" ? "Couper la parole et parler" : s === "listening" ? "J'ai fini de parler" : "Parler");
+  }
+  function showYou(said, answer) {
+    vtext.innerHTML = (said ? '<p class="you">« ' + esc(said) + ' »</p>' : "") + (answer ? md(answer) : "");
+    vtext.scrollTop = vtext.scrollHeight;
+  }
+
+  function say(piece, turn) {
+    const text = toSpeech(piece);
+    if (!text || !synth) return;
+    for (const c of chunks(text, 180)) {
+      const u = new SpeechSynthesisUtterance(c);
+      u.lang = ttsVoice ? ttsVoice.lang : recLang;
+      if (ttsVoice) u.voice = ttsVoice;
+      u.rate = 1.05;
+      call.queue++;
+      u.onstart = () => { if (call.active && call.turn === turn) setState("speaking"); };
+      u.onend = u.onerror = () => {
+        if (call.turn !== turn) return;
+        call.queue = Math.max(0, call.queue - 1);
+        maybeListenAgain();
+      };
+      synth.speak(u);
+    }
+  }
+
+  // Reads each complete sentence as soon as it arrives, so the answer starts quickly.
+  function speakNew(full, final, turn) {
+    const rest = full.slice(call.spokenUpTo);
+    let cut = -1;
+    if (final) cut = rest.length;
+    else { const re = /[.!?…:;]\s|\n/g; let m; while ((m = re.exec(rest))) cut = m.index + m[0].length; }
+    if (cut <= 0) return;
+    call.spokenUpTo += cut;
+    say(rest.slice(0, cut), turn);
+  }
+
+  function maybeListenAgain() {
+    if (!call.active || !call.answerDone || call.queue > 0 || call.rec || call.state === "listening") return;
+    if (call.stopAfterSpeech) { endCall(); return; }
+    listen();
+  }
+
+  function stopRec() {
+    if (call.rec) { const r = call.rec; call.rec = null; try { r.abort(); } catch (e) {} }
+  }
+
+  function listen() {
+    if (!call.active) return;
+    stopRec();
+    const rec = new SR();
+    rec.lang = recLang; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    call.rec = rec; call.heard = "";
+    rec.onresult = e => {
+      if (call.rec !== rec) return;
+      let fin = "", interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) fin += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+      }
+      call.heard = (fin + " " + interim).replace(/\s+/g, " ").trim();
+      showYou(call.heard);
+    };
+    rec.onerror = e => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        endCall(); flash("Autorise le micro pour parler avec STARS AI (touche le cadenas à côté de l'adresse du site).");
+      } else if (e.error === "no-speech") call.silent++;
+      else if (e.error === "network" || e.error === "audio-capture") call.recError = e.error;
+    };
+    rec.onend = () => {
+      if (call.rec !== rec) return;
+      call.rec = null;
+      if (!call.active) return;
+      const said = (call.heard || "").trim();
+      if (said) { call.silent = 0; sendVoice(said); return; }
+      if (call.recError) {
+        vhint.textContent = call.recError === "audio-capture"
+          ? "Je n'arrive pas à utiliser ton micro. Vérifie qu'aucune autre appli ne l'utilise."
+          : "La reconnaissance de la voix ne répond pas. Vérifie ta connexion, puis touche le cercle.";
+        call.recError = null; setState("idle"); return;
+      }
+      if (call.silent < 2) { listen(); return; }
+      setState("idle"); vhint.textContent = "Je n'entends rien. Touche le cercle quand tu veux parler.";
+    };
+    try { rec.start(); setState("listening"); vhint.textContent = HINT; }
+    catch (e) { call.rec = null; setState("idle"); }
+  }
+
+  async function sendVoice(said) {
+    const turn = ++call.turn;
+    setState("thinking"); showYou(said);
+    call.answerDone = false; call.spokenUpTo = 0; call.queue = 0;
+    for (let i = 0; busy && i < 40; i++) await new Promise(r => setTimeout(r, 50));
+    const r = await ask(said, {
+      voice: true,
+      onText: t => { if (call.active && call.turn === turn) { showYou(said, t); speakNew(t, false, turn); } }
+    });
+    if (!call.active || call.turn !== turn) return;
+    call.answerDone = true;
+    if (r.ok) { showYou(said, r.text); speakNew(r.text, true, turn); }
+    else if (r.code === "auth_required") { endCall(); return; }
+    else if (r.code === "free_limit") {
+      call.stopAfterSpeech = true;
+      say("Tu as utilisé tes messages gratuits d'aujourd'hui. Passe à Premium pour continuer sans limite, ou reviens demain.", turn);
+    }
+    else if (r.code !== "cancelled") {
+      say(r.code === "rate_limited" ? "Trop de messages d'un coup. Attends une minute, puis reparle-moi."
+        : r.code === "daily_limit" ? "La limite de messages du jour est atteinte. Reviens demain."
+        : "Désolée, je n'ai pas pu répondre. Réessaie.", turn);
+    }
+    maybeListenAgain();
+  }
+
+  function startCall() {
+    if (!SR) {
+      flash(isFr ? "Le mode vocal marche avec Chrome (Android ou ordinateur) ou Safari (iPhone)." : "Voice mode needs Chrome or Safari.");
+      return;
+    }
+    if (busy) return;
+    call = { active: true, rec: null, heard: "", silent: 0, answerDone: true, spokenUpTo: 0, queue: 0, turn: 0, state: "idle" };
+    if (synth) { try { synth.cancel(); const u = new SpeechSynthesisUtterance(" "); u.volume = 0; synth.speak(u); } catch (e) {} } // unlocks speech on iPhone
+    vtext.innerHTML = ""; voiceEl.hidden = false;
+    listen();
+    orb.focus();
+  }
+
+  function endCall() {
+    if (!call.active) return;
+    call.active = false; call.turn++;
+    stopRec();
+    if (synth) synth.cancel();
+    voiceEl.hidden = true;
+    micBtn.focus();
+  }
+
+  orb.addEventListener("click", () => {
+    if (!call.active) return;
+    if (call.state === "speaking" || call.state === "thinking") {
+      call.turn++;                              // forget the answer in progress
+      if (synth) synth.cancel();
+      call.queue = 0; call.answerDone = true; call.silent = 0;
+      listen();
+    } else if (call.state === "listening") {
+      if (call.rec) { try { call.rec.stop(); } catch (e) {} }   // "j'ai fini" → send now
+    } else { call.silent = 0; listen(); }
+  });
+  hangBtn.addEventListener("click", endCall);
+  micBtn.addEventListener("click", startCall);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && call.active) endCall(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) endCall(); });
+
+  /* ---------- Under each answer: Copier / Signaler (Google Play requires in-app reporting for AI chat) ---------- */
+  const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const ICON_FLAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>';
+  const reportDlg = document.getElementById("reportDlg"), reportForm = document.getElementById("reportForm");
+  const reportErr = document.getElementById("reportErr"), reportSend = document.getElementById("reportSend");
+  let reportCtx = null;
+
+  function addActions(b, question, answer) {
+    if (!b || !answer || !String(answer).trim()) return;
+    const acts = document.createElement("div"); acts.className = "acts";
+    const copy = document.createElement("button");
+    copy.type = "button"; copy.className = "act"; copy.innerHTML = ICON_COPY + "<span>Copier</span>";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(String(answer));
+        copy.lastChild.textContent = "Copié !";
+        setTimeout(() => { copy.lastChild.textContent = "Copier"; }, 1500);
+      } catch (e) { flash("Impossible de copier sur cet appareil."); }
+    });
+    const rep = document.createElement("button");
+    rep.type = "button"; rep.className = "act"; rep.innerHTML = ICON_FLAG + "<span>Signaler</span>";
+    rep.addEventListener("click", () => openReport(question, answer, rep));
+    acts.append(copy, rep);
+    b.appendChild(acts);
+  }
+
+  function openReport(question, answer, btn) {
+    reportCtx = { question: String(question || ""), answer: String(answer), btn };
+    reportForm.reset(); reportErr.textContent = "";
+    reportSend.disabled = false; reportSend.textContent = "Envoyer";
+    reportDlg.showModal();
+  }
+  document.getElementById("reportCancel").addEventListener("click", () => reportDlg.close());
+  reportForm.addEventListener("change", () => { reportErr.textContent = ""; });
+  reportForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    const picked = reportForm.querySelector('input[name="reason"]:checked');
+    if (!picked) { reportErr.textContent = "Choisis une raison."; return; }
+    reportSend.disabled = true; reportSend.textContent = "Envoi…";
+    const { ok, data } = await post("/api/report", {
+      reason: picked.value, comment: document.getElementById("reportComment").value.trim(),
+      question: reportCtx.question, answer: reportCtx.answer
+    });
+    reportSend.disabled = false; reportSend.textContent = "Envoyer";
+    if (!ok) {
+      reportErr.textContent = data.code === "rate_limited" ? "Tu as envoyé beaucoup de signalements. Réessaie plus tard."
+        : data.code === "auth_required" ? "Reconnecte-toi pour envoyer un signalement."
+        : "Le signalement n'a pas pu être envoyé. Réessaie dans un instant.";
+      return;
+    }
+    reportDlg.close();
+    if (reportCtx.btn) { reportCtx.btn.lastChild.textContent = "Signalé"; reportCtx.btn.disabled = true; }
+    flash("Merci ! Ton signalement a bien été envoyé.");
+  });
+
+  /* ---------- Delete my account (required by Google Play for apps with accounts) ---------- */
+  const deleteDlg = document.getElementById("deleteDlg"), deleteErr = document.getElementById("deleteErr");
+  const deleteConfirm = document.getElementById("deleteConfirm");
+  document.getElementById("deleteAccount").addEventListener("click", () => {
+    if (!me) return;
+    account.open = false;
+    document.getElementById("deleteEmail").textContent = me.email;
+    deleteErr.textContent = ""; deleteConfirm.disabled = false; deleteConfirm.textContent = "Supprimer mon compte";
+    deleteDlg.showModal();
+  });
+  document.getElementById("deleteCancel").addEventListener("click", () => deleteDlg.close());
+  deleteConfirm.addEventListener("click", async () => {
+    deleteConfirm.disabled = true; deleteConfirm.textContent = "Suppression…";
+    const { ok } = await post("/api/account/delete", {});
+    if (!ok) {
+      deleteConfirm.disabled = false; deleteConfirm.textContent = "Supprimer mon compte";
+      deleteErr.textContent = "La suppression n'a pas pu se faire. Réessaie dans un instant, ou écris à yvanemambo@gmail.com.";
+      return;
+    }
+    try { localStorage.removeItem(key()); localStorage.removeItem(LAST_EMAIL); } catch (e) {}
+    deleteDlg.close();
+    me = null; turns = [];
+    emailIn.value = ""; nameIn.value = "";
+    showAuth("");
+    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur STARS AI !";
+  });
+
+  /* ---------- Sign-up / sign-in ---------- */
+  const auth = document.getElementById("auth");
+  const composerWrap = document.getElementById("composerWrap");
+  const newChat = document.getElementById("newChat");
+  const account = document.getElementById("account");
+  const step1 = document.getElementById("step1"), step2 = document.getElementById("step2");
+  const nameIn = document.getElementById("name"), emailIn = document.getElementById("email"), codeIn = document.getElementById("code");
+  const err1 = document.getElementById("err1"), err2 = document.getElementById("err2");
+  const startBtn = document.getElementById("startBtn"), verifyBtn = document.getElementById("verifyBtn");
+  const resendBtn = document.getElementById("resend");
+  let challenge = null, cooldown = null;
+
+  const info1 = document.getElementById("info1");
+  const nameField = document.getElementById("nameField");
+  const tabSignup = document.getElementById("tabSignup"), tabLogin = document.getElementById("tabLogin");
+  const LAST_EMAIL = "stars-ai-last-email";
+  let mode = "signup";
+  const lastEmail = () => { try { return localStorage.getItem(LAST_EMAIL) || ""; } catch (e) { return ""; } };
+
+  function setTitle(before, accent) {
+    const t = document.getElementById("authTitle");
+    t.textContent = before;
+    const em = document.createElement("em"); em.textContent = accent; t.appendChild(em);
+  }
+
+  const passIn = document.getElementById("pass"), newPassIn = document.getElementById("newPass");
+  const passField = document.getElementById("passField"), newPassField = document.getElementById("newPassField");
+  const forgotLine = document.getElementById("forgotLine");
+  let passwordsOn = true, passwordMin = 8;
+
+  // Three screens share one form: "signup", "login" (Gmail + mot de passe) and "reset" (mot de passe oublié).
+  function setMode(m, keepMessages) {
+    mode = m;
+    const signup = m === "signup", login = m === "login", reset = m === "reset";
+    tabSignup.setAttribute("aria-selected", String(signup));
+    tabLogin.setAttribute("aria-selected", String(!signup));
+    nameField.hidden = !signup;
+    passField.hidden = reset || !passwordsOn;
+    forgotLine.hidden = !login || !passwordsOn;
+    passIn.autocomplete = login ? "current-password" : "new-password";
+    passIn.placeholder = login ? "Ton mot de passe" : "Au moins " + passwordMin + " caractères";
+    if (signup) setTitle("Rejoins ", "STARS AI");
+    else if (login) setTitle("Content de te ", "revoir");
+    else setTitle("Mot de passe ", "oublié");
+    document.getElementById("authLead").textContent = signup
+      ? (passwordsOn
+          ? "Choisis ton prénom, ton adresse Gmail et un mot de passe. On t'enverra un code une seule fois pour confirmer ton adresse."
+          : "Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.")
+      : login
+        ? (passwordsOn ? "Entre ton adresse Gmail et ton mot de passe." : "Entre l'adresse Gmail de ton compte. On t'envoie un code à 6 chiffres pour te connecter.")
+        : "Entre ton adresse Gmail : on t'envoie un code pour choisir un nouveau mot de passe.";
+    startBtn.textContent = signup ? "Créer mon compte" : login ? (passwordsOn ? "Se connecter" : "Recevoir mon code") : "Recevoir un code";
+    document.getElementById("switchText").textContent = signup ? "Déjà un compte ?" : reset ? "" : "Pas encore de compte ?";
+    document.getElementById("switchBtn").textContent = signup ? "Se connecter" : reset ? "← Retour à la connexion" : "S'inscrire";
+    if (!keepMessages) { err1.textContent = ""; info1.textContent = ""; }
+  }
+  tabSignup.addEventListener("click", () => { setMode("signup"); nameIn.focus(); });
+  tabLogin.addEventListener("click", () => { setMode("login"); (emailIn.value ? passIn : emailIn).focus(); });
+  document.getElementById("switchBtn").addEventListener("click", () => {
+    setMode(mode === "signup" ? "login" : mode === "reset" ? "login" : "signup");
+    (mode === "signup" ? nameIn : emailIn.value ? passIn : emailIn).focus();
+  });
+  document.getElementById("forgotBtn").addEventListener("click", () => { setMode("reset"); emailIn.focus(); });
+  for (const [btnId, field] of [["togglePass", passIn], ["toggleNewPass", newPassIn]]) {
+    const btn = document.getElementById(btnId);
+    btn.addEventListener("click", () => {
+      const show = field.type === "password";
+      field.type = show ? "text" : "password";
+      btn.textContent = show ? "Masquer" : "Afficher";
+      field.focus();
+    });
+  }
+
+  async function loginWithPassword() {
+    const email = emailIn.value.trim(), password = passIn.value;
+    err1.textContent = ""; info1.textContent = "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err1.textContent = AUTH_ERRORS.bad_email; emailIn.focus(); return; }
+    if (!password) { err1.textContent = "Écris ton mot de passe."; passIn.focus(); return; }
+    startBtn.disabled = true; startBtn.textContent = "Connexion…";
+    const { ok, data } = await post("/api/auth/password", { email, password });
+    startBtn.disabled = false; startBtn.textContent = "Se connecter";
+    if (ok) { loggedIn(data); return; }
+    if (data.code === "not_registered") {
+      setMode("signup", true);
+      info1.textContent = "Aucun compte avec cette adresse. Inscris-toi : il ne manque que ton prénom.";
+      nameIn.focus(); return;
+    }
+    if (data.code === "no_password") {
+      setMode("reset", true);
+      info1.textContent = "Ton compte n'a pas encore de mot de passe. Clique sur « Recevoir un code » pour en créer un.";
+      startBtn.focus(); return;
+    }
+    err1.textContent = AUTH_ERRORS[data.code] || "Une erreur est survenue. Réessaie.";
+    if (data.code === "bad_password") passIn.select();
+  }
+
+  for (const el of [nameIn, emailIn, passIn]) el.addEventListener("input", () => { err1.textContent = ""; });
+  for (const el of [codeIn, newPassIn]) el.addEventListener("input", () => { err2.textContent = ""; });
+
+  function loggedIn(data) {
+    me = data; challenge = null; clearInterval(cooldown);
+    passIn.value = ""; newPassIn.value = ""; codeIn.value = "";
+    passIn.type = newPassIn.type = "password";
+    document.getElementById("togglePass").textContent = document.getElementById("toggleNewPass").textContent = "Afficher";
+    try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
+    showChat();
+    // Fetch the Premium status / daily counter for the account menu
+    fetch("/api/me").then(r => r.ok ? r.json() : null).then(d => { if (d && me && d.email === me.email) { me = d; refreshPlan(); } }).catch(() => {});
+  }
+
+  const AUTH_ERRORS = {
+    members_down: "Le service est momentanément indisponible. Réessaie dans un instant.",
+    bad_name: "Écris ton prénom.",
+    bad_email: "Cette adresse e-mail ne semble pas valide.",
+    too_many_codes: "Trop de codes demandés. Attends 10 minutes puis réessaie.",
+    mail_failed: "Impossible d'envoyer le code pour le moment. Réessaie dans un instant.",
+    mail_quota: "Trop d'inscriptions aujourd'hui. Réessaie demain.",
+    code_expired: "Ce code a expiré. Clique sur « Renvoyer le code ».",
+    code_used: "Ce code a déjà servi. Clique sur « Renvoyer le code ».",
+    too_many_attempts: "Trop d'essais. Clique sur « Renvoyer le code ».",
+    bad_token: "Clique sur « Renvoyer le code ».",
+    auth_disabled: "L'inscription n'est pas encore ouverte.",
+    weak_password: "Le mot de passe doit contenir au moins 8 caractères.",
+    bad_password: "Mot de passe incorrect. Réessaie, ou clique sur « Mot de passe oublié ? ».",
+    too_many_passwords: "Trop d'essais. Attends 15 minutes, ou clique sur « Mot de passe oublié ? ».",
+    network: "Connexion impossible. Vérifie ton internet et réessaie."
+  };
+
+  async function post(url, body) {
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+    } catch (e) { return { ok: false, data: { code: "network" } }; }
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  }
+
+  function showAuth(message) {
+    if (busy && ctl) ctl.abort();
+    welcome.hidden = true;
+    thread.querySelectorAll(".msg").forEach(n => n.remove());
+    composerWrap.hidden = true; newChat.hidden = true; account.hidden = true;
+    auth.hidden = false; step1.hidden = false; step2.hidden = true;
+    const known = lastEmail();
+    setMode(known ? "login" : "signup");
+    if (known && !emailIn.value) emailIn.value = known;
+    err1.textContent = message || "";
+    (mode === "login" ? (emailIn.value && passwordsOn ? passIn : emailIn) : nameIn.value ? emailIn : nameIn).focus();
+  }
+
+  async function showChat() {
+    auth.hidden = true; composerWrap.hidden = false; newChat.hidden = false;
+    thread.querySelectorAll(".msg").forEach(n => n.remove());
+    if (me) {
+      account.hidden = false; account.open = false;
+      document.getElementById("avatar").textContent = (me.name || me.email).trim().charAt(0);
+      document.getElementById("meName").textContent = me.name || "";
+      document.getElementById("meEmail").textContent = me.email;
+      refreshPlan();
+    }
+    greet(me ? me.name : "");
+    turns = load();
+    if (me) {
+      cloudHistoryReady = false;
+      try {
+        const d = await apiGet("/api/conversations"); historyItems = Array.isArray(d.items) ? d.items : [];
+        const savedId = (()=>{try{return localStorage.getItem(activeKey());}catch(e){return null;}})();
+        const selected = historyItems.find(x=>x.id===savedId) || historyItems[0];
+        if (selected) {
+          const full = await apiGet("/api/conversations/"+encodeURIComponent(selected.id));
+          activeConversationId=full.item.id; turns=(full.item.messages||[]).map(m=>({role:m.role,content:m.content}));
+          try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){}
+        } else { activeConversationId=makeId(); try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){} turns=[]; }
+        cloudHistoryReady = true; renderHistory();
+      } catch(e) { cloudHistoryReady = false; console.warn("[historique] chargement impossible",e.message); }
+    } else { activeConversationId=null; }
+    showTurns(); pending = []; renderAttach(); input.focus();
+  }
+
+  // Account menu: free counter or Premium date, plus the admin link for the owner.
+  function refreshPlan() {
+    if (!me) return;
+    const plan = document.getElementById("planLine"), prem = document.getElementById("premiumLink");
+    const adminLink = document.getElementById("adminLink");
+    adminLink.hidden = !me.admin;
+    const todo = me.admin ? (me.adminPending || 0) : 0;
+    adminLink.textContent = "🛠 Tableau de bord" + (todo ? " · " + todo + " paiement" + (todo > 1 ? "s" : "") + " à vérifier" : "");
+    adminLink.classList.toggle("gold", todo > 0);
+    document.getElementById("avatar").classList.toggle("alert", todo > 0);
+    const until = me.premiumUntil ? new Date(me.premiumUntil) : null;
+    if (me.admin) {
+      plan.innerHTML = "👑 <b>Propriétaire</b> : messages illimités";
+      prem.textContent = "Voir la page Premium"; prem.classList.remove("gold");
+    } else if (until && until > new Date()) {
+      plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
+      prem.textContent = "Prolonger mon Premium"; prem.classList.remove("gold");
+    } else if (me.freeDaily) {
+      const used = Math.min(me.used || 0, me.freeDaily);
+      plan.innerHTML = "Compte gratuit : <b>" + used + " / " + me.freeDaily + "</b> messages aujourd'hui" + (me.pending ? "<br>⏳ Paiement Premium en vérification" : "");
+      prem.textContent = "⭐ Passer à Premium"; prem.classList.add("gold");
+    } else plan.textContent = "";
+  }
+
+  function startCooldown(sec) {
+    clearInterval(cooldown);
+    let s = sec;
+    resendBtn.disabled = true; resendBtn.textContent = "Renvoyer le code (" + s + " s)";
+    cooldown = setInterval(() => {
+      s--;
+      if (s <= 0) { clearInterval(cooldown); resendBtn.disabled = false; resendBtn.textContent = "Renvoyer le code"; }
+      else resendBtn.textContent = "Renvoyer le code (" + s + " s)";
+    }, 1000);
+  }
+
+  async function requestCode(errBox, btn) {
+    const name = nameIn.value.trim(), email = emailIn.value.trim(), password = passIn.value;
+    errBox.textContent = ""; info1.textContent = "";
+    if (mode === "signup" && !name) { errBox.textContent = AUTH_ERRORS.bad_name; nameIn.focus(); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { errBox.textContent = AUTH_ERRORS.bad_email; emailIn.focus(); return; }
+    if (mode === "signup" && passwordsOn && password.length < passwordMin) { errBox.textContent = AUTH_ERRORS.weak_password; passIn.focus(); return; }
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Envoi en cours…";
+    const body = { mode, name, email };
+    if (mode === "signup" && passwordsOn) body.password = password;
+    const { ok, data } = await post("/api/auth/start", body);
+    btn.disabled = false; btn.textContent = label;
+    if (!ok) {
+      if (data.code === "already_registered") {
+        step2.hidden = true; step1.hidden = false;
+        setMode("login", true);
+        info1.textContent = passwordsOn
+          ? "Tu as déjà un compte avec cette adresse. Entre ton mot de passe pour te connecter."
+          : "Tu as déjà un compte avec cette adresse. Clique sur « Recevoir mon code » pour te connecter.";
+        (passwordsOn ? passIn : startBtn).focus(); return;
+      }
+      if (data.code === "not_registered") {
+        step2.hidden = true; step1.hidden = false;
+        setMode("signup", true);
+        info1.textContent = "Aucun compte avec cette adresse. Inscris-toi : il ne manque que ton prénom.";
+        nameIn.focus(); return;
+      }
+      errBox.textContent = AUTH_ERRORS[data.code] || AUTH_ERRORS.mail_failed; return;
+    }
+    challenge = data.token;
+    document.getElementById("sentTo").textContent = data.email;
+    step1.hidden = true; step2.hidden = false;
+    newPassField.hidden = mode !== "reset";
+    verifyBtn.textContent = verifyLabel();
+    codeIn.value = ""; err2.textContent = ""; codeIn.focus();
+    startCooldown(45);
+  }
+
+  const verifyLabel = () => mode === "reset" ? "Changer mon mot de passe" : "Valider";
+
+  async function verifyCode() {
+    const code = codeIn.value.replace(/\D/g, "");
+    err2.textContent = "";
+    if (code.length !== 6) { err2.textContent = "Le code contient 6 chiffres."; codeIn.focus(); return; }
+    const body = { token: challenge, code };
+    if (mode === "reset") {
+      if (newPassIn.value.length < passwordMin) { err2.textContent = AUTH_ERRORS.weak_password; newPassIn.focus(); return; }
+      body.password = newPassIn.value;
+    }
+    verifyBtn.disabled = true; verifyBtn.textContent = "Vérification…";
+    const { ok, data } = await post("/api/auth/verify", body);
+    verifyBtn.disabled = false; verifyBtn.textContent = verifyLabel();
+    if (!ok) {
+      err2.textContent = data.code === "bad_code"
+        ? "Code incorrect." + (data.left > 0 ? " Encore " + data.left + " essai" + (data.left > 1 ? "s" : "") + "." : " Clique sur « Renvoyer le code ».")
+        : (AUTH_ERRORS[data.code] || "Une erreur est survenue. Réessaie.");
+      if (data.code === "weak_password") newPassIn.focus(); else codeIn.select();
+      return;
+    }
+    loggedIn(data);
+  }
+
+  document.getElementById("startForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (mode === "login" && passwordsOn) loginWithPassword(); else requestCode(err1, startBtn);
+  });
+  document.getElementById("verifyForm").addEventListener("submit", e => { e.preventDefault(); verifyCode(); });
+  resendBtn.addEventListener("click", () => requestCode(err2, resendBtn));
+  document.getElementById("changeEmail").addEventListener("click", () => { step2.hidden = true; step1.hidden = false; clearInterval(cooldown); emailIn.select(); });
+  codeIn.addEventListener("input", () => {
+    const v = codeIn.value.replace(/\D/g, "").slice(0, 6);
+    if (v !== codeIn.value) codeIn.value = v;
+    if (v.length === 6 && !verifyBtn.disabled) {
+      if (mode === "reset") newPassIn.focus(); else verifyCode();
+    }
+  });
+  document.getElementById("logout").addEventListener("click", async () => {
+    try { if (activeConversationId && turns.length) await persistConversation(); } catch(e) {}
+    await post("/api/auth/logout");
+    me = null; turns = []; showAuth("");
+  });
+  document.addEventListener("click", e => { if (account.open && !account.contains(e.target)) account.open = false; });
+
+  /* ---------- Installable app (service worker + "Installer l'appli" buttons) ---------- */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
+  }
+  const runningAsApp = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true || document.referrer.startsWith("android-app://");
+  let installEvt = null, appInstalled = runningAsApp;
+  function refreshInstall() {
+    document.querySelectorAll("[data-install], [data-install-link]").forEach(el => { el.hidden = appInstalled; });
+  }
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+  window.addEventListener("appinstalled", () => {
+    installEvt = null; appInstalled = true; refreshInstall();
+    flash("STARS AI est installée ! Tu la trouveras sur ton écran d'accueil.");
+  });
+  document.querySelectorAll("[data-install]").forEach(btn => btn.addEventListener("click", async () => {
+    account.open = false;
+    if (installEvt) {           // Chrome (Android / ordinateur) : installation en un clic
+      installEvt.prompt();
+      try { await installEvt.userChoice; } catch (e) {}
+      installEvt = null;
+      return;
+    }
+    location.href = "/telecharger"; // iPhone, WhatsApp, Facebook… : page avec les explications et l'APK
+  }));
+  refreshInstall();
+
+  /* ---------- Start ---------- */
+  (async () => {
+    let status = { ready: true, authRequired: false };
+    try { status = await (await fetch("/api/status")).json(); } catch (e) {}
+    if (!status.ready) { fine.textContent = "STARS AI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
+    passwordsOn = status.passwords !== false;
+    passwordMin = status.passwordMin || 8;
+    if (status.authRequired) {
+      try {
+        const r = await fetch("/api/me");
+        if (r.ok) me = await r.json();
+      } catch (e) {}
+      if (!me) return showAuth("");
+      try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
+    }
+    showChat();
+  })();
+})();
+</script>
+</body>
+</html>
