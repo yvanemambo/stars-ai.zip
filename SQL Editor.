@@ -1,9 +1,23 @@
-NOTIFY pgrst, 'reload schema';
 
-SELECT
-  p.proname AS fonction,
-  pg_get_function_identity_arguments(p.oid) AS parametres
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-AND p.proname LIKE 'stars_conversation%';
+create or replace function public.stars_conversations_list(
+  p_secret text,
+  p_email text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+begin
+  perform public.stars_check_secret(p_secret);
+  return stars_private.conversations_list(p_email);
+end;
+$fn$;
+
+revoke all on function public.stars_conversations_list(text, text)
+from public, authenticated;
+
+grant execute on function public.stars_conversations_list(text, text)
+to anon, service_role;
+
+notify pgrst, 'reload schema';
