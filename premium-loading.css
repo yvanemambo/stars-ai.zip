@@ -1,0 +1,94 @@
+
+/* STARS AI — Premium conversation loading */
+
+.stars-history-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 16px;
+  animation: starsFadeIn .45s ease;
+}
+
+.stars-loading-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stars-loading-orbit {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(130, 110, 255, .15);
+  border-top-color: #9b8cff;
+  border-right-color: #54b9ff;
+  border-radius: 50%;
+  animation: starsRotate .9s linear infinite;
+  box-shadow: 0 0 18px rgba(130, 110, 255, .25);
+}
+
+.stars-loading-title {
+  color: #e9eaff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stars-loading-subtitle {
+  color: #9299b8;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.stars-loading-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stars-loading-item {
+  padding: 13px;
+  border: 1px solid rgba(150, 160, 220, .09);
+  background: rgba(120, 130, 200, .045);
+  border-radius: 12px;
+}
+
+.stars-loading-line {
+  height: 8px;
+  border-radius: 20px;
+  background: linear-gradient(
+    90deg,
+    rgba(130, 140, 200, .08),
+    rgba(150, 130, 255, .22),
+    rgba(130, 140, 200, .08)
+  );
+  background-size: 200% 100%;
+  animation: starsShimmer 1.5s ease-in-out infinite;
+}
+
+.stars-loading-line:first-child {
+  width: 72%;
+}
+
+.stars-loading-line:last-child {
+  width: 45%;
+  margin-top: 10px;
+}
+
+@keyframes starsRotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes starsShimmer {
+  to { background-position: -200% 0; }
+}
+
+@keyframes starsFadeIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stars-loading-orbit,
+  .stars-loading-line {
+    animation: none;
+  }
+}
