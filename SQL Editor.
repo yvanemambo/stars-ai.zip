@@ -1,0 +1,9 @@
+NOTIFY pgrst, 'reload schema';
+
+SELECT
+  p.proname AS fonction,
+  pg_get_function_identity_arguments(p.oid) AS parametres
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+AND p.proname LIKE 'stars_conversation%';
