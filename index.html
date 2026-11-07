@@ -375,6 +375,9 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 #historyShade { position:fixed; z-index:19; inset:0; background:rgba(0,0,0,.48); }
 .history-empty { color:var(--ink-dim); font-size:13px; line-height:1.5; padding:12px 4px; }
 @media (prefers-reduced-motion:reduce) { #historyPanel { transition:none; } }
+#historyList { flex:1; }
+.history-state { display:grid; gap:10px; justify-items:start; }
+#historyClear { color:var(--danger); }
 
 </style>
 </head>
@@ -399,6 +402,8 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <div class="plan" id="planLine"></div>
           <a class="menu-link gold" id="premiumLink" href="/premium">⭐ Passer à Premium</a>
           <a class="menu-link" id="adminLink" href="/admin" hidden>🛠 Tableau de bord</a>
+          <a class="menu-link" id="memLink" href="/memoire" hidden>🧠 Mes souvenirs</a>
+          <a class="menu-link" id="imgLink" href="/images" hidden>🎨 Images</a>
           <div class="menu-sep"></div>
           <button class="menu-link" type="button" data-install hidden>📲 Installer l'appli</button>
           <a class="menu-link" href="/ecoles">🏫 Offre écoles</a>
@@ -414,6 +419,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     <div class="history-head"><h2>Mes discussions</h2><button class="history-action" id="historyClose" type="button" aria-label="Fermer">✕</button></div>
     <button class="btn-ghost" id="historyNew" type="button">＋ Nouvelle discussion</button>
     <div id="historyList"><div class="history-empty">Chargement de tes discussions…</div></div>
+    <button class="btn-ghost" id="historyClear" type="button">Effacer tout l'historique</button>
   </aside>
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
@@ -529,7 +535,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 
 <dialog class="sheet" id="deleteDlg" aria-labelledby="deleteTitle">
   <h3 id="deleteTitle">Supprimer ton compte ?</h3>
-  <p>Le compte <strong id="deleteEmail"></strong> sera supprimé définitivement, et tes discussions enregistrées sur cet appareil seront effacées. Tu pourras te réinscrire plus tard avec la même adresse.</p>
+  <p>Le compte <strong id="deleteEmail"></strong> sera supprimé définitivement, et tes discussions enregistrées (sur cet appareil et en ligne) ainsi que tes souvenirs seront effacés. Tu pourras te réinscrire plus tard avec la même adresse.</p>
   <div class="err" id="deleteErr" role="alert"></div>
   <div class="sheet-btns">
     <button class="btn-ghost" type="button" id="deleteCancel">Annuler</button>
@@ -625,8 +631,9 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     const first = (messages || []).find(t => t.role === "user" && t.content && t.content.trim());
     return (first ? first.content.trim() : "Nouvelle discussion").replace(/\s+/g, " ").slice(0, 72);
   }
-  async function apiGet(url) { const r = await fetch(url); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
-  async function apiPost(url, body) { const r = await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
+  const historyTimeout = () => (typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined);
+  async function apiGet(url) { const r = await fetch(url, { signal: historyTimeout() }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
+  async function apiPost(url, body) { const r = await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:historyTimeout()}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
   function flashHistory(message) { if (typeof flash === "function") flash(message); }
   async function persistConversation() {
     if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
@@ -637,6 +644,35 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   async function refreshHistory() {
     if (!me) return;
     const d = await apiGet("/api/conversations"); historyItems = Array.isArray(d.items) ? d.items : []; renderHistory();
+  }
+  function historyErrorText(e) {
+    const m = e && e.message;
+    if (m === "auth_required") return "Ta session a expiré. Reconnecte-toi pour retrouver tes discussions.";
+    if (m === "not_found" || m === "history_off") return "L'historique en ligne n'est pas disponible pour le moment.";
+    if (m === "rate_limited") return "Trop de demandes. Réessaie dans une minute.";
+    return "Impossible de charger tes discussions. Vérifie ta connexion, puis réessaie.";
+  }
+  function showHistoryState(text, retry) {
+    const list = document.getElementById("historyList"); if (!list) return;
+    list.replaceChildren();
+    const box = document.createElement("div"); box.className = "history-state";
+    const msg = document.createElement("div"); msg.className = "history-empty"; msg.textContent = text; box.append(msg);
+    if (retry) { const b = document.createElement("button"); b.type = "button"; b.className = "btn-ghost"; b.textContent = "Réessayer"; b.addEventListener("click", () => loadHistoryPanel()); box.append(b); }
+    list.append(box);
+  }
+  let historyLoading = false;
+  async function loadHistoryPanel() {
+    if (historyLoading) return;
+    if (!me) { showHistoryState("L'historique en ligne est réservé aux comptes connectés."); return; }
+    historyLoading = true; showHistoryState("Chargement de tes discussions…");
+    try {
+      await refreshHistory();
+      if (!cloudHistoryReady) { // le serveur répond maintenant : on active la sauvegarde en ligne
+        cloudHistoryReady = true;
+        if (!activeConversationId) { activeConversationId = makeId(); try { localStorage.setItem(activeKey(), activeConversationId); } catch (e) {} }
+      }
+    } catch (e) { showHistoryState(historyErrorText(e), true); }
+    historyLoading = false;
   }
   function renderHistory() {
     const list = document.getElementById("historyList"); if (!list) return;
@@ -862,7 +898,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       b.innerHTML = partial ? md(partial) : "";
       if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
       if (code === "free_limit") {
-        const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/ | /g, " ");
+        const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ");
         b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">⭐ Passer à Premium</a>';
         if (me) { me.used = lim; refreshPlan(); }
       } else if (code !== "cancelled") {
@@ -950,8 +986,19 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => ask(c.dataset.q)));
   document.getElementById("newChat").addEventListener("click", startNewConversation);
   document.getElementById("historyNew").addEventListener("click", startNewConversation);
-  document.getElementById("historyToggle").addEventListener("click", async () => { openHistory(); try { await refreshHistory(); } catch(e) { flashHistory("Historique indisponible pour le moment."); } });
+  document.getElementById("historyToggle").addEventListener("click", () => { openHistory(); loadHistoryPanel(); });
   document.getElementById("historyClose").addEventListener("click", closeHistory);
+  document.getElementById("historyClear").addEventListener("click", async () => {
+    if (!me || !confirm("Effacer définitivement toutes tes discussions enregistrées ? Cette action est irréversible.")) return;
+    try {
+      if (busy && ctl) ctl.abort();
+      await apiPost("/api/conversations/clear", {});
+      clearTimeout(saveTimer); historyItems = [];
+      activeConversationId = makeId(); try { localStorage.setItem(activeKey(), activeConversationId); } catch (e) {}
+      turns = []; saveLocalOnly(); showTurns(); renderHistory(); closeHistory();
+      flashHistory("Historique effacé.");
+    } catch (e) { flashHistory("Impossible d'effacer l'historique pour le moment."); }
+  });
   document.getElementById("historyShade").addEventListener("click", closeHistory);
 
   /* ---------- Voice call: the browser listens (speech recognition) and reads answers aloud (speech synthesis) ---------- */
@@ -1417,7 +1464,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){}
         } else { activeConversationId=makeId(); try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){} turns=[]; }
         cloudHistoryReady = true; renderHistory();
-      } catch(e) { cloudHistoryReady = false; console.warn("[historique] chargement impossible",e.message); }
+      } catch(e) { cloudHistoryReady = false; console.warn("[historique] chargement impossible",e.message); flashHistory("Historique en ligne indisponible pour le moment."); }
     } else { activeConversationId=null; }
     showTurns(); pending = []; renderAttach(); input.focus();
   }
@@ -1428,6 +1475,9 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     const plan = document.getElementById("planLine"), prem = document.getElementById("premiumLink");
     const adminLink = document.getElementById("adminLink");
     adminLink.hidden = !me.admin;
+    const memLink = document.getElementById("memLink"), imgLink = document.getElementById("imgLink");
+    if (memLink) memLink.hidden = !me.memory;
+    if (imgLink) imgLink.hidden = !me.images;
     const todo = me.admin ? (me.adminPending || 0) : 0;
     adminLink.textContent = "🛠 Tableau de bord" + (todo ? " · " + todo + " paiement" + (todo > 1 ? "s" : "") + " à vérifier" : "");
     adminLink.classList.toggle("gold", todo > 0);
