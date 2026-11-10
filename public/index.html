@@ -74,7 +74,8 @@ header {
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
 
 #thread { overflow-y: auto; padding-block: 8px 24px; min-height: 0; scroll-behavior: smooth; }
-.welcome { padding-block: 9vh 16px; display: grid; gap: 22px; }
+.welcome { padding-block: 7vh 20px; display: grid; gap: 20px; }
+.welcome-kicker { color: var(--star); font-size: 11px; font-weight: 600; letter-spacing: .18em; }
 .welcome h2 {
   margin: 0; font-family: var(--f-display); font-weight: 500; font-size: clamp(26px, 6vw, 40px);
   line-height: 1.15; text-wrap: balance; max-width: 18ch;
@@ -423,17 +424,18 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   </aside>
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
-      <h2 id="greet">Bonsoir. Que veux-tu <em>explorer</em> aujourd'hui ?</h2>
-      <p>Je suis STARS AI. Pose-moi une question, envoie-moi un exercice, demande-moi d'écrire, d'expliquer, de traduire ou de coder. Je réponds en français ou dans ta langue.</p>
+      <div class="welcome-kicker">TON ASSISTANT IA POUR ALLER PLUS LOIN</div>
+      <h2 id="greet">Fais grandir tes idées avec <em>STARS AI</em>.</h2>
+      <p>Crée du contenu, prépare tes publicités, développe ton activité ou donne vie à tes idées. STARS AI t'accompagne en français, simplement et rapidement.</p>
       <button class="install-cta" type="button" data-install hidden>
         <img src="/icons/icon-192.png" alt="">
         <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
       </button>
       <div class="chips">
-        <button class="chip" type="button" data-q="Résous cette équation en expliquant chaque étape : 3x + 7 = 2x − 5"><small>Exercice</small>Résoudre 3x + 7 = 2x − 5</button>
-        <button class="chip" type="button" data-q="Explique-moi comment naissent les étoiles, simplement."><small>Apprendre</small>Comment naissent les étoiles ?</button>
-        <button class="chip" type="button" data-q="Donne-moi 5 idées de petit business à lancer à Abidjan avec peu d'argent."><small>Idées</small>5 idées de petit business</button>
-        <button class="chip" type="button" data-q="Écris une fonction Python qui vérifie si un mot est un palindrome, avec une explication."><small>Coder</small>Une fonction Python palindrome</button>
+        <button class="chip" type="button" data-q="Agis comme un expert en marketing. Crée une publicité convaincante pour mon produit, avec un titre accrocheur, les avantages et un appel à l'action. Pose-moi les questions nécessaires."><small>Marketing</small>Créer une publicité qui vend</button>
+        <button class="chip" type="button" data-q="Aide-moi à lancer une petite entreprise en Côte d’Ivoire avec un budget limité. Propose des idées réalistes, un budget de départ et les premières étapes."><small>Business</small>Lancer mon activité</button>
+        <button class="chip" type="button" data-q="Prépare un calendrier de contenus pour Instagram et TikTok sur 7 jours pour mon activité, avec les idées de publications et les textes."><small>Réseaux sociaux</small>Planifier mes publications</button>
+        <button class="chip" type="button" data-q="Aide-moi à imaginer un visuel publicitaire professionnel pour mon produit : décris la composition, le texte et le style graphique."><small>Création</small>Imaginer un visuel professionnel</button>
       </div>
       <div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Envoie la photo d'un exercice avec l'appareil photo, ou touche le micro pour me parler à voix haute.</div>
     </section>
