@@ -241,7 +241,7 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 const CLAUDE_FALLBACKS = ["claude-haiku-5-5", "claude-sonnet-5-5"];
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
-const provider = ANTHROPIC_API_KEY ? "claude" : GEMINI_API_KEY ? "gemini" : null;
+const provider = GEMINI_API_KEY ? "gemini" : null;
 
 const VOICE_RULES = `
 
