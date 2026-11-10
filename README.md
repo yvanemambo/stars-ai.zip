@@ -7,14 +7,13 @@ Assistant d'intelligence artificielle en français, hébergé sur Render.
 
 ## Brancher l'IA
 
-Dans Render › ton service `stars-ai` › **Environment**, ajoute **une** de ces deux clés :
+Dans Render › ton service `stars-ai` › **Environment**, ajoute la clé suivante :
 
 | Variable | Où l'obtenir | Prix |
 |---|---|---|
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey | offre gratuite (avec limites), sans carte |
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com (Claude) | payant, à l'usage |
 
-Si les deux sont présentes, Claude est utilisé.
+STARS AI utilise Gemini comme unique fournisseur d'IA.
 
 ## Exercices et photos
 
@@ -86,7 +85,6 @@ Sans `MAIL_WEBHOOK_URL`, le chat reste ouvert à tous.
 
 | Variable | Par défaut | Rôle |
 |---|---|---|
-| `CLAUDE_MODEL` | `claude-haiku-5-5` | modèle Claude (ex. `claude-sonnet-5-5` pour plus de qualité) |
 | `GEMINI_MODEL` | `gemini-flash-latest` | modèle Gemini |
 | `MAX_TOKENS` | `2048` | longueur max d'une réponse |
 | `PER_IP_PER_MINUTE` | `15` | messages max par minute et par visiteur |
