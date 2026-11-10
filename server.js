@@ -140,21 +140,17 @@ function cleanConvMessages(raw) {
   return out;
 }
 
-// ---------- Génération d'images (OpenAI) ----------
-// Chaque image coûte de l'argent : limite par personne et par jour (compteurs dans Supabase) + plafond global du site.
-// Désactivable avec IMAGES_ENABLED=0. Sans OPENAI_API_KEY, la fonction n'existe pas.
+// ---------- Génération d'images (Gemini) ----------
+// Les quotas Supabase limitent les coûts et empêchent les abus.
 const numEnv = (k, d) => { const v = env(k); return v !== "" && Number.isFinite(Number(v)) ? Number(v) : d; };
-const OPENAI_API_KEY = env("OPENAI_API_KEY");
-const OPENAI_BASE_URL = (env("OPENAI_BASE_URL") || "https://api.openai.com").replace(/\/+$/, "");
-const IMAGE_MODEL = env("OPENAI_IMAGE_MODEL") || "gpt-image-1";
-const IMAGE_QUALITY = ["low", "medium", "high"].includes(env("IMAGE_QUALITY")) ? env("IMAGE_QUALITY") : "low"; // low ≈ 0,011 $ l'image (1024×1024)
-const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);          // images par jour et par compte gratuit
-const IMAGE_PREMIUM_DAILY = numEnv("IMAGE_PREMIUM_DAILY", 30);   // images par jour pour le Premium et le propriétaire
-const IMAGE_SITE_DAILY = numEnv("IMAGE_SITE_DAILY", 100);        // plafond pour tout le site (protège ton budget)
-const IMAGES_ON = !!OPENAI_API_KEY && MEMBERS && env("IMAGES_ENABLED") !== "0"; // les compteurs sont dans Supabase : sans eux, aucune génération
-const IMAGE_SIZES = { carre: "1024x1024", portrait: "1024x1536", paysage: "1536x1024" };
+const IMAGE_MODEL = env("GEMINI_IMAGE_MODEL") || "gemini-3.1-flash-image";
+const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);
+const IMAGE_PREMIUM_DAILY = numEnv("IMAGE_PREMIUM_DAILY", 30);
+const IMAGE_SITE_DAILY = numEnv("IMAGE_SITE_DAILY", 100);
+const IMAGES_ON = !!GEMINI_API_KEY && MEMBERS && env("IMAGES_ENABLED") !== "0";
+const IMAGE_SIZES = { carre: "1:1", portrait: "3:4", paysage: "4:3" };
 const IMAGE_SAFE_SUFFIX = "\n\n(Image adaptée à tous les publics : pas de nudité, pas de violence explicite, pas de personne réelle identifiable.)";
-const imageBusy = new Set(); // une seule génération à la fois par personne
+const imageBusy = new Set();
 
 async function imageQuotaFor(user) {
   if (isAdmin(user)) return { limit: IMAGE_PREMIUM_DAILY, premium: true };
@@ -834,26 +830,24 @@ async function imageApi(req, res, url) {
   const u = currentUser(req);
   if (!u) return json(res, 401, { code: "auth_required" });
   if (!IMAGES_ON) return json(res, 404, { code: "images_off" });
-  const email = u.email; // TOUJOURS l'e-mail de la session
+  const email = u.email;
   if (req.method === "GET" && url.pathname === "/api/image/quota") {
     try {
       const q = await imageQuotaFor(u);
       const used = await rpc("stars_image_used", { p_email: email });
       return json(res, 200, { used, limit: q.limit, premium: q.premium });
-    } catch (e) { console.error("[images]", e.message); return json(res, 503, { code: "images_down" }); }
+    } catch (e) { console.error("[images] quota :", e.message); return json(res, 503, { code: "images_down" }); }
   }
   if (req.method !== "POST" || url.pathname !== "/api/image") return json(res, 404, { code: "not_found" });
   const b = await readJson(req, 20_000);
   const prompt = String(b?.prompt ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   if (prompt.length < 3) return json(res, 400, { code: "bad_prompt" });
   if (prompt.length > 1000) return json(res, 400, { code: "prompt_too_long" });
-  const asked = String(b?.size ?? "");
-  const size = IMAGE_SIZES[asked] || (Object.values(IMAGE_SIZES).includes(asked) ? asked : IMAGE_SIZES.carre);
+  const aspectRatio = IMAGE_SIZES[String(b?.size ?? "")] || IMAGE_SIZES.carre;
   if (!allow("img:" + email, 4, 60_000)) return json(res, 429, { code: "rate_limited" });
   if (imageBusy.has(email)) return json(res, 429, { code: "busy" });
   imageBusy.add(email);
   let reserved = false;
-  // Rend l'image réservée AVANT de répondre en cas d'échec : la personne voit tout de suite son vrai quota.
   const refund = async () => {
     if (!reserved) return;
     reserved = false;
@@ -864,36 +858,54 @@ async function imageApi(req, res, url) {
     try {
       q = await imageQuotaFor(u);
       a = await rpc("stars_image_allow", { p_email: email, p_limit: q.limit, p_site_limit: IMAGE_SITE_DAILY });
-    } catch (e) { // sans compteur, on ne génère rien (aucune dépense possible hors contrôle)
+    } catch (e) {
       console.error("[images] compteur indisponible :", e.message);
       return json(res, 503, { code: "images_down" });
     }
     if (!a?.ok) return json(res, 429, { code: a?.reason === "site_limit" ? "site_limit" : "user_limit", limit: q.limit, used: a?.used ?? q.limit, premium: q.premium });
     reserved = true;
-    const r = await fetch(`${OPENAI_BASE_URL}/v1/images/generations`, {
-      method: "POST", signal: AbortSignal.timeout(150_000),
-      headers: { "content-type": "application/json", authorization: "Bearer " + OPENAI_API_KEY },
-      body: JSON.stringify({ model: IMAGE_MODEL, prompt: prompt + IMAGE_SAFE_SUFFIX, n: 1, size, quality: IMAGE_QUALITY, output_format: "jpeg", output_compression: 80, moderation: "auto" })
+    const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(IMAGE_MODEL)}:generateContent`, {
+      method: "POST", signal: AbortSignal.timeout(180_000),
+      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt + IMAGE_SAFE_SUFFIX }] }],
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio } }
+      })
     });
-    const text = await r.text();
+    const responseText = await r.text();
     if (!r.ok) {
-      const err = imageError(r.status, text);
-      console.error(`[images] OpenAI HTTP ${r.status} (${err.code}${err.log ? " / " + err.log : ""})`);
+      let detail = {};
+      try { detail = JSON.parse(responseText)?.error || {}; } catch {}
+      const msg = String(detail.message || "").toLowerCase();
+      const code = r.status === 429 || r.status >= 500 ? "upstream_busy" : r.status === 400 && /safety|blocked|policy/.test(msg) ? "refused" : r.status === 401 || r.status === 403 ? "bad_key" : "upstream_error";
+      console.error(`[images] Gemini HTTP ${r.status} (${code})`);
       await refund();
-      return json(res, err.code === "refused" ? 422 : err.code === "upstream_busy" ? 503 : 502, { code: err.code });
+      return json(res, code === "refused" ? 422 : code === "upstream_busy" ? 503 : 502, { code });
     }
-    let b64;
-    try { b64 = JSON.parse(text)?.data?.[0]?.b64_json; } catch {}
-    if (typeof b64 !== "string" || b64.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(b64)) { console.error("[images] réponse OpenAI sans image"); await refund(); return json(res, 502, { code: "upstream_error" }); }
-    reserved = false; // l'image est livrée : elle compte dans le quota
-    console.log(`[images] image générée pour ${mask(email)} (${a.used}/${q.limit})`); // la demande n'est jamais écrite dans les journaux
-    return json(res, 200, { image: "data:image/jpeg;base64," + b64, used: a.used, limit: q.limit });
+    let imagePart;
+    try {
+      const data = JSON.parse(responseText);
+      for (const candidate of data.candidates || []) {
+        imagePart = (candidate.content?.parts || []).find(part => part.inlineData?.data);
+        if (imagePart) break;
+      }
+    } catch {}
+    const b64 = imagePart?.inlineData?.data;
+    const mime = imagePart?.inlineData?.mimeType || "image/png";
+    if (typeof b64 !== "string" || b64.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(b64) || !["image/png", "image/jpeg", "image/webp"].includes(mime)) {
+      console.error("[images] Gemini n'a retourné aucune image exploitable");
+      await refund();
+      return json(res, 502, { code: "no_image" });
+    }
+    reserved = false;
+    console.log(`[images] image Gemini générée pour ${mask(email)} (${a.used}/${q.limit})`);
+    return json(res, 200, { image: `data:${mime};base64,${b64}`, used: a.used, limit: q.limit });
   } catch (e) {
-    console.error("[images]", e.name === "TimeoutError" ? "OpenAI trop lent" : e.message);
+    console.error("[images]", e.name === "TimeoutError" ? "Gemini trop lent" : e.message);
     await refund();
     return json(res, 502, { code: "upstream_error" });
   } finally {
-    await refund(); // filet de sécurité : un échec ne coûte jamais d'image à la personne
+    await refund();
     imageBusy.delete(email);
   }
 }
@@ -1506,16 +1518,12 @@ async function selfCheck() {
     try { await rpc("stars_conv_list", { p_email: "verification@example.com" }); console.log("[vérif] Historique des discussions (Supabase) OK."); }
     catch (e) { console.error("[vérif] Historique indisponible (la migration SQL des discussions est-elle appliquée ?) :", e.message); }
   }
-  if (OPENAI_API_KEY) {
+  if (IMAGES_ON) {
     try {
-      const r = await fetch(`${OPENAI_BASE_URL}/v1/models`, { headers: { authorization: "Bearer " + OPENAI_API_KEY }, signal: AbortSignal.timeout(20000) });
-      console.log(r.ok ? `[vérif] Clé OpenAI OK — images ${IMAGES_ON ? "actives" : "désactivées"} (modèle ${IMAGE_MODEL}, qualité ${IMAGE_QUALITY}, ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).` : `[vérif] Clé OpenAI REFUSÉE (HTTP ${r.status}).`);
-      if (IMAGES_ON) {
-        try { await rpc("stars_image_used", { p_email: "verification@example.com" }); }
-        catch (e) { console.error("[vérif] Compteurs d'images indisponibles (la migration SQL des images est-elle appliquée ?) :", e.message); }
-      }
-    } catch (e) { console.error("[vérif] OpenAI injoignable :", e.message); }
-  } else console.log("[vérif] OPENAI_API_KEY absente : génération d'images désactivée.");
+      await rpc("stars_image_used", { p_email: "verification@example.com" });
+      console.log(`[vérif] Génération d'images Gemini activée (${IMAGE_MODEL}, quotas : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).`);
+    } catch (e) { console.error("[vérif] Compteurs d'images indisponibles (vérifier les fonctions SQL stars_image_*) :", e.message); }
+  } else console.log("[vérif] Génération d'images désactivée (clé Gemini, Supabase ou IMAGES_ENABLED).");
 
   if (MAIL_WEBHOOK_URL) {
     try {
