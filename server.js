@@ -1,7 +1,7 @@
 // STARS AI — petit serveur pour Render.
 // - Sert la page (public/index.html)
 // - Inscription : un code à 6 chiffres est envoyé par e-mail via un script Google (depuis le Gmail du propriétaire)
-// - Relaie les messages vers l'IA : Claude (ANTHROPIC_API_KEY) ou Gemini (GEMINI_API_KEY)
+// - Relaie les messages vers Gemini (GEMINI_API_KEY)
 // Aucune dépendance : Node 20+ suffit.
 
 import http from "node:http";
@@ -19,15 +19,12 @@ const PORT = Number(process.env.PORT) || 3000;
 const env = k => (process.env[k] || "").trim();
 
 // ---------- Réglages (modifiables dans Render > Environment) ----------
-const ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY");
 const GEMINI_API_KEY = env("GEMINI_API_KEY");
-const CLAUDE_MODEL = env("CLAUDE_MODEL") || "claude-haiku-5-5";
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
 const DAILY_LIMIT = Number(env("DAILY_LIMIT")) || 500;              // messages / jour pour tout le site
 const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 20000;
-const ANTHROPIC_BASE_URL = env("ANTHROPIC_BASE_URL") || "https://api.anthropic.com";
 const GEMINI_BASE_URL = env("GEMINI_BASE_URL") || "https://generativelanguage.googleapis.com";
 
 // Inscription
@@ -238,7 +235,6 @@ async function notifyAdmins(reason) {
 if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les connexions seront perdues à chaque redémarrage.");
 
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
-const CLAUDE_FALLBACKS = ["claude-haiku-5-5", "claude-sonnet-5-5"];
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
 const provider = GEMINI_API_KEY ? "gemini" : null;
@@ -271,9 +267,7 @@ Guide de référence sur les langages informatiques (document fourni par Yvan Ma
 `;
 
 function rules(name, voice, guide, memory) {
-  const tech = provider === "gemini"
-    ? "STARS AI est propulsé par Gemini, un modèle de Google"
-    : "STARS AI est propulsé par Claude, un modèle d'Anthropic";
+  const tech = "STARS AI est propulsé par Gemini, un modèle de Google";
   return `Tu es STARS AI, un assistant d'intelligence artificielle généraliste, chaleureux, clair et précis.
 - Réponds dans la langue de l'utilisateur (français par défaut).
 - Va droit au but ; développe quand la question le demande.
@@ -605,13 +599,6 @@ function cleanMessages(raw) {
   return merged;
 }
 
-const toClaude = messages => messages.map(m => ({
-  role: m.role,
-  content: m.images.length
-    ? [...m.images.map(i => ({ type: "image", source: { type: "base64", media_type: i.mime, data: i.data } })), { type: "text", text: m.content }]
-    : m.content
-}));
-
 const toGemini = messages => messages.map(m => ({
   role: m.role === "assistant" ? "model" : "user",
   parts: [...m.images.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } })), { text: m.content }]
@@ -660,44 +647,6 @@ function usableModels(list) {
   return ok.length ? ok : list; // si tout est en pause, on réessaie quand même
 }
 const PAUSE_FOR = { 429: 15 * 60_000, 404: 6 * 3600_000, 500: 60_000, 503: 2 * 60_000, 529: 2 * 60_000 };
-
-// ---------- Claude (Anthropic) ----------
-async function callClaude(messages, signal, name, voice, guide, memory) {
-  const models = usableModels([CLAUDE_MODEL, ...CLAUDE_FALLBACKS.filter(m => m !== CLAUDE_MODEL)]);
-  let last = new UpstreamError("upstream_error", 404, "Aucun modèle Claude disponible");
-  for (const model of models) {
-    let res;
-    try {
-      res = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
-        method: "POST",
-        signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
-        headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model, max_tokens: MAX_TOKENS, stream: true, system: rules(name, voice, guide, memory), messages: toClaude(messages) })
-      });
-    } catch (e) {
-      if (signal.aborted) throw e;
-      pauseModel(model, 5 * 60_000, "ne répond pas");
-      last = new UpstreamError("upstream_busy", 504, "timeout");
-      continue;
-    }
-    if (res.ok) return { res, model };
-    const detail = await res.text().catch(() => "");
-    const low = detail.toLowerCase();
-    if (res.status === 400 && (low.includes("credit balance") || low.includes("billing"))) throw new UpstreamError("no_credit", res.status, detail);
-    if (RETRY_NEXT.has(res.status)) { pauseModel(model, PAUSE_FOR[res.status] || 60_000, "HTTP " + res.status); last = new UpstreamError(codeFor(res.status), res.status, detail); continue; }
-    throw new UpstreamError(codeFor(res.status), res.status, detail);
-  }
-  throw last;
-}
-
-async function* streamClaude(res) {
-  for await (const ev of sse(res.body)) {
-    if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") yield { t: ev.delta.text };
-    else if (ev.type === "message_delta" && ev.delta?.stop_reason === "max_tokens") yield { truncated: true };
-    else if (ev.type === "message_delta" && ev.delta?.stop_reason === "refusal") yield { refused: true };
-    else if (ev.type === "error") throw new UpstreamError(ev.error?.type === "overloaded_error" ? "upstream_busy" : "upstream_error", 500, JSON.stringify(ev.error));
-  }
-}
 
 // ---------- Gemini (Google) ----------
 async function callGemini(messages, signal, name, voice, guide, memory) {
@@ -796,15 +745,6 @@ async function runMemoryCommand(email, cmd, mem) {
 // Requête courte (sans flux) pour extraire des souvenirs ; renvoie le texte JSON de l'IA.
 async function extractWithAI(prov, content) {
   const signal = AbortSignal.timeout(25000);
-  if (prov === "claude") {
-    const r = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
-      method: "POST", signal,
-      headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 500, system: EXTRACTION_SYSTEM, messages: [{ role: "user", content }] })
-    });
-    if (!r.ok) throw new Error("Claude HTTP " + r.status);
-    return ((await r.json()).content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  }
   const model = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)])[0];
   const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST", signal,
@@ -1051,20 +991,11 @@ async function handleChat(req, res, ip) {
   res.on("close", () => { if (!res.writableEnded) ac.abort(); });
 
   let upstream;
-  let prov = provider;
+  const prov = provider;
   const voice = payload?.voice === true;
   const guide = guideFor(messages);
   try {
-    try {
-      upstream = prov === "claude" ? await callClaude(messages, ac.signal, user?.name, voice, guide, memText) : await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
-    } catch (e) {
-      // Secours : si Claude échoue (crédit épuisé, clé refusée, surcharge…) et qu'une clé Gemini existe, on réessaie avec Gemini.
-      if (ac.signal.aborted || prov !== "claude" || !GEMINI_API_KEY) throw e;
-      console.error(`[secours] Claude a échoué (${e.code || e.message}), bascule sur Gemini`);
-      prov = "gemini";
-      upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
-      console.log("[secours] Gemini utilisé");
-    }
+    upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
   } catch (e) {
     if (ac.signal.aborted) return;
     console.error(`[${prov}]`, e.code || e.message, e.status || "", (e.detail || "").slice(0, 300));
@@ -1075,7 +1006,7 @@ async function handleChat(req, res, ip) {
   const send = obj => res.write(JSON.stringify(obj) + "\n");
   let truncated = false, refused = false, any = false, reply = "";
   try {
-    const gen = prov === "claude" ? streamClaude(upstream.res) : streamGemini(upstream.res);
+    const gen = streamGemini(upstream.res);
     for await (const ev of gen) {
       if (ev.t) { any = true; if (reply.length < 4000) reply += ev.t; send({ t: ev.t }); }
       if (ev.truncated) truncated = true;
@@ -1549,10 +1480,6 @@ async function selfCheck() {
         console.log(`[vérif] Clé Gemini OK — ${names.length} modèles disponibles.`);
         for (const m of [GEMINI_MODEL, ...GEMINI_FALLBACKS]) if (!names.includes(m)) pauseModel(m, 6 * 3600_000, "absent de la liste Google");
       }
-    } else if (provider === "claude") {
-      const r = await fetch(`${ANTHROPIC_BASE_URL}/v1/models`, { headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(20000) });
-      console.log(r.ok ? "[vérif] Clé Claude OK." : `[vérif] Clé Claude REFUSÉE (HTTP ${r.status}).`);
-    }
   } catch (e) {
     console.error("[vérif] Impossible de joindre l'IA :", e.message);
   }
@@ -1612,6 +1539,6 @@ async function selfCheck() {
 }
 
 server.listen(PORT, () => {
-  console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${provider ? provider + " (" + (provider === "claude" ? CLAUDE_MODEL : GEMINI_MODEL) + ")" : "AUCUNE CLÉ"} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
+  console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${provider ? provider + " (" + GEMINI_MODEL + ")" : "AUCUNE CLÉ"} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
   if (process.env.SKIP_SELF_CHECK !== "1") selfCheck();
 });
