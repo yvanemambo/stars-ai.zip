@@ -83,6 +83,16 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--star); o
 .welcome h2 em { font-style: normal; color: var(--star); }
 .welcome p { margin: 0; color: var(--ink-dim); max-width: 52ch; line-height: 1.6; }
 .chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.workspace-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:4px; }
+.workspace-card { min-width:0; display:flex; flex-direction:column; gap:9px; padding:17px; border:1px solid var(--line); border-radius:17px; background:linear-gradient(145deg,rgba(30,40,88,.88),rgba(13,19,47,.86)); color:var(--ink); text-decoration:none; text-align:left; cursor:pointer; transition:transform .18s ease,border-color .18s ease,background .18s ease; }
+.workspace-card:hover { transform:translateY(-2px); border-color:rgba(244,201,107,.55); background:linear-gradient(145deg,rgba(39,51,105,.94),rgba(13,19,47,.92)); }
+.workspace-card:focus-visible { outline:2px solid var(--star); outline-offset:3px; }
+.workspace-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:12px; background:rgba(244,201,107,.12); color:var(--star); font-size:20px; }
+.workspace-card strong { font:500 14px var(--f-display); }
+.workspace-card span:last-child { color:var(--ink-dim); font-size:12px; line-height:1.5; }
+.workspace-label { margin:4px 0 -4px; color:var(--ink-dim); font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; }
+@media(max-width:650px) { .workspace-grid { grid-template-columns:1fr; } .workspace-card { display:grid; grid-template-columns:38px 1fr; column-gap:12px; align-items:center; } .workspace-icon { grid-row:span 2; } .workspace-card strong,.workspace-card span:last-child { grid-column:2; } }
+
 .chip {
   text-align: left; font: 400 14px/1.4 var(--f-body); color: var(--ink);
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
@@ -431,6 +441,25 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
         <img src="/icons/icon-192.png" alt="">
         <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
       </button>
+      <div class="workspace-label">Ton espace de travail</div>
+      <div class="workspace-grid" aria-label="Les espaces STARS AI">
+        <button class="workspace-card" type="button" data-q="Agis comme mon conseiller Business. Aide-moi à développer mon entreprise : commence par me demander le nom de mon activité, mes produits ou services, mes clients et mon objectif prioritaire. Propose ensuite un plan d'action concret.">
+          <span class="workspace-icon" aria-hidden="true">▦</span>
+          <strong>Business</strong>
+          <span>Développe ton activité, prépare tes offres et tes publicités.</span>
+        </button>
+        <a class="workspace-card" href="/images">
+          <span class="workspace-icon" aria-hidden="true">✦</span>
+          <strong>Studio</strong>
+          <span>Crée des visuels avec l'IA et prépare tes contenus créatifs.</span>
+        </a>
+        <button class="workspace-card" type="button" data-q="Tu es mon assistant personnel STARS AI. Aide-moi à avancer sur mon projet. Demande-moi ce que je veux accomplir aujourd'hui, puis guide-moi étape par étape.">
+          <span class="workspace-icon" aria-hidden="true">✧</span>
+          <strong>Assistant IA</strong>
+          <span>Écris, apprends, réfléchis et résous tes problèmes.</span>
+        </button>
+      </div>
+      <div class="workspace-label">Commencer rapidement</div>
       <div class="chips">
         <button class="chip" type="button" data-q="Agis comme un expert en marketing. Crée une publicité convaincante pour mon produit, avec un titre accrocheur, les avantages et un appel à l'action. Pose-moi les questions nécessaires."><small>Marketing</small>Créer une publicité qui vend</button>
         <button class="chip" type="button" data-q="Aide-moi à lancer une petite entreprise en Côte d’Ivoire avec un budget limité. Propose des idées réalistes, un budget de départ et les premières étapes."><small>Business</small>Lancer mon activité</button>
