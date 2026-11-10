@@ -162,20 +162,6 @@ async function imageQuotaFor(user) {
   return { limit: premium ? IMAGE_PREMIUM_DAILY : IMAGE_FREE_DAILY, premium };
 }
 
-// On ne journalise que le code d'erreur d'OpenAI, jamais son message (qui pourrait citer la demande de la personne).
-function imageError(status, detail) {
-  let e = {};
-  try { e = JSON.parse(detail)?.error || {}; } catch {}
-  const code = String(e.code || ""), msg = String(e.message || "").toLowerCase(), text = code.toLowerCase() + " " + msg;
-  let out = "upstream_error";
-  if (status === 401) out = "bad_key";
-  else if (status === 403) out = /verif/.test(text) ? "org_not_verified" : "forbidden";
-  else if (status === 429) out = /quota|billing/.test(text) ? "no_credit" : "upstream_busy";
-  else if (status === 400 && /billing/.test(text)) out = "no_credit";
-  else if (status === 400 && /moderation|content_policy|safety/.test(text)) out = "refused";
-  return { code: out, log: String(e.code || e.type || "") };
-}
-
 // Notifications sur le téléphone du propriétaire (Web Push sans contenu : le téléphone vient chercher le détail dans /api/admin/overview).
 // Les clés sont créées par le serveur au premier besoin et gardées dans Supabase (table verrouillée stars_config) : personne n'a à les manipuler.
 const VAPID_SUBJECT = env("VAPID_SUBJECT") || "mailto:" + CONTACT_EMAIL;
