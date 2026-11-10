@@ -1485,6 +1485,7 @@ async function selfCheck() {
         console.log(`[vérif] Clé Gemini OK — ${names.length} modèles disponibles.`);
         for (const m of [GEMINI_MODEL, ...GEMINI_FALLBACKS]) if (!names.includes(m)) pauseModel(m, 6 * 3600_000, "absent de la liste Google");
       }
+    }
   } catch (e) {
     console.error("[vérif] Impossible de joindre l'IA :", e.message);
   }
