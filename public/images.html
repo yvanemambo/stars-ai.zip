@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b1f">
+<title>Créer une image — STARS AI</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/favicon-48.png">
+<style>
+:root{color-scheme:dark;--ink:#e9ecfb;--dim:#9aa3cf;--star:#f4c96b;--line:rgba(160,172,230,.16);--panel:rgba(22,29,66,.78);--danger:#ff9999;--ok:#8be0ae}
+*{box-sizing:border-box}html{background:#070b1f}body{margin:0;min-height:100vh;padding:max(16px,env(safe-area-inset-top)) 16px 48px;color:var(--ink);background:radial-gradient(120% 60% at 50% 0%,#141c46,#070b1f 70%) no-repeat;background-color:#070b1f;font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;display:grid;gap:18px}header{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:800;letter-spacing:.1em}.brand img{width:30px;height:30px;border-radius:8px}.brand span{color:var(--star)}.back{color:var(--dim);font-size:14px}
+.hero{text-align:center;padding:16px 0 4px}.hero h1{margin:0;font-size:clamp(28px,7vw,40px);line-height:1.2}.hero p{color:var(--dim);margin:10px auto 0;max-width:520px}.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;display:grid;gap:14px}.quota{color:var(--dim);font-size:14px;text-align:center}.quota strong{color:var(--star)}label{font-size:13px;color:var(--star);font-weight:700}textarea,select{width:100%;font:inherit;color:var(--ink);background:rgba(5,8,24,.7);border:1px solid var(--line);border-radius:12px;padding:13px;outline:none}textarea{min-height:130px;resize:vertical}textarea:focus,select:focus{border-color:var(--star)}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:7px}.btn{width:100%;border:0;border-radius:13px;padding:14px 18px;background:var(--star);color:#1a1404;font:700 16px system-ui;cursor:pointer}.btn:disabled{opacity:.55;cursor:wait}.status{text-align:center;min-height:24px;color:var(--dim);font-size:14px}.status.error{color:var(--danger)}.result{display:grid;gap:12px}.result img{display:block;width:100%;height:auto;max-height:720px;object-fit:contain;border-radius:14px;background:#080c20}.actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}.actions a{color:var(--star);font-weight:700;text-decoration:none;padding:8px 12px}.hint{color:var(--dim);font-size:13px;margin:0}[hidden]{display:none!important}@media(max-width:520px){.fields{grid-template-columns:1fr}.card{padding:16px}}
+</style>
+</head>
+<body>
+<main>
+<header><a class="brand" href="/"><img src="/icons/icon-192.png" alt="">STARS <span>AI</span></a><a class="back" href="/">← Retour au chat</a></header>
+<section class="hero"><h1>🎨 Crée tes images</h1><p>Décris ton idée. STARS AI la transforme en image grâce à Gemini.</p></section>
+<section class="card">
+<div class="quota" id="quota">Vérification de ton quota…</div>
+<div class="field"><label for="prompt">Décris l’image que tu veux créer</label><textarea id="prompt" maxlength="1000" placeholder="Ex. : Une ville futuriste à Abidjan au coucher du soleil, style illustration cinématographique, couleurs chaudes…"></textarea></div>
+<div class="fields">
+<div class="field"><label for="size">Format de l’image</label><select id="size"><option value="carre">Carré (1:1)</option><option value="portrait">Portrait (3:4)</option><option value="paysage">Paysage (4:3)</option></select></div>
+<div class="field"><label>Modèle</label><div style="padding:12px;border:1px solid var(--line);border-radius:12px;color:var(--dim)">Gemini Image</div></div>
+</div>
+<button class="btn" id="generate" type="button">✨ Générer l’image</button>
+<div class="status" id="status" role="status" aria-live="polite"></div>
+<p class="hint">Les comptes gratuits disposent de 3 générations par jour. Les images sont soumises aux règles de sécurité.</p>
+</section>
+<section class="card result" id="result" hidden><h2 style="margin:0;font-size:18px">Ton image est prête</h2><img id="output" alt="Image générée par STARS AI"><div class="actions"><a id="download" download="stars-ai-image.png">⬇ Télécharger l’image</a><a href="/images">Créer une autre image</a></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const status=$("status");
+const messages={auth_required:"Connecte-toi à STARS AI pour créer une image.",images_off:"La génération d’images n’est pas activée sur le serveur.",images_down:"Le compteur d’images est temporairement indisponible. Réessaie plus tard.",bad_prompt:"Écris une description d’au moins 3 caractères.",prompt_too_long:"La description est trop longue.",rate_limited:"Tu vas trop vite. Attends une minute avant de réessayer.",busy:"Une image est déjà en cours de création.",user_limit:"Tu as atteint ta limite quotidienne.",site_limit:"La limite quotidienne globale est atteinte. Réessaie demain.",refused:"Cette demande ne peut pas être générée. Essaie une autre description.",bad_key:"La clé Gemini a été refusée. Vérifie la configuration du serveur.",upstream_busy:"Gemini est très sollicité. Réessaie dans un instant.",no_image:"Gemini n’a pas renvoyé d’image. Essaie avec une description différente.",upstream_error:"La génération a échoué. Réessaie."};
+async function api(url,opts={}){const r=await fetch(url,{credentials:"same-origin",...opts});let d={};try{d=await r.json()}catch{}if(!r.ok){const e=new Error(messages[d.code]||"Une erreur est survenue.");e.code=d.code;e.data=d;throw e}return d}
+async function loadQuota(){try{const q=await api("/api/image/quota");$("quota").innerHTML="Images utilisées aujourd’hui : <strong>"+q.used+" / "+q.limit+"</strong>"+(q.premium?" · Premium":"");}catch(e){$("quota").textContent=e.message;}}
+$("generate").addEventListener("click",async()=>{
+ const prompt=$("prompt").value.trim(); if(prompt.length<3){status.textContent=messages.bad_prompt;status.className="status error";return}
+ const btn=$("generate");btn.disabled=true;btn.textContent="Création en cours…";status.className="status";status.textContent="Gemini prépare ton image. Cela peut prendre quelques instants."; $("result").hidden=true;
+ try{const d=await api("/api/image",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt,size:$("size").value})});$("output").src=d.image;$("download").href=d.image;$("result").hidden=false;status.textContent="Image créée avec succès.";await loadQuota();}
+ catch(e){status.textContent=e.message;status.className="status error";if(e.data?.used!==undefined)$("quota").textContent="Images utilisées aujourd’hui : "+e.data.used+" / "+e.data.limit; }
+ finally{btn.disabled=false;btn.textContent="✨ Générer l’image";}
+});
+loadQuota();
+</script>
+</body></html>
