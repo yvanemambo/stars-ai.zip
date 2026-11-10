@@ -1014,7 +1014,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   input.addEventListener("input", autosize);
   input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); } });
   form.addEventListener("submit", e => { e.preventDefault(); if (busy) ctl && ctl.abort(); else ask(input.value); });
-  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => ask(c.dataset.q)));
+  document.querySelectorAll(".chip, .workspace-card[data-q]").forEach(c => c.addEventListener("click", () => ask(c.dataset.q)));
   document.getElementById("newChat").addEventListener("click", startNewConversation);
   document.getElementById("historyNew").addEventListener("click", startNewConversation);
   document.getElementById("historyToggle").addEventListener("click", () => { openHistory(); loadHistoryPanel(); });
