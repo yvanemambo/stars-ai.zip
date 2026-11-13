@@ -306,12 +306,28 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   background: #ff5a5f; border: 2px solid var(--sky);
 }
 .account summary:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+/* Keep the account dropdown above the chat thread and make its full content reachable. */
+header { position: relative; z-index: 40; }
+.actions { position: relative; z-index: 41; }
+.account { position: relative; z-index: 42; }
+.account[open] { z-index: 43; }
 .account .menu {
-  position: absolute; right: 0; top: 42px; z-index: 5; min-width: 220px; max-width: calc(100vw - 32px);
-  background: #111836; border: 1px solid var(--line); border-radius: 14px; padding: 14px;
-  display: grid; gap: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.45);
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 44;
+  width: min(320px, calc(100vw - 32px)); min-width: 0; max-width: calc(100vw - 32px);
+  max-height: min(560px, calc(100dvh - 88px)); overflow-y: auto; overscroll-behavior: contain;
+  background: rgba(17, 24, 54, .985); border: 1px solid rgba(160, 172, 230, .24);
+  border-radius: 16px; padding: 16px; display: grid; gap: 13px;
+  box-shadow: 0 20px 48px rgba(0,0,0,.58), 0 0 0 1px rgba(255,255,255,.025);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
 }
-.account .menu small { color: var(--ink-dim); overflow-wrap: anywhere; }
+.account .menu > * { min-width: 0; }
+.account .menu small { color: var(--ink-dim); overflow-wrap: anywhere; line-height: 1.45; }
+.account .menu .menu-link { display: block; width: 100%; min-height: 24px; line-height: 1.45; overflow-wrap: anywhere; }
+.account .menu .btn-ghost { width: 100%; min-height: 40px; }
+.account .menu .menu-sep { margin-block: 1px; }
+@media (max-width: 520px) {
+  .account .menu { max-height: calc(100dvh - 76px); padding: 14px; gap: 12px; }
+}
 
 /* Sign-up screen */
 .auth { padding-block: 7vh 24px; max-width: 440px; }
