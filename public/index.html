@@ -872,6 +872,21 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
   .msg.ai:not(:has(.thinking)) .bubble { animation: none !important; }
 }
 
+/* Natural voice captions and clearer listening feedback */
+.vtext {
+  padding: 14px 16px; border: 1px solid rgba(169,133,255,.18); border-radius: 18px;
+  background: linear-gradient(145deg,rgba(20,17,43,.72),rgba(12,16,36,.58));
+  box-shadow: inset 0 1px rgba(255,255,255,.035),0 10px 30px rgba(0,0,0,.12);
+  text-align:left; scrollbar-width:thin; scrollbar-color:rgba(169,133,255,.35) transparent;
+}
+.vtext:empty { display:none; }
+.vtext p { margin:0 0 8px; }
+.vtext p:last-child { margin-bottom:0; }
+.vtext .you { color:#c4b5fd; font-size:13px; }
+.voice[data-state="speaking"] .vstatus { color:#f4d58d; }
+.voice[data-state="listening"] .vstatus { color:#c8b5ff; }
+.voice[data-state="thinking"] .vstatus { color:#e8d6a5; }
+
 /* ===== YvanAI voice room — violet & gold reactor ===== */
 .voice {
   background:
@@ -1616,7 +1631,14 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
     if (!synth) return null;
     const want = recLang.slice(0, 2).toLowerCase();
     const list = synth.getVoices().filter(v => (v.lang || "").toLowerCase().replace("_", "-").startsWith(want));
-    const score = v => (/natural|neural|online|premium|enhanced/i.test(v.name) ? 4 : 0) + (/google/i.test(v.name) ? 2 : 0) + ((v.lang || "").replace("_", "-") === recLang ? 1 : 0);
+    const score = v => {
+      const name = (v.name || "").toLowerCase();
+      const lang = (v.lang || "").replace("_", "-").toLowerCase();
+      return (/natural|neural|online|premium|enhanced/i.test(name) ? 5 : 0)
+        + (/google|microsoft|apple/i.test(name) ? 2 : 0)
+        + (lang === recLang.toLowerCase() ? 3 : lang.startsWith(want) ? 1 : 0)
+        + (/france|french|français/i.test(name) && want === "fr" ? 2 : 0);
+    };
     list.sort((a, b) => score(b) - score(a));
     return list[0] || null;
   }
@@ -1665,13 +1687,21 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
   function say(piece, turn) {
     const text = toSpeech(piece);
     if (!text || !synth) return;
-    for (const c of chunks(text, 180)) {
+    // Shorter phrases sound less robotic and let the user interrupt naturally.
+    for (const c of chunks(text, 135)) {
       const u = new SpeechSynthesisUtterance(c);
       u.lang = ttsVoice ? ttsVoice.lang : recLang;
       if (ttsVoice) u.voice = ttsVoice;
-      u.rate = 1.05;
+      u.rate = 0.98;
+      u.pitch = 1.03;
+      u.volume = 1;
       call.queue++;
-      u.onstart = () => { if (call.active && call.turn === turn) setState("speaking"); };
+      u.onstart = () => {
+        if (call.active && call.turn === turn) {
+          setState("speaking");
+          vhint.textContent = "Je te réponds. Touche le cercle pour m'interrompre.";
+        }
+      };
       u.onend = u.onerror = () => {
         if (call.turn !== turn) return;
         call.queue = Math.max(0, call.queue - 1);
