@@ -13,8 +13,8 @@
   "theme_color": "#070b1f",
   "categories": ["education", "productivity", "utilities"],
   "icons": [
-    { "src": "/icons/yvanai-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icons/yvanai-favicon.svg", "sizes": "64x64", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "/icons/yvanai-icon.svg?v=3", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/yvanai-favicon.svg?v=3", "sizes": "64x64", "type": "image/svg+xml", "purpose": "any" }
   ],
   "screenshots": [
     { "src": "/icons/screen-1.jpg", "sizes": "1080x1920", "type": "image/jpeg", "form_factor": "narrow", "label": "Accueil de YvanAI" },
