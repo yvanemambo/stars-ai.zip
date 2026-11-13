@@ -11,6 +11,5 @@
 <rect x="28" y="28" width="456" height="456" rx="102" fill="none" stroke="#f8c84b" stroke-opacity=".55" stroke-width="2"/>
 <path d="M112 116h72l72 105 72-105h72L281 285v111h-50V285z" fill="url(#purple)" stroke="#e5b5ff" stroke-opacity=".75" stroke-width="5" stroke-linejoin="round" filter="url(#glow)"/>
 <path d="M256 221l72-105h72L281 285l-25 37-25-37z" fill="url(#gold)" opacity=".98"/>
-<ellipse cx="256" cy="256" rx="205" ry="82" transform="rotate(-24 256 256)" fill="none" stroke="url(#orbit)" stroke-width="15" stroke-linecap="round" filter="url(#glow)"/>
 <path d="M65 338c51 48 132 70 212 59 65-9 120-40 160-83" fill="none" stroke="#a54bff" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
 </svg>
