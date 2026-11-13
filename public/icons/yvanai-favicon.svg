@@ -7,6 +7,4 @@
 <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#b)" stroke="#9a55f5" stroke-width="1.5"/>
 <path d="M12 14h9l11 16 11-16h9L35 37v13h-7V37z" fill="url(#p)" stroke="#e8c2ff" stroke-width=".7" stroke-linejoin="round"/>
 <path d="M32 30l11-16h9L35 37l-3 4-4-4z" fill="url(#g)"/>
-<ellipse cx="32" cy="32" rx="26" ry="10" transform="rotate(-25 32 32)" fill="none" stroke="#d7a0ff" stroke-width="2.2"/>
-<path d="M9 42c8 8 22 11 34 7" fill="none" stroke="#ffc52e" stroke-width="1.6" stroke-linecap="round"/>
 </svg>
