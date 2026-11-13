@@ -1118,9 +1118,21 @@ async function memoryApi(req, res, url) {
 
 async function handleVideoScript(req, res, ip) {
   const user = currentUser(req);
-  if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
+  if (!user) return json(res, 401, { code: "auth_required" });
   if (!CLAUDE_API_KEY) return json(res, 503, { code: "claude_not_configured" });
-  if (!allow("video:" + (user ? user.email : ip), 3, 60_000)) return json(res, 429, { code: "rate_limited" });
+  if (!allow("video:" + user.email, 3, 60_000)) return json(res, 429, { code: "rate_limited" });
+  const owner = isAdmin(user);
+  let premium = owner;
+  if (MEMBERS) {
+    try {
+      const rows = await rpc("stars_chat_allow", { p_email: user.email, p_limit: owner ? 1_000_000 : FREE_DAILY });
+      const r = Array.isArray(rows) ? rows[0] : null;
+      if (r && !r.allowed) return json(res, 402, { code: "free_limit", limit: FREE_DAILY, used: r.used, price: PREMIUM_PRICE });
+      premium = owner || !!(r && r.premium_until && new Date(r.premium_until) > new Date());
+    } catch (e) { console.warn("[video] compteur indisponible :", e.message); }
+  }
+  const limited = checkSiteCap(premium);
+  if (limited) return json(res, 429, { code: limited });
   const payload = await readJson(req, 8000);
   const brief = String(payload?.prompt || "").trim().slice(0, 1200);
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
@@ -1150,8 +1162,8 @@ Fournis exactement 6 scènes pour une vidéo de 30 secondes, 5 secondes par scè
       return json(res, status === 401 || status === 403 ? 502 : status === 429 ? 429 : 502,
         { code: status === 401 || status === 403 ? "claude_bad_key" : status === 429 ? "claude_busy" : "claude_error" });
     }
-    const answer = Array.isArray(data.content) ? data.content.filter(x => x.type === "text").map(x => x.text).join("\\n") : "";
-    const cleaned = answer.replace(/^\\s*\`\`\`(?:json)?/i, "").replace(/\`\`\`\\s*$/, "").trim();
+    const answer = Array.isArray(data.content) ? data.content.filter(x => x.type === "text").map(x => x.text).join("\n") : "";
+    const cleaned = answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
     let script;
     try { script = JSON.parse(cleaned); } catch { return json(res, 502, { code: "bad_script" }); }
     if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
@@ -1276,7 +1288,7 @@ async function page() {
 // ---------- Fichiers de l'appli (icônes, manifeste, service worker, pages) ----------
 const PUBLIC_DIR = path.join(__dirname, "public");
 const TYPES = { ".apk": "application/vnd.android.package-archive", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
-const PAGES = { "/antivirus": "antivirus.html", "/monscanner": "antivirus.html", "/premium": "premium.html", "/memoire": "memoire.html", "/memory": "memoire.html", "/images": "images.html", "/image": "images.html", "/yvanai": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
+const PAGES = { "/antivirus": "antivirus.html", "/monscanner": "antivirus.html", "/premium": "premium.html", "/video": "video.html", "/memoire": "memoire.html", "/memory": "memoire.html", "/images": "images.html", "/image": "images.html", "/yvanai": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
 async function serveStatic(req, res, pathname) {
   let rel = PAGES[pathname];
   if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg|svg)$/.test(pathname)) rel = pathname.slice(1);
