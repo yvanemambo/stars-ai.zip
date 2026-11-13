@@ -5,15 +5,23 @@ Assistant d'intelligence artificielle en français, hébergé sur Render.
 - `public/index.html` : la page de discussion (le ciel étoilé, les messages).
 - `server.js` : un petit serveur Node (sans dépendances) qui sert la page et envoie les messages à l'IA.
 
-## Brancher l'IA
+## Brancher les IA
 
-Dans Render › ton service `stars-ai` › **Environment**, ajoute la clé suivante :
+Dans Render › ton service `stars-ai` › **Environment**, ajoute les clés API (elles doivent rester secrètes et ne jamais être placées dans le code) :
 
-| Variable | Où l'obtenir | Prix |
+| Variable | Où l'obtenir | Rôle |
 |---|---|---|
-| `GEMINI_API_KEY` | https://aistudio.google.com/apikey | offre gratuite (avec limites), sans carte |
+| `OPENAI_API_KEY` | https://platform.openai.com/api-keys | Fournisseur prioritaire par défaut |
+| `GEMINI_API_KEY` | https://aistudio.google.com/app/apikey | Fournisseur de secours et génération d'images |
 
-STARS AI utilise Gemini comme unique fournisseur d'IA.
+STARS AI utilise OpenAI en priorité lorsqu'une clé OpenAI est présente. Si OpenAI est indisponible, le serveur tente Gemini lorsque sa clé est configurée. Si seule la clé Gemini est présente, Gemini est utilisé automatiquement.
+
+Variables facultatives :
+- `AI_PROVIDER=gemini` : donne la priorité à Gemini au lieu d'OpenAI.
+- `OPENAI_MODEL=gpt-5.5` : choisit le modèle OpenAI.
+- `GEMINI_MODEL` : choisit le modèle de conversation Gemini.
+
+La mémoire, l'historique, les comptes, les limites d'utilisation et la génération d'images existants restent gérés par les modules déjà en place. La génération d'images nécessite toujours `GEMINI_API_KEY`.
 
 ## Exercices et photos
 
