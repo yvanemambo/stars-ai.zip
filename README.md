@@ -1,4 +1,4 @@
-# STARS AI
+# YvanAI
 
 Assistant d'intelligence artificielle en français, hébergé sur Render.
 
@@ -13,16 +13,16 @@ Dans Render › ton service `stars-ai` › **Environment**, ajoute la clé suiva
 |---|---|---|
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey | offre gratuite (avec limites), sans carte |
 
-STARS AI utilise Gemini comme unique fournisseur d'IA.
+YvanAI utilise Gemini comme unique fournisseur d'IA.
 
 ## Exercices et photos
 
 Le bouton appareil photo (ou coller / glisser une image) envoie jusqu'à 3 photos par message, réduites à 1600 px.
-STARS AI répond en « mode prof » : étape par étape, formules lisibles (x², √, ×), résultat en gras, et un exercice similaire pour s'entraîner.
+YvanAI répond en « mode prof » : étape par étape, formules lisibles (x², √, ×), résultat en gras, et un exercice similaire pour s'entraîner.
 
 ## Mode vocal (appel)
 
-Le bouton micro ouvre un appel : le navigateur écoute (reconnaissance vocale de Chrome / Safari), STARS AI répond
+Le bouton micro ouvre un appel : le navigateur écoute (reconnaissance vocale de Chrome / Safari), YvanAI répond
 en version courte « pour l'oral » (`voice: true` envoyé à `/api/chat`), la réponse est lue à voix haute phrase par phrase,
 puis l'écoute reprend. Toucher le cercle coupe la parole ; « Raccrocher » termine. Les échanges restent dans la discussion.
 
