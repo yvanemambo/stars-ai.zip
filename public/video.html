@@ -41,7 +41,7 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
       <div class="smallprint">La préparation du storyboard utilise ta clé API Claude et peut consommer des crédits. L'animation est rendue dans ton navigateur. L'export actuel est au format WebM (pas MP4) et ne contient pas encore de voix off ni de musique.</div>
     </section>
     <aside class="panel preview">
-      <div class="screen"><canvas id="canvas" width="540" height="960"></canvas></div>
+      <div class="screen"><canvas id="canvas" width="1080" height="1920"></canvas></div>
       <div><strong id="previewTitle">Aperçu Motion Design</strong><div class="hint">Ton animation apparaîtra ici après la création du storyboard.</div></div>
       <div class="scenes" id="scenes"></div>
     </aside>
@@ -51,7 +51,7 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
 (() => {
 const $=id=>document.getElementById(id), brief=$("brief"), make=$("make"), render=$("render"), status=$("status"), canvas=$("canvas"), ctx=canvas.getContext("2d"), bar=$("bar"), scenesBox=$("scenes"), download=$("download");
 let script=null, previewFrame=0, previewStart=performance.now(), raf=0;
-const W=canvas.width,H=canvas.height,DURATION=30000;
+const W=canvas.width/2,H=canvas.height/2,DURATION=30000;ctx.scale(2,2);
 const clean=s=>String(s||"").replace(/[<>]/g,"").trim();
 function setStatus(t,type=""){status.className="status "+type;status.textContent=t}
 function wrap(text,max){const words=String(text||"").split(/\s+/);const lines=[];let line="";for(const word of words){const next=line?line+" "+word:word;if(ctx.measureText(next).width>max&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);return lines.slice(0,4)}
