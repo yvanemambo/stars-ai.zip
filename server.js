@@ -281,10 +281,21 @@ function rules(name, voice, guide, memory) {
     + (memory || "");
 }
 
-// Combine l'annulation par le visiteur et un délai maximum.
-function withTimeout(signal, ms) {
-  const t = AbortSignal.timeout(ms);
-  return signal && AbortSignal.any ? AbortSignal.any([signal, t]) : t;
+// Attend au maximum ms pour obtenir les en-têtes du fournisseur IA.
+// Le délai est ensuite désarmé : il ne coupe pas une génération qui prend plus longtemps.
+// L'annulation du navigateur reste active pendant tout le flux.
+async function fetchWithFirstByteTimeout(url, options, signal, ms) {
+  const controller = new AbortController();
+  const abortFromClient = () => controller.abort(signal?.reason);
+  if (signal?.aborted) abortFromClient();
+  else signal?.addEventListener("abort", abortFromClient, { once: true });
+  const timer = setTimeout(() => controller.abort(new Error("first_byte_timeout")), ms);
+  timer.unref?.();
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ---------- Limites anti-abus (en mémoire) ----------
@@ -308,7 +319,10 @@ let dayCount = 0;
 function checkSiteCap(premium) {
   const today = new Date().toISOString().slice(0, 10);
   if (today !== day) { day = today; dayCount = 0; }
-  if (!premium && dayCount >= DAILY_LIMIT) return "daily_limit";
+  // Le plafond global protège le quota gratuit : les comptes Premium et le propriétaire
+  // ne doivent ni être bloqués par ce plafond ni le consommer pour les autres.
+  if (premium) return null;
+  if (dayCount >= DAILY_LIMIT) return "daily_limit";
   dayCount++;
   return null;
 }
@@ -612,6 +626,13 @@ async function* sse(body) {
       }
     }
   }
+  // Certains fournisseurs ferment le flux sans ajouter de saut de ligne final.
+  buf += decoder.decode();
+  const lastLine = buf.replace(/\r$/, "");
+  if (lastLine.startsWith("data:")) {
+    const data = lastLine.slice(5).trim();
+    if (data && data !== "[DONE]") { try { yield JSON.parse(data); } catch {} }
+  }
 }
 
 class UpstreamError extends Error {
@@ -648,9 +669,8 @@ async function callGemini(messages, signal, name, voice, guide, memory) {
   for (const model of models) {
     let res;
     try {
-      res = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+      res = await fetchWithFirstByteTimeout(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
         method: "POST",
-        signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
         headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: rules(name, voice, guide, memory) }] },
@@ -696,9 +716,8 @@ async function callOpenAI(messages, signal, name, voice, guide, memory) {
   }));
   let res;
   try {
-    res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    res = await fetchWithFirstByteTimeout(`${OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
-      signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
       headers: { "content-type": "application/json", authorization: `Bearer ${OPENAI_API_KEY}` },
       body: JSON.stringify({
         model: OPENAI_MODEL,
