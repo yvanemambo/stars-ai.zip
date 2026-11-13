@@ -241,7 +241,7 @@
   let swReg = null;
   async function setupPush() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-      $("pushText").textContent = "Ce navigateur ne gère pas les notifications. Sur Android, ouvre cette page dans Chrome ou dans l'appli STARS AI.";
+      $("pushText").textContent = "Ce navigateur ne gère pas les notifications. Sur Android, ouvre cette page dans Chrome ou dans YvanAI.";
       $("pushBtn").hidden = true; return;
     }
     try { swReg = await navigator.serviceWorker.register("/sw.js"); await navigator.serviceWorker.ready; } catch (e) { return; }
