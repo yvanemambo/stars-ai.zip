@@ -1104,6 +1104,58 @@ body::before {
   }
 }
 
+
+/* Historique compact et sans débordement, style liste de conversations */
+#historyPanel {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 20px));
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+  gap: 12px;
+}
+#historyPanel > * { min-width: 0; }
+#historyPanel .history-head { flex: 0 0 auto; min-height: 38px; }
+#historyPanel .history-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#historyNew, #historyClear { flex: 0 0 auto; width: 100%; justify-content: center; }
+#historyList {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 2px 2px 8px 0;
+}
+.history-item {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px;
+  padding: 5px 6px;
+  overflow: hidden;
+}
+.history-open {
+  display: block;
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-action { flex: 0 0 32px; width: 32px; min-width: 32px; }
+.history-state, .history-empty { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  #historyPanel { width: min(340px, calc(100vw - 16px)); }
+}
+
 </style>
 </head>
 <body>
