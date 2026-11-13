@@ -1044,6 +1044,11 @@ header {
   .workspace-card,.btn-ghost,#send,.composer { transition:none !important; }
 }
 
+
+/* YvanAI clean identity: remove all decorative star/sparkle marks, including legacy mobile avatar. */
+.stars-avatar::before,.stars-avatar::after,.stars-avatar__orbit,.thinking::after,.reactor-glint{display:none!important;content:none!important;}
+.msg .stars-avatar{border:1px solid rgba(178,137,255,.42);background:rgba(104,67,170,.16);box-shadow:0 0 12px rgba(137,86,220,.12);}
+.stars-avatar__core{animation:none!important;box-shadow:none!important;border:1px solid rgba(190,145,255,.3);}
 </style>
 </head>
 <body>
