@@ -1548,30 +1548,7 @@ header {
     return { text, truncated };
   }
 
-  // Détecte les demandes de création d'image directement dans la conversation.
-  function wantsImage(text) {
-    return /(?:g[eé]n[eè]re|cr[eé]e|dessine|fabrique|produis|r[eé]alise|fais(?:-moi| moi)?|imagine|conçois).{0,100}(?:image|photo|illustration|visuel|dessin|portrait|logo|affiche)|(?:image|photo|illustration|visuel|dessin|portrait|logo|affiche).{0,70}(?:g[eé]n[eè]re|cr[eé]e|dessine|fabrique|produis|r[eé]alise)/i.test(String(text || ""));
-  }
 
-  async function generateImageInChat(prompt, bubble, signal) {
-    const response = await fetch("/api/image", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt: String(prompt || "").trim(), size: "carre" }), signal
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw { code: data.code || "upstream_error" };
-    if (!data.image || !String(data.image).startsWith("data:image/")) throw { code: "no_image" };
-    bubble.innerHTML = '<p>Voici ton image :</p>';
-    const image = new Image(); image.src = data.image; image.alt = "Image générée par YvanAI";
-    image.style.cssText = "display:block;max-width:min(100%,560px);height:auto;border-radius:14px;margin-top:10px";
-    bubble.appendChild(image);
-    const note = document.createElement("small"); note.className = "note";
-    note.textContent = "Image générée. Elle est visible dans cette discussion."; bubble.appendChild(note);
-    return "Image générée.";
-  }
-
-  // opts.voice: answer for the ear (short, read aloud); opts.onText(fullTextSoFar) follows the stream.
-  // Returns { ok, text, code } so the voice call knows what happened.
   async function ask(text, opts = {}) {
     if (busy || loadingPics > 0) return { ok: false, code: "busy" };
     const imgs = pending.slice();
@@ -1593,12 +1570,6 @@ header {
     });
     while (history.length && history[0].role !== "user") history.shift();
     try {
-      if (!imgs.length && wantsImage(text)) {
-        b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> YvanAI crée ton image…</span>';
-        const answer = await generateImageInChat(text, b, ctl.signal);
-        turns.push({ role: "assistant", content: answer }); save();
-        return { ok: true, text: answer };
-      }
       const { text: answer, truncated } = await chat(history, ctl.signal, t => {
         b.innerHTML = md(t); thread.scrollTop = thread.scrollHeight;
         if (opts.onText) opts.onText(t);
