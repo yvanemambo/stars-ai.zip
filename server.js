@@ -1,7 +1,7 @@
 // STARS AI — petit serveur pour Render.
 // - Sert la page (public/index.html)
 // - Inscription : un code à 6 chiffres est envoyé par e-mail via un script Google (depuis le Gmail du propriétaire)
-// - Relaie les messages vers Gemini (GEMINI_API_KEY)
+// - Relaie les messages vers OpenAI (prioritaire) et Gemini (secours)
 // Aucune dépendance : Node 20+ suffit.
 
 import http from "node:http";
