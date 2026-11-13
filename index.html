@@ -486,7 +486,7 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
           <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
           <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
           <div class="plan" id="planLine"></div>
-          <a class="menu-link gold" id="premiumLink" href="/premium">⭐ Passer à Premium</a>
+          <a class="menu-link gold" id="premiumLink" href="/premium">Passer à Premium</a>
           <a class="menu-link" id="adminLink" href="/admin" hidden>🛠 Tableau de bord</a>
           <a class="menu-link" id="memLink" href="/memoire" hidden>🧠 Mes souvenirs</a>
           <a class="menu-link" id="imgLink" href="/images" hidden>🎨 Images</a>
@@ -993,7 +993,7 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
       if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
       if (code === "free_limit") {
         const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ");
-        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">⭐ Passer à Premium</a>';
+        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">Passer à Premium</a>';
         if (me) { me.used = lim; refreshPlan(); }
       } else if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
@@ -1581,12 +1581,12 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
       plan.innerHTML = "👑 <b>Propriétaire</b> : messages illimités";
       prem.textContent = "Voir la page Premium"; prem.classList.remove("gold");
     } else if (until && until > new Date()) {
-      plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
+      plan.innerHTML = "<b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
       prem.textContent = "Prolonger mon Premium"; prem.classList.remove("gold");
     } else if (me.freeDaily) {
       const used = Math.min(me.used || 0, me.freeDaily);
       plan.innerHTML = "Compte gratuit : <b>" + used + " / " + me.freeDaily + "</b> messages aujourd'hui" + (me.pending ? "<br>⏳ Paiement Premium en vérification" : "");
-      prem.textContent = "⭐ Passer à Premium"; prem.classList.add("gold");
+      prem.textContent = "Passer à Premium"; prem.classList.add("gold");
     } else plan.textContent = "";
   }
 
