@@ -21,7 +21,7 @@ const env = k => (process.env[k] || "").trim();
 // ---------- Réglages (modifiables dans Render > Environment) ----------
 const OPENAI_API_KEY = env("OPENAI_API_KEY");
 const OPENAI_MODEL = env("OPENAI_MODEL") || "gpt-4.1-mini";
-const OPENAI_BASE_URL = (env("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\\/+$/, "");
+const OPENAI_BASE_URL = (env("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\/+$/, "");
 const GEMINI_API_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
@@ -662,7 +662,7 @@ async function callGemini(messages, signal, name, voice, guide, memory) {
       last = new UpstreamError("upstream_busy", 504, "timeout");
       continue;
     }
-    if (res.ok) return { res, model };
+    if (res.ok) return { res, model, provider: "gemini" };
     const detail = await res.text().catch(() => "");
     if (res.status === 400 && /api key not valid|api_key_invalid/i.test(detail)) throw new UpstreamError("bad_key", 401, detail);
     if (RETRY_NEXT.has(res.status)) { pauseModel(model, PAUSE_FOR[res.status] || 60_000, "HTTP " + res.status); last = new UpstreamError(codeFor(res.status), res.status, detail); continue; }
@@ -713,7 +713,7 @@ async function callOpenAI(messages, signal, name, voice, guide, memory) {
     const detail = await res.text().catch(() => "");
     throw new UpstreamError(codeFor(res.status), res.status, detail);
   }
-  return { res, model: OPENAI_MODEL };
+  return { res, model: OPENAI_MODEL, provider: "openai" };
 }
 
 async function* streamOpenAI(res) {
@@ -1069,7 +1069,7 @@ async function handleChat(req, res, ip) {
   const send = obj => res.write(JSON.stringify(obj) + "\n");
   let truncated = false, refused = false, any = false, reply = "";
   try {
-    const gen = upstream.model === OPENAI_MODEL && provider === "openai" ? streamOpenAI(upstream.res) : streamGemini(upstream.res);
+    const gen = upstream.provider === "openai" ? streamOpenAI(upstream.res) : streamGemini(upstream.res);
     for await (const ev of gen) {
       if (ev.t) { any = true; if (reply.length < 4000) reply += ev.t; send({ t: ev.t }); }
       if (ev.truncated) truncated = true;
@@ -1534,7 +1534,7 @@ const server = http.createServer(async (req, res) => {
 // ---------- Vérifications au démarrage (résultat dans les journaux Render, sans afficher les clés) ----------
 async function selfCheck() {
   try {
-    if (provider === "gemini") {
+    if (GEMINI_API_KEY) {
       const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models?pageSize=200`, { headers: { "x-goog-api-key": GEMINI_API_KEY }, signal: AbortSignal.timeout(20000) });
       const body = await r.text();
       if (!r.ok) console.error(`[vérif] Clé Gemini REFUSÉE (HTTP ${r.status}) : ${body.slice(0, 300)}`);
@@ -1546,6 +1546,13 @@ async function selfCheck() {
     }
   } catch (e) {
     console.error("[vérif] Impossible de joindre l'IA :", e.message);
+  }
+  if (OPENAI_API_KEY) {
+    try {
+      const r = await fetch(`${OPENAI_BASE_URL}/models`, { headers: { authorization: `Bearer ${OPENAI_API_KEY}` }, signal: AbortSignal.timeout(20000) });
+      if (!r.ok) console.error(`[vérif] Clé OpenAI REFUSÉE (HTTP ${r.status}).`);
+      else console.log("[vérif] Clé OpenAI OK.");
+    } catch (e) { console.error("[vérif] OpenAI injoignable :", e.message); }
   }
   if (MEMBERS) {
     try {
