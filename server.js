@@ -19,6 +19,9 @@ const PORT = Number(process.env.PORT) || 3000;
 const env = k => (process.env[k] || "").trim();
 
 // ---------- Réglages (modifiables dans Render > Environment) ----------
+const OPENAI_API_KEY = env("OPENAI_API_KEY");
+const OPENAI_MODEL = env("OPENAI_MODEL") || "gpt-4.1-mini";
+const OPENAI_BASE_URL = (env("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\\/+$/, "");
 const GEMINI_API_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
@@ -219,7 +222,7 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
-const provider = GEMINI_API_KEY ? "gemini" : null;
+const provider = OPENAI_API_KEY ? "openai" : GEMINI_API_KEY ? "gemini" : null;
 
 const VOICE_RULES = `
 
@@ -680,6 +683,52 @@ async function* streamGemini(res) {
   }
 }
 
+// ---------- OpenAI (ChatGPT) : fournisseur principal, Gemini en secours ----------
+async function callOpenAI(messages, signal, name, voice, guide, memory) {
+  const content = messages.map(m => ({
+    role: m.role,
+    content: [
+      ...m.images.map(i => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } })),
+      { type: "text", text: m.content || PHOTO_ONLY_TEXT }
+    ]
+  }));
+  let res;
+  try {
+    res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
+      headers: { "content-type": "application/json", authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [{ role: "system", content: rules(name, voice, guide, memory) }, ...content],
+        max_completion_tokens: MAX_TOKENS,
+        stream: true
+      })
+    });
+  } catch (e) {
+    if (signal.aborted) throw e;
+    throw new UpstreamError("upstream_busy", 504, e.message);
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new UpstreamError(codeFor(res.status), res.status, detail);
+  }
+  return { res, model: OPENAI_MODEL };
+}
+
+async function* streamOpenAI(res) {
+  for await (const ev of sse(res.body)) {
+    if (ev.error) throw new UpstreamError("upstream_error", ev.error.code || 500, JSON.stringify(ev.error));
+    const choice = ev.choices?.[0];
+    if (!choice) continue;
+    const delta = choice.delta || {};
+    if (typeof delta.content === "string" && delta.content) yield { t: delta.content };
+    if (delta.refusal) yield { refused: true };
+    if (choice.finish_reason === "length") yield { truncated: true };
+    else if (choice.finish_reason === "content_filter") yield { refused: true };
+  }
+}
+
 // ---------- HTTP ----------
 function json(res, status, obj) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -998,7 +1047,18 @@ async function handleChat(req, res, ip) {
   const voice = payload?.voice === true;
   const guide = guideFor(messages);
   try {
-    upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
+    if (provider === "openai") {
+      try {
+        upstream = await callOpenAI(messages, ac.signal, user?.name, voice, guide, memText);
+      } catch (openAiError) {
+        if (ac.signal.aborted) return;
+        if (!GEMINI_API_KEY) throw openAiError;
+        console.warn("[openai] indisponible, bascule vers Gemini :", openAiError.code || openAiError.message);
+        upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
+      }
+    } else {
+      upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
+    }
   } catch (e) {
     if (ac.signal.aborted) return;
     console.error(`[${prov}]`, e.code || e.message, e.status || "", (e.detail || "").slice(0, 300));
@@ -1009,7 +1069,7 @@ async function handleChat(req, res, ip) {
   const send = obj => res.write(JSON.stringify(obj) + "\n");
   let truncated = false, refused = false, any = false, reply = "";
   try {
-    const gen = streamGemini(upstream.res);
+    const gen = upstream.model === OPENAI_MODEL && provider === "openai" ? streamOpenAI(upstream.res) : streamGemini(upstream.res);
     for await (const ev of gen) {
       if (ev.t) { any = true; if (reply.length < 4000) reply += ev.t; send({ t: ev.t }); }
       if (ev.truncated) truncated = true;
@@ -1539,6 +1599,7 @@ async function selfCheck() {
 }
 
 server.listen(PORT, () => {
-  console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${provider ? provider + " (" + GEMINI_MODEL + ")" : "AUCUNE CLÉ"} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
+  const aiLabel = provider === "openai" ? "OpenAI (" + OPENAI_MODEL + ")" : provider === "gemini" ? "Gemini (" + GEMINI_MODEL + ")" : "AUCUNE CLÉ";
+  console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${aiLabel} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
   if (process.env.SKIP_SELF_CHECK !== "1") selfCheck();
 });
