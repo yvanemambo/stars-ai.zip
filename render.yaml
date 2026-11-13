@@ -8,8 +8,15 @@ services:
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
-      # Mets UNE de ces deux clés dans Render > Environment
-      - key: ANTHROPIC_API_KEY
+      # Ajoute au moins une clé dans Render > Environment.
+      # OpenAI est prioritaire par défaut ; Gemini prend le relais si nécessaire.
+      - key: OPENAI_API_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Facultatif : "gemini" pour donner la priorité à Gemini.
+      - key: AI_PROVIDER
+        value: openai
+      # Facultatif : modèle OpenAI à utiliser.
+      - key: OPENAI_MODEL
+        value: gpt-5.5
