@@ -158,8 +158,6 @@ function cleanConvMessages(raw) {
 // Les quotas Supabase limitent les coûts et empêchent les abus.
 const numEnv = (k, d) => { const v = env(k); return v !== "" && Number.isFinite(Number(v)) ? Number(v) : d; };
 const IMAGE_MODEL = env("GEMINI_IMAGE_MODEL") || "gemini-3.1-flash-image";
-const CLOUDFLARE_ACCOUNT_ID = env("CLOUDFLARE_ACCOUNT_ID");
-const CLOUDFLARE_API_TOKEN = env("CLOUDFLARE_API_TOKEN");
 const CLOUDFLARE_IMAGE_MODEL = env("CLOUDFLARE_IMAGE_MODEL") || "@cf/black-forest-labs/flux-1-schnell";
 const CLOUDFLARE_IMAGES = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);
