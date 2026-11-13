@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "STARS AI",
-  "short_name": "STARS AI",
+  "name": "YvanAI",
+  "short_name": "YvanAI",
   "description": "Ton assistant d'intelligence artificielle en français : questions, exercices en photo et mode vocal.",
   "lang": "fr",
   "dir": "ltr",
@@ -18,8 +18,8 @@
     { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
-    { "src": "/icons/screen-1.jpg", "sizes": "1080x1920", "type": "image/jpeg", "form_factor": "narrow", "label": "Accueil de STARS AI" },
+    { "src": "/icons/screen-1.jpg", "sizes": "1080x1920", "type": "image/jpeg", "form_factor": "narrow", "label": "Accueil de YvanAI" },
     { "src": "/icons/screen-2.jpg", "sizes": "1080x1920", "type": "image/jpeg", "form_factor": "narrow", "label": "Exercice corrigé étape par étape" },
-    { "src": "/icons/screen-3.jpg", "sizes": "1080x1920", "type": "image/jpeg", "form_factor": "narrow", "label": "Appel vocal avec STARS AI" }
+    { "src": "/icons/screen-3.jpg", "sizes": "1080x1920", "type": "image/jpeg", "form_factor": "narrow", "label": "Appel vocal avec YvanAI" }
   ]
 }
