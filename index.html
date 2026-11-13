@@ -460,6 +460,11 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
 @keyframes rootAvatarThink { 50% { transform:scale(1.08); filter:drop-shadow(0 0 12px rgba(174,125,255,.65)); } }
 @keyframes yvanAnswerArrive { from {opacity:.45;transform:translateY(5px)} to {opacity:1;transform:translateY(0)} }
 @media(prefers-reduced-motion:reduce){.msg.ai:has(.thinking) .avatar,.msg.ai:not(:has(.thinking)) .bubble{animation:none!important}}
+
+/* YvanAI clean identity: remove all decorative star/sparkle marks, including legacy mobile avatar. */
+.stars-avatar::before,.stars-avatar::after,.stars-avatar__orbit,.thinking::after,.reactor-glint{display:none!important;content:none!important;}
+.msg .stars-avatar{border:1px solid rgba(178,137,255,.42);background:rgba(104,67,170,.16);box-shadow:0 0 12px rgba(137,86,220,.12);}
+.stars-avatar__core{animation:none!important;box-shadow:none!important;border:1px solid rgba(190,145,255,.3);}
 </style>
 </head>
 <body>
