@@ -1066,7 +1066,6 @@ header {
           <a class="menu-link gold" id="premiumLink" href="/premium">Passer à Premium</a>
           <a class="menu-link" id="adminLink" href="/yvanai" hidden>🛠 Tableau de bord</a>
           <a class="menu-link" id="memLink" href="/memoire" hidden>🧠 Mes souvenirs</a>
-          <a class="menu-link" id="imgLink" href="/images" hidden>🎨 Images</a>
           <div class="menu-sep"></div>
           <button class="menu-link" type="button" data-install hidden>📲 Installer l'appli</button>
           <a class="menu-link" href="/ecoles">🏫 Offre écoles</a>
@@ -1108,11 +1107,6 @@ header {
           <strong>Business</strong>
           <span>Développe ton activité, prépare tes offres et tes publicités.</span>
         </button>
-        <a class="workspace-card" href="/images">
-          <span class="workspace-icon" aria-hidden="true">◉</span>
-          <strong>Studio</strong>
-          <span>Crée des visuels avec l'IA et prépare tes contenus créatifs.</span>
-        </a>
         <button class="workspace-card" type="button" data-q="Tu es mon assistant personnel YvanAI. Aide-moi à avancer sur mon projet. Demande-moi ce que je veux accomplir aujourd'hui, puis guide-moi étape par étape.">
           <span class="workspace-icon" aria-hidden="true">⌘</span>
           <strong>Assistant IA</strong>
@@ -1490,6 +1484,12 @@ header {
 
   const ERRORS = {
     no_key: "YvanAI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
+    images_off: "La création d'images n'est pas activée pour le moment.",
+    user_limit: "Tu as atteint ta limite quotidienne de création d'images.",
+    site_limit: "La limite quotidienne de création d'images est atteinte pour le moment.",
+    no_image: "Le générateur n'a pas retourné d'image. Réessaie avec une autre description.",
+    images_down: "Le service de création d'images est momentanément indisponible.",
+    bad_prompt: "Décris un peu plus l'image que tu souhaites créer.",
     bad_key: "La clé API a été refusée. Vérifie-la dans Render (Environment).",
     no_credit: "Le compte de l'IA n'a plus de crédit.",
     upstream_busy: "L'IA est très demandée en ce moment. Réessaie dans un instant.",
@@ -1548,6 +1548,28 @@ header {
     return { text, truncated };
   }
 
+  // Détecte les demandes de création d'image directement dans la conversation.
+  function wantsImage(text) {
+    return /(?:g[eé]n[eè]re|cr[eé]e|dessine|fabrique|produis|r[eé]alise|fais(?:-moi| moi)?|imagine|conçois).{0,100}(?:image|photo|illustration|visuel|dessin|portrait|logo|affiche)|(?:image|photo|illustration|visuel|dessin|portrait|logo|affiche).{0,70}(?:g[eé]n[eè]re|cr[eé]e|dessine|fabrique|produis|r[eé]alise)/i.test(String(text || ""));
+  }
+
+  async function generateImageInChat(prompt, bubble, signal) {
+    const response = await fetch("/api/image", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: String(prompt || "").trim(), size: "carre" }), signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw { code: data.code || "upstream_error" };
+    if (!data.image || !String(data.image).startsWith("data:image/")) throw { code: "no_image" };
+    bubble.innerHTML = '<p>Voici ton image :</p>';
+    const image = new Image(); image.src = data.image; image.alt = "Image générée par YvanAI";
+    image.style.cssText = "display:block;max-width:min(100%,560px);height:auto;border-radius:14px;margin-top:10px";
+    bubble.appendChild(image);
+    const note = document.createElement("small"); note.className = "note";
+    note.textContent = "Image générée. Elle est visible dans cette discussion."; bubble.appendChild(note);
+    return "Image générée.";
+  }
+
   // opts.voice: answer for the ear (short, read aloud); opts.onText(fullTextSoFar) follows the stream.
   // Returns { ok, text, code } so the voice call knows what happened.
   async function ask(text, opts = {}) {
@@ -1571,6 +1593,12 @@ header {
     });
     while (history.length && history[0].role !== "user") history.shift();
     try {
+      if (!imgs.length && wantsImage(text)) {
+        b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> YvanAI crée ton image…</span>';
+        const answer = await generateImageInChat(text, b, ctl.signal);
+        turns.push({ role: "assistant", content: answer }); save();
+        return { ok: true, text: answer };
+      }
       const { text: answer, truncated } = await chat(history, ctl.signal, t => {
         b.innerHTML = md(t); thread.scrollTop = thread.scrollHeight;
         if (opts.onText) opts.onText(t);
@@ -2200,9 +2228,8 @@ header {
     const plan = document.getElementById("planLine"), prem = document.getElementById("premiumLink");
     const adminLink = document.getElementById("adminLink");
     adminLink.hidden = !me.admin;
-    const memLink = document.getElementById("memLink"), imgLink = document.getElementById("imgLink");
+    const memLink = document.getElementById("memLink");
     if (memLink) memLink.hidden = !me.memory;
-    if (imgLink) imgLink.hidden = !me.images;
     const todo = me.admin ? (me.adminPending || 0) : 0;
     adminLink.textContent = "🛠 Tableau de bord" + (todo ? " · " + todo + " paiement" + (todo > 1 ? "s" : "") + " à vérifier" : "");
     adminLink.classList.toggle("gold", todo > 0);
