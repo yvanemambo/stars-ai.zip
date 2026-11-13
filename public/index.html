@@ -122,6 +122,9 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--star); o
 .thinking i:nth-child(2) { animation-delay: .2s; } .thinking i:nth-child(3) { animation-delay: .4s; }
 @keyframes twinkle { 0%,100% { opacity: .25; transform: scale(.7) } 50% { opacity: 1; transform: scale(1) } }
 .note { color: var(--danger); font-size: 13px; margin-top: 6px; }
+.retry-btn { display:inline-flex; align-items:center; gap:7px; margin-top:10px; padding:8px 13px; border:1px solid rgba(244,201,107,.45); border-radius:999px; background:rgba(244,201,107,.10); color:var(--star); font:600 13px var(--f-body); cursor:pointer; transition:background .2s,border-color .2s; }
+.retry-btn:hover { background:rgba(244,201,107,.18); border-color:var(--star); }
+.retry-btn:disabled { opacity:.6; cursor:wait; }
 
 footer { padding-block: 8px 14px; }
 .composer {
@@ -1589,6 +1592,27 @@ header {
         if (me) { me.used = lim; refreshPlan(); }
       } else if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
+        const retry = document.createElement("button");
+        retry.type = "button"; retry.className = "retry-btn";
+        retry.innerHTML = '<span aria-hidden="true">↻</span> Réessayer';
+        retry.addEventListener("click", async () => {
+          const failedTurn = [...turns].reverse().find(t => t.role === "user");
+          if (!failedTurn) return;
+          retry.disabled = true; retry.textContent = "Nouvel essai…";
+          const failedRow = b.closest(".msg");
+          const userRow = failedRow && failedRow.previousElementSibling;
+          if (failedRow) failedRow.remove();
+          if (userRow && userRow.classList.contains("user")) userRow.remove();
+          if (turns.length && turns[turns.length - 1].role === "assistant") turns.pop();
+          if (turns.length && turns[turns.length - 1] === failedTurn) turns.pop();
+          pending = (failedTurn.images || []).map((im, index) => ({
+            mime: im.mime, data: im.data,
+            thumb: (failedTurn.thumbs || [])[index] || ""
+          }));
+          renderAttach();
+          await ask(failedTurn.content || "");
+        });
+        b.appendChild(retry);
       } else if (!partial) { b.innerHTML = '<span class="thinking">Arrêté.</span>'; }
       return { ok: false, code, text: partial || "" };
     } finally { setBusy(false); if (!opts.voice) input.focus(); }
