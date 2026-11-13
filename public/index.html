@@ -768,6 +768,79 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   }
 }
 
+
+/* ===== YvanAI motion identity — animated violet/gold reactor, no star motif ===== */
+#sky { display:none !important; }
+body {
+  background:
+    radial-gradient(ellipse at 50% 12%, rgba(112,45,208,.22), transparent 34%),
+    radial-gradient(ellipse at 8% 82%, rgba(74,45,170,.18), transparent 30%),
+    radial-gradient(ellipse at 92% 72%, rgba(225,164,48,.10), transparent 27%),
+    linear-gradient(135deg,#050611 0%,#0b0920 48%,#080b1c 100%);
+  background-size: 150% 150%;
+  animation: yvanaiAtmosphere 22s ease-in-out infinite alternate;
+}
+@keyframes yvanaiAtmosphere { 0%{background-position:0% 20%;} 100%{background-position:100% 80%;} }
+body::before {
+  inset:-45%;
+  background:
+    conic-gradient(from 0deg at 50% 50%,transparent 0 22%,rgba(140,70,255,.11) 30%,transparent 39% 63%,rgba(255,194,65,.08) 72%,transparent 82%);
+  filter:blur(58px);
+  animation:yvanaiNebula 32s linear infinite;
+}
+@keyframes yvanaiNebula { to { transform:rotate(360deg) scale(1.08); } }
+.app { position:relative; z-index:1; }
+header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(0,0,0,.12); }
+.brand svg { filter:drop-shadow(0 0 9px rgba(165,75,255,.65)) drop-shadow(0 0 18px rgba(255,196,65,.2)); animation:brandOrbitFloat 5s ease-in-out infinite; }
+@keyframes brandOrbitFloat { 0%,100%{transform:translateY(0) rotate(-4deg);} 50%{transform:translateY(-4px) rotate(4deg);} }
+.brand h1 span { color:#e3b0ff; text-shadow:0 0 16px rgba(175,83,255,.65),0 0 28px rgba(255,196,65,.25); }
+.welcome { padding-top:clamp(16px,3vh,34px); gap:17px; }
+.hero-reactor {
+  width:clamp(142px,22vw,190px); aspect-ratio:1; position:relative; align-self:center;
+  display:grid; place-items:center; margin:0 auto 2px; isolation:isolate;
+  filter:drop-shadow(0 0 35px rgba(132,63,255,.23));
+}
+.reactor-halo { position:absolute; inset:13%; border-radius:50%; background:radial-gradient(circle,rgba(149,74,255,.30),rgba(110,51,210,.08) 48%,transparent 72%); filter:blur(10px); animation:reactorBreathe 4.5s ease-in-out infinite; }
+.reactor-ring { position:absolute; border-radius:50%; border:1px solid transparent; pointer-events:none; }
+.reactor-ring-a { inset:5%; border-top-color:#d9a6ff; border-right-color:rgba(160,80,255,.7); border-bottom-color:rgba(255,202,91,.55); box-shadow:0 0 18px rgba(163,79,255,.16); animation:reactorSpin 9s linear infinite; }
+.reactor-ring-b { inset:15%; border-width:2px; border-left-color:rgba(255,204,89,.9); border-bottom-color:rgba(156,76,255,.6); transform:rotate(-34deg); animation:reactorSpinReverse 6.5s linear infinite; }
+.reactor-ring-c { inset:-2%; border-style:dashed; border-color:rgba(176,119,255,.28); animation:reactorSpin 24s linear infinite; }
+.reactor-core {
+  width:47%; aspect-ratio:1; border-radius:32%; display:grid; place-items:center;
+  background:radial-gradient(circle at 30% 24%,#3b1a67 0%,#170d31 58%,#090816 100%);
+  border:1px solid rgba(226,190,255,.55);
+  box-shadow:inset 0 0 28px rgba(167,76,255,.3),0 0 22px rgba(151,70,255,.38),0 0 54px rgba(255,190,65,.13);
+  transform:rotate(45deg); animation:coreLevitate 4s ease-in-out infinite;
+}
+.reactor-core b { transform:rotate(-45deg); font:700 clamp(48px,8vw,70px)/1 "Unbounded",sans-serif; letter-spacing:-.12em; padding-right:.12em; color:transparent; background:linear-gradient(145deg,#f2d2ff 8%,#b65aff 48%,#ffd36c 88%); -webkit-background-clip:text; background-clip:text; filter:drop-shadow(0 0 13px rgba(205,130,255,.6)); }
+.reactor-glint { position:absolute; width:9px; height:9px; right:18%; top:18%; border-radius:50%; background:#ffe4a0; box-shadow:0 0 12px 4px rgba(255,198,77,.48); animation:glintPulse 2.8s ease-in-out infinite; }
+@keyframes reactorSpin { to{transform:rotate(360deg);} }
+@keyframes reactorSpinReverse { to{transform:rotate(-360deg);} }
+@keyframes reactorBreathe { 0%,100%{opacity:.65;transform:scale(.88);} 50%{opacity:1;transform:scale(1.12);} }
+@keyframes coreLevitate { 0%,100%{translate:0 0;scale:1;} 50%{translate:0 -5px;scale:1.035;} }
+@keyframes glintPulse { 0%,100%{opacity:.45;scale:.7;} 50%{opacity:1;scale:1.35;} }
+.welcome-kicker { border-color:rgba(177,108,255,.34); background:linear-gradient(100deg,rgba(126,54,205,.14),rgba(255,196,65,.06)); box-shadow:0 0 26px rgba(138,69,231,.09); }
+.welcome h2 em { background-image:linear-gradient(100deg,#d9a6ff 0%,#a94dff 35%,#ffe0a0 68%,#c17aff 100%); background-size:240% auto; animation:goldShimmer 5s linear infinite; }
+.workspace-card { background:linear-gradient(145deg,rgba(35,23,72,.72),rgba(11,14,35,.88)); border-color:rgba(167,116,255,.2); box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 38px rgba(0,0,0,.2); }
+.workspace-card::after { background:rgba(151,75,255,.13); }
+.workspace-card:hover { border-color:rgba(202,151,255,.58); box-shadow:0 18px 46px rgba(0,0,0,.3),0 0 30px rgba(146,75,255,.13); }
+.workspace-icon { color:#e2bdff; border-color:rgba(179,117,255,.28); background:linear-gradient(145deg,rgba(156,78,255,.24),rgba(255,194,65,.07)); box-shadow:0 5px 20px rgba(145,75,255,.12); }
+.composer { border-color:rgba(167,116,255,.28); background:rgba(13,12,34,.9); }
+.composer:focus-within { border-color:rgba(193,132,255,.72); box-shadow:0 12px 42px rgba(0,0,0,.3),0 0 0 4px rgba(154,80,255,.09),0 0 30px rgba(154,80,255,.14); }
+#send { background:linear-gradient(145deg,#e7c5ff,#a74eff 58%,#7130c7); color:#fff; box-shadow:0 4px 18px rgba(154,73,255,.34); }
+#send:not(:disabled):hover { box-shadow:0 7px 25px rgba(154,73,255,.48); }
+.thinking::after { content:none !important; display:none !important; }
+.thinking::before { border-color:rgba(182,112,255,.75); border-top-color:#ffd16b; box-shadow:0 0 14px rgba(156,78,255,.22); }
+.stars-avatar__core svg { filter:hue-rotate(245deg) saturate(1.5); }
+@media(max-width:650px) {
+  .welcome { padding-top:14px; }
+  .hero-reactor { width:132px; margin-bottom:0; }
+  .workspace-card { background:linear-gradient(145deg,rgba(35,23,72,.78),rgba(11,14,35,.92)); }
+}
+@media(prefers-reduced-motion:reduce) {
+  body,body::before,.brand svg,.reactor-halo,.reactor-ring,.reactor-core,.reactor-glint,.welcome h2 em { animation:none !important; }
+}
+
 </style>
 </head>
 <body>
@@ -812,6 +885,14 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   </aside>
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
+      <div class="hero-reactor" aria-hidden="true">
+        <span class="reactor-halo"></span>
+        <span class="reactor-ring reactor-ring-a"></span>
+        <span class="reactor-ring reactor-ring-b"></span>
+        <span class="reactor-ring reactor-ring-c"></span>
+        <span class="reactor-core"><b>Y</b></span>
+        <span class="reactor-glint"></span>
+      </div>
       <div class="welcome-kicker">TON ASSISTANT IA POUR ALLER PLUS LOIN</div>
       <h2 id="greet">Fais grandir tes idées avec <em>YvanAI</em>.</h2>
       <p>Crée du contenu, prépare tes publicités, développe ton activité ou donne vie à tes idées. YvanAI t'accompagne en français, simplement et rapidement.</p>
@@ -827,7 +908,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
           <span>Développe ton activité, prépare tes offres et tes publicités.</span>
         </button>
         <a class="workspace-card" href="/images">
-          <span class="workspace-icon" aria-hidden="true">✦</span>
+          <span class="workspace-icon" aria-hidden="true">◉</span>
           <strong>Studio</strong>
           <span>Crée des visuels avec l'IA et prépare tes contenus créatifs.</span>
         </a>
