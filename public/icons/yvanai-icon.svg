@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+<title id="title">YvanAI — symbole Y violet et or</title>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#17103b"/><stop offset=".55" stop-color="#08091d"/><stop offset="1" stop-color="#02030b"/></linearGradient>
+  <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f1c7ff"/><stop offset=".28" stop-color="#bd55ff"/><stop offset=".72" stop-color="#7026e8"/><stop offset="1" stop-color="#351078"/></linearGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff3b0"/><stop offset=".35" stop-color="#ffd34f"/><stop offset=".72" stop-color="#f2a900"/><stop offset="1" stop-color="#a95b00"/></linearGradient>
+  <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#8b36ff"/><stop offset=".48" stop-color="#f2c4ff"/><stop offset=".72" stop-color="#ffd34f"/><stop offset="1" stop-color="#a34cff"/></linearGradient>
+  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect x="18" y="18" width="476" height="476" rx="112" fill="url(#bg)" stroke="#8e48f6" stroke-opacity=".75" stroke-width="5"/>
+<rect x="28" y="28" width="456" height="456" rx="102" fill="none" stroke="#f8c84b" stroke-opacity=".55" stroke-width="2"/>
+<path d="M112 116h72l72 105 72-105h72L281 285v111h-50V285z" fill="url(#purple)" stroke="#e5b5ff" stroke-opacity=".75" stroke-width="5" stroke-linejoin="round" filter="url(#glow)"/>
+<path d="M256 221l72-105h72L281 285l-25 37-25-37z" fill="url(#gold)" opacity=".98"/>
+<ellipse cx="256" cy="256" rx="205" ry="82" transform="rotate(-24 256 256)" fill="none" stroke="url(#orbit)" stroke-width="15" stroke-linecap="round" filter="url(#glow)"/>
+<path d="M65 338c51 48 132 70 212 59 65-9 120-40 160-83" fill="none" stroke="#a54bff" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+</svg>
