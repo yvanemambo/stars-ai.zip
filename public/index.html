@@ -1235,9 +1235,88 @@ body::before {
   #historyPanel { width: min(340px, calc(100vw - 16px)); }
 }
 
+/* Sidebar discussions — indépendante du conteneur animé de l'application */
+#historyShade {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+  background: rgba(3, 5, 16, .62);
+  backdrop-filter: blur(2px);
+}
+#historyPanel {
+  position: fixed !important;
+  inset: 0 auto 0 0 !important;
+  z-index: 9999 !important;
+  box-sizing: border-box !important;
+  width: min(290px, calc(100vw - 36px)) !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  padding: max(18px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom)) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+  background: #101322 !important;
+  border-right: 1px solid rgba(255,255,255,.09) !important;
+  box-shadow: 16px 0 48px rgba(0,0,0,.38) !important;
+  transform: translateX(-105%);
+  transition: transform .22s ease;
+}
+#historyPanel.open { transform: translateX(0) !important; }
+#historyPanel .history-head { flex: 0 0 auto; min-height: 36px; }
+#historyPanel .history-head h2 { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+#historyNew {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-height: 42px;
+  justify-content: flex-start !important;
+  padding: 0 12px !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.055) !important;
+  border: 1px solid rgba(255,255,255,.11) !important;
+}
+#historyList {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 2px 8px 0 !important;
+}
+#historyList .history-item {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  border-radius: 9px !important;
+}
+#historyList .history-open { min-width: 0 !important; }
+#historyClear {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  justify-content: center !important;
+  min-height: 38px;
+  font-size: 12px;
+  opacity: .78;
+}
+@media (prefers-reduced-motion: reduce) {
+  #historyPanel { transition: none !important; }
+}
+
 </style>
 </head>
 <body>
+
+  <div id="historyShade" hidden></div>
+  <aside id="historyPanel" aria-label="Historique des discussions" aria-hidden="true">
+    <div class="history-head"><h2>Mes discussions</h2><button class="history-action" id="historyClose" type="button" aria-label="Fermer">✕</button></div>
+    <button class="btn-ghost" id="historyNew" type="button">＋ Nouvelle discussion</button>
+    <div id="historyList"><div class="history-empty">Chargement de tes discussions…</div></div>
+    <button class="btn-ghost" id="historyClear" type="button">Effacer tout l'historique</button>
+  </aside>
 
 <div class="app">
   <header>
@@ -1267,13 +1346,6 @@ body::before {
     </div>
   </header>
 
-  <div id="historyShade" hidden></div>
-  <aside id="historyPanel" aria-label="Historique des discussions" aria-hidden="true">
-    <div class="history-head"><h2>Mes discussions</h2><button class="history-action" id="historyClose" type="button" aria-label="Fermer">✕</button></div>
-    <button class="btn-ghost" id="historyNew" type="button">＋ Nouvelle discussion</button>
-    <div id="historyList"><div class="history-empty">Chargement de tes discussions…</div></div>
-    <button class="btn-ghost" id="historyClear" type="button">Effacer tout l'historique</button>
-  </aside>
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
       <div class="hero-reactor" aria-hidden="true">
