@@ -24,10 +24,10 @@ const OPENAI_MODEL = env("OPENAI_MODEL") || "gpt-4.1-mini";
 const OPENAI_BASE_URL = (env("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\/+$/, "");
 const GEMINI_API_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
-const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
+const MAX_TOKENS = Number(env("MAX_TOKENS")) || 4096; // limite par défaut pour des réponses plus rapides ; ajustable dans Render
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
 const DAILY_LIMIT = Number(env("DAILY_LIMIT")) || 500;              // messages / jour pour tout le site
-const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 20000;
+const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 12000;
 const GEMINI_BASE_URL = env("GEMINI_BASE_URL") || "https://generativelanguage.googleapis.com";
 const CLOUDFLARE_ACCOUNT_ID = env("CLOUDFLARE_ACCOUNT_ID");
 const CLOUDFLARE_API_TOKEN = env("CLOUDFLARE_API_TOKEN");
@@ -36,8 +36,7 @@ const CLOUDFLARE_BASE_URL = CLOUDFLARE_ACCOUNT_ID
   : "";
 const CLOUDFLARE_MODELS = [
   env("CLOUDFLARE_MODEL") || "@cf/zai-org/glm-4.7-flash",
-  "@cf/google/gemma-4-26b-a4b-it",
-  "@cf/nvidia/nemotron-3-120b-a12b"
+  "@cf/google/gemma-4-26b-a4b-it"
 ].filter((m, i, a) => a.indexOf(m) === i);
 const CLOUDFLARE_AI = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 
