@@ -1,7 +1,7 @@
 // STARS AI — petit serveur pour Render.
 // - Sert la page (public/index.html)
 // - Inscription : un code à 6 chiffres est envoyé par e-mail via un script Google (depuis le Gmail du propriétaire)
-// - Relaie les messages vers Gemini (GEMINI_API_KEY)
+// - Relaie les messages vers le fournisseur IA configuré (OpenAI en priorité si une clé existe, sinon Gemini).
 // Aucune dépendance : Node 20+ suffit.
 
 import http from "node:http";
@@ -252,7 +252,9 @@ Guide de référence sur les langages informatiques (document fourni par Yvan Ma
 `;
 
 function rules(name, voice, guide, memory) {
-  const tech = "STARS AI est propulsé par Gemini, un modèle de Google";
+  const tech = OPENAI_API_KEY
+    ? "STARS AI utilise OpenAI comme moteur principal" + (GEMINI_API_KEY ? ", avec Gemini de Google comme solution de secours" : "")
+    : "STARS AI utilise Gemini, un modèle de Google";
   const base = [
     "Tu es STARS AI, un assistant IA généraliste de grande qualité, fiable, attentif et naturel.",
     "OBJECTIF : comprendre précisément l'intention de la personne et lui apporter une réponse réellement utile, pas seulement produire du texte.",
