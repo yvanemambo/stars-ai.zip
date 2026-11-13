@@ -712,6 +712,62 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   .stars-avatar::after, .stars-avatar__orbit, .stars-avatar__core { animation: none !important; }
 }
 
+
+/* ===== STARS AI — voice states: listen, think, speak ===== */
+.orb {
+  overflow: visible;
+  transition: background .45s ease, box-shadow .45s ease, filter .35s ease, transform .3s ease;
+}
+.orb::before, .orb::after {
+  transition: border-color .35s ease, box-shadow .35s ease;
+}
+.voice[data-state="idle"] .orb {
+  background: radial-gradient(circle at 34% 28%, #fff4d2 0%, #f4c96b 46%, #98701f 100%);
+  box-shadow: 0 0 58px rgba(244,201,107,.28), inset 0 -10px 30px rgba(120,80,10,.35);
+}
+.voice[data-state="listening"] .orb {
+  background: radial-gradient(circle at 34% 28%, #e3fbff 0%, #55c9ed 42%, #235aaf 100%);
+  box-shadow: 0 0 76px rgba(69,190,255,.48), inset 0 -12px 30px rgba(10,44,105,.35);
+}
+.voice[data-state="listening"] .orb::before,
+.voice[data-state="listening"] .orb::after {
+  border-color: rgba(103,218,255,.75);
+  box-shadow: 0 0 20px rgba(65,190,255,.25);
+}
+.voice[data-state="thinking"] .orb {
+  background: radial-gradient(circle at 34% 28%, #f0e5ff 0%, #a987f4 43%, #5541a5 100%);
+  box-shadow: 0 0 78px rgba(157,115,255,.42), inset 0 -12px 30px rgba(48,25,105,.4);
+  filter: saturate(1) brightness(1);
+}
+.voice[data-state="thinking"] .orb::before,
+.voice[data-state="thinking"] .orb::after {
+  opacity: .8;
+  border-color: rgba(202,170,255,.75);
+  animation: thinkOrbit 2.4s linear infinite;
+}
+.voice[data-state="thinking"] .orb::after { animation-direction: reverse; animation-duration: 3.6s; inset: -18px; }
+.voice[data-state="speaking"] .orb {
+  background: radial-gradient(circle at 34% 28%, #fff2d9 0%, #ffc16b 42%, #e36d57 100%);
+  box-shadow: 0 0 84px rgba(255,153,98,.5), inset 0 -12px 30px rgba(115,38,28,.35);
+}
+.voice[data-state="speaking"] .orb::before,
+.voice[data-state="speaking"] .orb::after {
+  opacity: .85;
+  border-color: rgba(255,190,135,.7);
+  animation: speakWave .8s ease-out infinite;
+}
+.voice[data-state="speaking"] .orb::after { animation-delay: .4s; }
+.voice[data-state="listening"] .vstatus { color: #8cddff; text-shadow: 0 0 18px rgba(69,190,255,.35); }
+.voice[data-state="thinking"] .vstatus { color: #d0b8ff; text-shadow: 0 0 18px rgba(157,115,255,.4); }
+.voice[data-state="speaking"] .vstatus { color: #ffd09a; text-shadow: 0 0 18px rgba(255,153,98,.38); }
+@keyframes thinkOrbit { to { transform: rotate(360deg); } }
+@keyframes speakWave { from { transform: scale(.92); opacity: .75; } to { transform: scale(1.55); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .voice[data-state] .orb, .voice[data-state] .orb::before, .voice[data-state] .orb::after {
+    animation: none !important;
+  }
+}
+
 </style>
 </head>
 <body>
