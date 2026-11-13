@@ -19,6 +19,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const env = k => (process.env[k] || "").trim();
 
 // ---------- Réglages (modifiables dans Render > Environment) ----------
+const OPENAI_API_KEY = env("OPENAI_API_KEY");
+const OPENAI_MODEL = env("OPENAI_MODEL") || "gpt-5.5";
 const GEMINI_API_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 8192; // les corrections d'exercices peuvent être longues
@@ -219,7 +221,11 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
-const provider = GEMINI_API_KEY ? "gemini" : null;
+// OpenAI est prioritaire par défaut. AI_PROVIDER=gemini permet de choisir Gemini en premier.
+const providerPreference = env("AI_PROVIDER").toLowerCase();
+const provider = providerPreference === "gemini" && GEMINI_API_KEY
+  ? "gemini"
+  : OPENAI_API_KEY ? "openai" : GEMINI_API_KEY ? "gemini" : null;
 
 const VOICE_RULES = `
 
@@ -249,7 +255,10 @@ Guide de référence sur les langages informatiques (document fourni par Yvan Ma
 `;
 
 function rules(name, voice, guide, memory) {
-  const tech = "STARS AI est propulsé par Gemini, un modèle de Google";
+  const tech = OPENAI_API_KEY && GEMINI_API_KEY
+    ? "STARS AI peut utiliser les modèles d'OpenAI et Gemini de Google, selon la disponibilité"
+    : OPENAI_API_KEY ? "STARS AI utilise un modèle d'OpenAI"
+    : "STARS AI utilise Gemini, un modèle de Google";
   const base = [
     "Tu es STARS AI, un assistant IA généraliste de grande qualité, fiable, attentif et naturel.",
     "OBJECTIF : comprendre précisément l'intention de la personne et lui apporter une réponse réellement utile, pas seulement produire du texte.",
@@ -591,6 +600,19 @@ const toGemini = messages => messages.map(m => ({
   parts: [...m.images.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } })), { text: m.content }]
 }));
 
+const toOpenAI = messages => messages.map(m => ({
+  role: m.role,
+  content: m.images.length
+    ? [
+        ...(m.content.trim() ? [{ type: "text", text: m.content }] : []),
+        ...m.images.map(i => ({
+          type: "image_url",
+          image_url: { url: `data:${i.mime};base64,${i.data}`, detail: "high" }
+        }))
+      ]
+    : m.content
+}));
+
 // ---------- Lecture d'un flux SSE ----------
 async function* sse(body) {
   const decoder = new TextDecoder();
@@ -680,6 +702,69 @@ async function* streamGemini(res) {
   }
 }
 
+// ---------- OpenAI ----------
+// Le format SSE est identique à celui déjà utilisé par le serveur pour Gemini.
+async function callOpenAI(messages, signal, name, voice, guide, memory) {
+  const apiMessages = [
+    { role: "system", content: rules(name, voice, guide, memory) },
+    ...toOpenAI(messages)
+  ];
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    signal: withTimeout(signal, FIRST_BYTE_TIMEOUT_MS),
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: apiMessages,
+      stream: true,
+      max_completion_tokens: MAX_TOKENS
+    })
+  });
+  if (res.ok) return { res, model: OPENAI_MODEL };
+  const detail = await res.text().catch(() => "");
+  throw new UpstreamError(codeFor(res.status), res.status, detail);
+}
+
+async function* streamOpenAI(res) {
+  for await (const ev of sse(res.body)) {
+    if (ev.error) throw new UpstreamError("upstream_error", ev.error.code || 500, JSON.stringify(ev.error));
+    const c = ev.choices?.[0];
+    if (!c) continue;
+    if (c.delta?.refusal) yield { refused: true };
+    if (typeof c.delta?.content === "string" && c.delta.content) yield { t: c.delta.content };
+    if (c.finish_reason === "length") yield { truncated: true };
+    else if (c.finish_reason === "content_filter") yield { refused: true };
+  }
+}
+
+// Essaie le fournisseur choisi en premier, puis l'autre si une clé est configurée.
+async function callAI(messages, signal, name, voice, guide, memory) {
+  const order = provider === "openai" ? ["openai", "gemini"] : ["gemini", "openai"];
+  let last = new UpstreamError("no_key", 503, "Aucune clé IA configurée");
+  for (const p of order) {
+    if (p === "openai" && OPENAI_API_KEY) {
+      try { return { ...(await callOpenAI(messages, signal, name, voice, guide, memory)), provider: p }; }
+      catch (e) {
+        if (signal.aborted) throw e;
+        last = e;
+        console.warn("[openai] échec, tentative avec l'autre fournisseur :", e.code || e.message);
+      }
+    }
+    if (p === "gemini" && GEMINI_API_KEY) {
+      try { return { ...(await callGemini(messages, signal, name, voice, guide, memory)), provider: p }; }
+      catch (e) {
+        if (signal.aborted) throw e;
+        last = e;
+        console.warn("[gemini] échec, tentative avec l'autre fournisseur :", e.code || e.message);
+      }
+    }
+  }
+  throw last;
+}
+
 // ---------- HTTP ----------
 function json(res, status, obj) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -732,6 +817,23 @@ async function runMemoryCommand(email, cmd, mem) {
 // Requête courte (sans flux) pour extraire des souvenirs ; renvoie le texte JSON de l'IA.
 async function extractWithAI(prov, content) {
   const signal = AbortSignal.timeout(25000);
+  if (prov === "openai") {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST", signal,
+      headers: { "content-type": "application/json", "authorization": `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [
+          { role: "system", content: EXTRACTION_SYSTEM },
+          { role: "user", content }
+        ],
+        max_completion_tokens: 900,
+        response_format: { type: "json_object" }
+      })
+    });
+    if (!r.ok) throw new Error("OpenAI HTTP " + r.status);
+    return (await r.json()).choices?.[0]?.message?.content || "";
+  }
   const model = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)])[0];
   const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST", signal,
@@ -994,22 +1096,22 @@ async function handleChat(req, res, ip) {
   res.on("close", () => { if (!res.writableEnded) ac.abort(); });
 
   let upstream;
-  const prov = provider;
   const voice = payload?.voice === true;
   const guide = guideFor(messages);
   try {
-    upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
+    upstream = await callAI(messages, ac.signal, user?.name, voice, guide, memText);
   } catch (e) {
     if (ac.signal.aborted) return;
-    console.error(`[${prov}]`, e.code || e.message, e.status || "", (e.detail || "").slice(0, 300));
+    console.error("[ia]", e.code || e.message, e.status || "", (e.detail || "").slice(0, 300));
     return json(res, 502, { code: e.code || "upstream_error" });
   }
+  const prov = upstream.provider;
 
   res.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" });
   const send = obj => res.write(JSON.stringify(obj) + "\n");
   let truncated = false, refused = false, any = false, reply = "";
   try {
-    const gen = streamGemini(upstream.res);
+    const gen = prov === "openai" ? streamOpenAI(upstream.res) : streamGemini(upstream.res);
     for await (const ev of gen) {
       if (ev.t) { any = true; if (reply.length < 4000) reply += ev.t; send({ t: ev.t }); }
       if (ev.truncated) truncated = true;
@@ -1473,8 +1575,18 @@ const server = http.createServer(async (req, res) => {
 
 // ---------- Vérifications au démarrage (résultat dans les journaux Render, sans afficher les clés) ----------
 async function selfCheck() {
-  try {
-    if (provider === "gemini") {
+  if (OPENAI_API_KEY) {
+    try {
+      const r = await fetch("https://api.openai.com/v1/models", {
+        headers: { "authorization": `Bearer ${OPENAI_API_KEY}` },
+        signal: AbortSignal.timeout(20000)
+      });
+      if (r.ok) console.log("[vérif] Clé OpenAI OK.");
+      else console.error(`[vérif] Clé OpenAI REFUSÉE (HTTP ${r.status}).`);
+    } catch (e) { console.error("[vérif] OpenAI injoignable :", e.message); }
+  }
+  if (GEMINI_API_KEY) {
+    try {
       const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models?pageSize=200`, { headers: { "x-goog-api-key": GEMINI_API_KEY }, signal: AbortSignal.timeout(20000) });
       const body = await r.text();
       if (!r.ok) console.error(`[vérif] Clé Gemini REFUSÉE (HTTP ${r.status}) : ${body.slice(0, 300)}`);
@@ -1483,9 +1595,7 @@ async function selfCheck() {
         console.log(`[vérif] Clé Gemini OK — ${names.length} modèles disponibles.`);
         for (const m of [GEMINI_MODEL, ...GEMINI_FALLBACKS]) if (!names.includes(m)) pauseModel(m, 6 * 3600_000, "absent de la liste Google");
       }
-    }
-  } catch (e) {
-    console.error("[vérif] Impossible de joindre l'IA :", e.message);
+    } catch (e) { console.error("[vérif] Gemini injoignable :", e.message); }
   }
   if (MEMBERS) {
     try {
@@ -1539,6 +1649,7 @@ async function selfCheck() {
 }
 
 server.listen(PORT, () => {
-  console.log(`STARS AI en ligne sur le port ${PORT} — IA : ${provider ? provider + " (" + GEMINI_MODEL + ")" : "AUCUNE CLÉ"} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
+  const modelLabel = provider === "openai" ? OPENAI_MODEL : provider === "gemini" ? GEMINI_MODEL : "AUCUNE CLÉ";
+  console.log(`STARS AI en ligne sur le port ${PORT} — IA prioritaire : ${modelLabel} (${provider || "aucun fournisseur"}) — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
   if (process.env.SKIP_SELF_CHECK !== "1") selfCheck();
 });
