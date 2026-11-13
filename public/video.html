@@ -10,12 +10,12 @@
 *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(90% 60% at 50% 0%,#18204b,var(--bg) 70%);color:var(--ink)}
 a{color:inherit;text-decoration:none}.wrap{width:min(1120px,100%);margin:auto;padding:24px 18px 60px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:30px}.brand{font-weight:800;letter-spacing:.12em}.brand span{color:var(--gold)}
-.back,.btn{border:1px solid var(--line);border-radius:12px;padding:10px 15px;background:#151d40;color:var(--ink);font:600 14px inherit;cursor:pointer}.back:hover,.btn:hover{border-color:var(--gold)}
+.back,.btn{border:1px solid var(--line);border-radius:12px;padding:10px 15px;background:#151d40;color:var(--ink);font:600 14px/1.3 system-ui,sans-serif;cursor:pointer}.back:hover,.btn:hover{border-color:var(--gold)}
 h1{font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing:-.04em}h1 em{font-style:normal;color:var(--gold)}
 .lead{color:var(--muted);line-height:1.65;max-width:660px;margin:0 0 24px}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,390px);gap:22px;align-items:start}
 .panel{background:rgba(17,25,54,.86);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 20px 50px #0003}
-label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{width:100%;min-height:140px;resize:vertical;background:#080e27;border:1px solid var(--line);border-radius:13px;color:var(--ink);padding:14px;font:15px/1.6 inherit;outline:none}textarea:focus{border-color:var(--gold)}
+label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{width:100%;min-height:140px;resize:vertical;background:#080e27;border:1px solid var(--line);border-radius:13px;color:var(--ink);padding:14px;font:15px/1.6 system-ui,sans-serif;outline:none}textarea:focus{border-color:var(--gold)}
 .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.primary{background:linear-gradient(120deg,#f4c96b,#ffe6a6);color:#171323;border:0}.primary:disabled{opacity:.5;cursor:wait}
 .hint,.status{font-size:13px;line-height:1.55;color:var(--muted);margin-top:12px}.status.error{color:#ff9b9b}.status.ok{color:#8ee5b2}
 .preview{display:grid;gap:12px}.screen{width:min(100%,280px);aspect-ratio:9/16;margin:auto;border-radius:18px;overflow:hidden;border:1px solid #ffffff25;background:#05091c;box-shadow:0 18px 45px #0008}.screen canvas{display:block;width:100%;height:100%}
@@ -93,7 +93,7 @@ make.addEventListener("click",async()=>{
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error(data.code||"claude_error");
   showScript(data.script);setStatus("Storyboard prêt. Tu peux prévisualiser les scènes puis exporter la vidéo.","ok");
- }catch(e){const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",claude_not_configured:"La clé Claude n'est pas configurée sur le serveur. Ajoute ANTHROPIC_API_KEY dans Render > Environment.",claude_bad_key:"La clé Claude a été refusée. Vérifie-la dans Render sans la partager ici.",claude_busy:"Claude est temporairement occupé ou la limite API est atteinte.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Claude n'a pas renvoyé un storyboard valide. Réessaie.",claude_unavailable:"Impossible de joindre Claude pour le moment."};setStatus(messages[e.message]||"La création du storyboard a échoué. Réessaie.","error")}
+ }catch(e){const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",claude_not_configured:"La clé Claude n'est pas configurée sur le serveur. Ajoute CLAUDE_API_KEY ou ANTHROPIC_API_KEY dans Render > Environment.",claude_bad_key:"La clé Claude a été refusée. Vérifie-la dans Render sans la partager ici.",claude_busy:"Claude est temporairement occupé ou la limite API est atteinte.",free_limit:"Tu as atteint ta limite gratuite quotidienne pour les demandes IA.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Claude n'a pas renvoyé un storyboard valide. Réessaie.",claude_unavailable:"Impossible de joindre Claude pour le moment."};setStatus(messages[e.message]||"La création du storyboard a échoué. Réessaie.","error")}
  finally{make.disabled=false}
 });
 render.addEventListener("click",()=>{
@@ -102,12 +102,12 @@ render.addEventListener("click",()=>{
  const mime=types.find(t=>MediaRecorder.isTypeSupported(t));if(!mime){setStatus("L'export WebM n'est pas pris en charge par ce navigateur. Essaie Chrome ou Edge.","error");return}
  const chunks=[];let recorder;
  try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:5000000})}catch(e){setStatus("Impossible de démarrer l'export sur cet appareil.","error");return}
- render.disabled=true;make.disabled=true;download.style.display="none";bar.style.width="0%";setStatus("Export en cours… garde cette page ouverte pendant 30 secondes.");
+ render.disabled=true;make.disabled=true;cancelAnimationFrame(raf);download.style.display="none";bar.style.width="0%";setStatus("Export en cours… garde cette page ouverte pendant 30 secondes.");
  const start=performance.now();previewStart=start;
  recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
  recorder.onerror=()=>{setStatus("Une erreur est survenue pendant l'export.","error");render.disabled=false;make.disabled=false;stream.getTracks().forEach(t=>t.stop())};
  recorder.onstop=()=>{
-  stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger ma vidéo (.webm)";download.innerHTML="";download.append(a);download.style.display="block";setStatus("Vidéo terminée ! Télécharge ton fichier WebM.","ok");render.disabled=false;make.disabled=false;
+  stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger ma vidéo (.webm)";download.innerHTML="";download.append(a);download.style.display="block";setStatus("Vidéo terminée ! Télécharge ton fichier WebM.","ok");render.disabled=false;make.disabled=false;previewStart=performance.now();animate();
  };
  recorder.start(500);
  function tick(now){const elapsed=Math.min(DURATION,now-start);draw(elapsed);bar.style.width=(elapsed/DURATION*100)+"%";if(elapsed>=DURATION){recorder.stop();return}requestAnimationFrame(tick)}
