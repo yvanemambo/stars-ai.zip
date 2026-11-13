@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
 <style>
-/* Layout: one-screen chat under a live star field; header, scrolling thread, composer docked at the bottom. Single committed night look. */
+/* Layout: premium animated night interface with aurora lighting; header, scrolling thread, composer docked at the bottom. */
 :root {
   --sky: #070b1f;
   --sky-2: #0f1534;
@@ -46,7 +46,6 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 [hidden] { display: none !important; }
-#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
 .app {
   position: relative; z-index: 1;
   height: 100%;
@@ -940,8 +939,6 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
 </head>
 <body>
 
-<canvas id="sky" aria-hidden="true"></canvas>
-
 <div class="app">
   <header>
     <div class="brand">
@@ -1173,35 +1170,6 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
 
 <script>
 (() => {
-  /* ---------- Star field ---------- */
-  const cv = document.getElementById("sky"), cx = cv.getContext("2d");
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let stars = [], W = 0, H = 0, dpr = 1;
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    W = cv.clientWidth; H = cv.clientHeight;
-    cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const n = Math.round((W * H) / 5200);
-    stars = Array.from({ length: n }, () => ({
-      x: Math.random() * W, y: Math.random() * H,
-      r: Math.random() < 0.08 ? 1.4 + Math.random() : 0.4 + Math.random() * 0.8,
-      p: Math.random() * Math.PI * 2, s: 0.4 + Math.random() * 1.4,
-      gold: Math.random() < 0.12
-    }));
-  }
-  function draw(t) {
-    cx.clearRect(0, 0, W, H);
-    for (const s of stars) {
-      const a = reduce ? 0.7 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(s.p + t * 0.001 * s.s));
-      cx.globalAlpha = a;
-      cx.fillStyle = s.gold ? "#f4c96b" : "#dfe4ff";
-      cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.fill();
-    }
-    cx.globalAlpha = 1;
-    if (!reduce) requestAnimationFrame(draw);
-  }
-  addEventListener("resize", resize); resize(); requestAnimationFrame(draw);
-
   /* ---------- Greeting by time of day ---------- */
   function greet(name) {
     const h = new Date().getHours();
