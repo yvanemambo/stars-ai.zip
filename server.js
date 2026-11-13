@@ -154,7 +154,7 @@ const CLOUDFLARE_IMAGES = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);
 const IMAGE_PREMIUM_DAILY = numEnv("IMAGE_PREMIUM_DAILY", 30);
 const IMAGE_SITE_DAILY = numEnv("IMAGE_SITE_DAILY", 100);
-const IMAGES_ON = (CLOUDFLARE_IMAGES || !!GEMINI_API_KEY) && MEMBERS && env("IMAGES_ENABLED") !== "0";
+const IMAGES_ON = false; // Génération d'images désactivée à la demande.
 const IMAGE_SIZES = { carre: "1:1", portrait: "3:4", paysage: "4:3" };
 const IMAGE_SAFE_SUFFIX = "\n\n(Image adaptée à tous les publics : pas de nudité, pas de violence explicite, pas de personne réelle identifiable.)";
 const imageBusy = new Set();
