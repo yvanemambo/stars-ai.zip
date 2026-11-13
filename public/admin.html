@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070b1f">
 <meta name="robots" content="noindex">
-<title>Tableau de bord STARS AI</title>
+<title>Tableau de bord YvanAI</title>
 <link rel="icon" href="/icons/favicon-48.png">
 <style>
   /* Layout: owner dashboard — KPI tiles, then the work queue (payments to verify), then grant/report/member lists. */
-  :root { color-scheme: dark; --ink: #e9ecfb; --dim: #9aa3cf; --star: #f4c96b; --star-ink: #1a1404; --line: rgba(160,172,230,.16); --panel: rgba(22,29,66,.72); --ok: #7ee2a8; --danger: #ff8a8a; }
+  :root { color-scheme: dark; --ink: #e9ecfb; --dim: #9aa3cf; --gold: #f4c96b; --gold-ink: #1a1404; --line: rgba(160,172,230,.16); --panel: rgba(22,29,66,.72); --ok: #7ee2a8; --danger: #ff8a8a; }
   * { box-sizing: border-box; }
   html { background: #070b1f; }
   body {
@@ -21,18 +21,18 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: .12em; }
   .brand img { width: 30px; height: 30px; border-radius: 8px; }
-  .brand span { color: var(--star); }
+  .brand span { color: var(--gold); }
   h1 { margin: 0; font-size: 22px; }
   .sub { color: var(--dim); font-size: 13px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
   .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
   .tile .k { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
   .tile .v { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
-  .tile.gold .v { color: var(--star); }
+  .tile.gold .v { color: var(--gold); }
   .tile.alert { border-color: rgba(244,201,107,.6); }
   section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
   section.card h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
-  .count { font-size: 12px; background: var(--star); color: var(--star-ink); border-radius: 999px; padding: 1px 8px; font-weight: 700; }
+  .count { font-size: 12px; background: var(--gold); color: var(--gold-ink); border-radius: 999px; padding: 1px 8px; font-weight: 700; }
   .empty { color: var(--dim); }
   .item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 6px; background: rgba(5,8,24,.45); }
   .row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
@@ -42,7 +42,7 @@
   .quote { color: #d4d9f3; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 9em; overflow: auto; border-left: 2px solid var(--line); padding-left: 10px; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn { cursor: pointer; font: 600 14px system-ui, sans-serif; border-radius: 10px; padding: 9px 14px; border: 1px solid var(--line); background: transparent; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-  .btn.ok { background: var(--star); color: var(--star-ink); border-color: var(--star); }
+  .btn.ok { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
   .btn.no { color: var(--danger); border-color: rgba(255,138,138,.4); }
   .btn:disabled { opacity: .55; cursor: default; }
   .btn:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -63,7 +63,7 @@
 <body>
 <main>
   <header>
-    <a class="brand" href="/"><img src="/icons/icon-192.png" alt="">STARS <span>AI</span></a>
+    <a class="brand" href="/" aria-label="YvanAI">YvanAI</a>
     <div class="actions"><button class="btn" type="button" id="refresh">↻ Actualiser</button><a class="btn" href="/">Retour au chat</a></div>
   </header>
 
@@ -86,7 +86,7 @@
 
     <section class="card" id="pushCard">
       <h2>🔔 Notifications sur ce téléphone</h2>
-      <p class="muted" id="pushText">Reçois une notification à chaque nouvelle demande de paiement Premium. Active-les depuis ton téléphone (dans Chrome ou dans l'appli STARS AI).</p>
+      <p class="muted" id="pushText">Reçois une notification à chaque nouvelle demande de paiement Premium. Active-les depuis ton téléphone (dans Chrome ou dans YvanAI).</p>
       <div class="actions">
         <button class="btn ok" type="button" id="pushBtn">Activer les notifications</button>
         <button class="btn" type="button" id="pushTest" hidden>Envoyer une notification de test</button>
@@ -201,7 +201,7 @@
     if (!list.length) { const tr = el("tr"); const td = el("td", "empty", "Personne pour l'instant."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
     for (const m of list) {
       const tr = el("tr");
-      const prem = m.premium_until && new Date(m.premium_until) > new Date() ? "⭐ jusqu'au " + fmtDay(m.premium_until) : "—";
+      const prem = m.premium_until && new Date(m.premium_until) > new Date() ? "Jusqu'au " + fmtDay(m.premium_until) : "—";
       tr.append(el("td", null, m.name || "—"), el("td", "email", m.email), el("td", null, fmtDay(m.created_at)), el("td", null, prem));
       tb.append(tr);
     }
@@ -209,8 +209,8 @@
 
   async function load() {
     const { ok, status, data } = await api("/api/admin/overview");
-    if (status === 401) return gate('<h2>Connecte-toi d\'abord</h2><p class="empty">Le tableau de bord est réservé au propriétaire de STARS AI.</p><a class="btn ok" href="/">Se connecter</a>');
-    if (status === 403) return gate('<h2>Accès réservé</h2><p class="empty">Ce compte n\'est pas administrateur de STARS AI.</p><a class="btn" href="/">Retour au chat</a>');
+    if (status === 401) return gate('<h2>Connecte-toi d\'abord</h2><p class="empty">Le tableau de bord est réservé au propriétaire de YvanAI.</p><a class="btn ok" href="/">Se connecter</a>');
+    if (status === 403) return gate('<h2>Accès réservé</h2><p class="empty">Ce compte n\'est pas administrateur de YvanAI.</p><a class="btn" href="/">Retour au chat</a>');
     if (!ok) return gate('<h2>Données indisponibles</h2><p class="empty">Réessaie dans un instant.</p>');
     $("gate").hidden = true; $("app").hidden = false;
     $("t-members").textContent = fmtN(data.members);
