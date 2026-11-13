@@ -927,7 +927,7 @@ async function imageApi(req, res, url) {
     let b64 = "", mime = "image/jpeg", providerName = "Gemini";
     if (CLOUDFLARE_IMAGES) {
       providerName = "Cloudflare";
-      const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${encodeURIComponent(CLOUDFLARE_IMAGE_MODEL)}`, {
+      const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${CLOUDFLARE_IMAGE_MODEL.split("/").map(part => encodeURIComponent(part).replace(/^%40/i, "@")).join("/") }`, {
         method: "POST", signal: AbortSignal.timeout(180_000),
         headers: { "content-type": "application/json", authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
         body: JSON.stringify({ prompt: (prompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
