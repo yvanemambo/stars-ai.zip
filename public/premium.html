@@ -34,7 +34,7 @@
   .card p { margin: 0; color: var(--dim); font-size: 15px; }
   ul.perks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   ul.perks li { display: flex; gap: 10px; align-items: flex-start; }
-  ul.perks li::before { content: "★"; color: var(--star); flex: none; }
+  ul.perks li::before { content: "✓"; color: var(--star); flex: none; }
   .methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
   .method { cursor: pointer; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(5,8,24,.5); color: var(--ink); font: 600 14px system-ui, sans-serif; }
   .method[aria-pressed="true"] { border-color: var(--star); background: rgba(244,201,107,.12); color: var(--star); }
@@ -95,7 +95,7 @@
   </section>
 
   <section class="card" id="activeCard" hidden>
-    <h2 class="ok" id="activeTitle">⭐ Ton Premium est actif</h2>
+    <h2 class="ok" id="activeTitle">✓ Ton Premium est actif</h2>
     <p id="activeText"></p>
     <button class="btn ghost" type="button" id="extendBtn">Prolonger mon Premium</button>
   </section>
