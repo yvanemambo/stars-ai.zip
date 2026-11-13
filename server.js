@@ -1654,6 +1654,11 @@ async function handleDeleteAccount(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const host = String(req.headers.host || "").toLowerCase().split(":")[0];
+  if (host === ["stars", "ai"].join("-") + ".onrender.com") {
+    res.writeHead(410, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+    return res.end("Cet ancien service a été retiré. Utilise YvanAI sur yvan-ai.onrender.com.");
+  }
   const url = new URL(req.url, "http://x");
   const ip = clientIp(req);
   try {
