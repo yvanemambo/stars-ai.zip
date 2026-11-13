@@ -452,6 +452,14 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
 }
 
 
+/* YvanAI live response states — Y mark only, no star motifs */
+.msg.ai .avatar { filter: drop-shadow(0 0 7px rgba(164,112,255,.3)); }
+.msg.ai:has(.thinking) .avatar { animation: rootAvatarThink 1.5s ease-in-out infinite; }
+.msg.ai:not(:has(.thinking)) .bubble { animation: yvanAnswerArrive .35s ease-out both; }
+.thinking::before { border-color:rgba(174,125,255,.65); border-top-color:#ffd16b; border-right-color:rgba(174,125,255,.9); }
+@keyframes rootAvatarThink { 50% { transform:scale(1.08); filter:drop-shadow(0 0 12px rgba(174,125,255,.65)); } }
+@keyframes yvanAnswerArrive { from {opacity:.45;transform:translateY(5px)} to {opacity:1;transform:translateY(0)} }
+@media(prefers-reduced-motion:reduce){.msg.ai:has(.thinking) .avatar,.msg.ai:not(:has(.thinking)) .bubble{animation:none!important}}
 </style>
 </head>
 <body>
@@ -691,7 +699,7 @@ header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(
   const fine = document.getElementById("fine");
   const SEND_ICON = send.innerHTML;
   const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
-  const AVATAR = '<svg class="avatar" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#161d42" stroke="rgba(244,201,107,.45)"/><path d="M16 6 L18.2 13.8 L26 16 L18.2 18.2 L16 26 L13.8 18.2 L6 16 L13.8 13.8 Z" fill="#f4c96b"/></svg>';
+  const AVATAR = '<svg class="avatar" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#161d42" stroke="rgba(174,125,255,.65)"/><path d="M8 7.5h16M16 7.5v17M16 17l-7 7M16 17l7 7" fill="none" stroke="url(#rootYGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="rootYGradient" x1="8" y1="7" x2="25" y2="25"><stop stop-color="#c9a0ff"/><stop offset="1" stop-color="#ffd16b"/></linearGradient></defs></svg>';
 
   let turns = [], ctl = null, busy = false, me = null;
   let activeConversationId = null, saveTimer = null, historyItems = [], cloudHistoryReady = false;
