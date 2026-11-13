@@ -25,7 +25,7 @@ main{max-width:760px;margin:0 auto;display:grid;gap:18px}header{display:flex;ali
 <div class="field"><label for="size">Format de l’image</label><select id="size"><option value="carre">Carré (1:1)</option><option value="portrait">Portrait (3:4)</option><option value="paysage">Paysage (4:3)</option></select></div>
 <div class="field"><label>Modèle</label><div style="padding:12px;border:1px solid var(--line);border-radius:12px;color:var(--dim)">Gemini Image</div></div>
 </div>
-<button class="btn" id="generate" type="button">✨ Générer l’image</button>
+<button class="btn" id="generate" type="button">Générer l’image</button>
 <div class="status" id="status" role="status" aria-live="polite"></div>
 <p class="hint">Les comptes gratuits disposent de 3 générations par jour. Les images sont soumises aux règles de sécurité.</p>
 </section>
@@ -42,7 +42,7 @@ $("generate").addEventListener("click",async()=>{
  const btn=$("generate");btn.disabled=true;btn.textContent="Création en cours…";status.className="status";status.textContent="Gemini prépare ton image. Cela peut prendre quelques instants."; $("result").hidden=true;
  try{const d=await api("/api/image",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt,size:$("size").value})});$("output").src=d.image;$("download").href=d.image;$("result").hidden=false;status.textContent="Image créée avec succès.";await loadQuota();}
  catch(e){status.textContent=e.message;status.className="status error";if(e.data?.used!==undefined)$("quota").textContent="Images utilisées aujourd’hui : "+e.data.used+" / "+e.data.limit; }
- finally{btn.disabled=false;btn.textContent="✨ Générer l’image";}
+ finally{btn.disabled=false;btn.textContent="Générer l’image";}
 });
 loadQuota();
 </script>
