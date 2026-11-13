@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b1f">
+<title>Création vidéo — YvanAI</title>
+<style>
+:root{color-scheme:dark;--bg:#070b1f;--panel:#111936;--line:rgba(160,172,230,.2);--ink:#eef0ff;--muted:#a3add6;--gold:#f4c96b;--cyan:#63d9ff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(90% 60% at 50% 0%,#18204b,var(--bg) 70%);color:var(--ink)}
+a{color:inherit;text-decoration:none}.wrap{width:min(1120px,100%);margin:auto;padding:24px 18px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:30px}.brand{font-weight:800;letter-spacing:.12em}.brand span{color:var(--gold)}
+.back,.btn{border:1px solid var(--line);border-radius:12px;padding:10px 15px;background:#151d40;color:var(--ink);font:600 14px inherit;cursor:pointer}.back:hover,.btn:hover{border-color:var(--gold)}
+h1{font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing:-.04em}h1 em{font-style:normal;color:var(--gold)}
+.lead{color:var(--muted);line-height:1.65;max-width:660px;margin:0 0 24px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,390px);gap:22px;align-items:start}
+.panel{background:rgba(17,25,54,.86);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 20px 50px #0003}
+label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{width:100%;min-height:140px;resize:vertical;background:#080e27;border:1px solid var(--line);border-radius:13px;color:var(--ink);padding:14px;font:15px/1.6 inherit;outline:none}textarea:focus{border-color:var(--gold)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.primary{background:linear-gradient(120deg,#f4c96b,#ffe6a6);color:#171323;border:0}.primary:disabled{opacity:.5;cursor:wait}
+.hint,.status{font-size:13px;line-height:1.55;color:var(--muted);margin-top:12px}.status.error{color:#ff9b9b}.status.ok{color:#8ee5b2}
+.preview{display:grid;gap:12px}.screen{width:min(100%,280px);aspect-ratio:9/16;margin:auto;border-radius:18px;overflow:hidden;border:1px solid #ffffff25;background:#05091c;box-shadow:0 18px 45px #0008}.screen canvas{display:block;width:100%;height:100%}
+.progress{height:7px;background:#070d24;border-radius:99px;overflow:hidden;margin-top:12px}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .1s}
+.scenes{display:grid;gap:8px;margin-top:18px}.scene{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:11px;border:1px solid var(--line);border-radius:12px;background:#0b1230}.num{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:#252d57;color:var(--gold);font-weight:800;font-size:12px}.scene strong{display:block;font-size:13px;margin-bottom:3px}.scene small{display:block;color:var(--muted);line-height:1.4}
+.smallprint{color:var(--muted);font-size:12px;line-height:1.6;margin-top:18px}.download{display:none;margin-top:10px;text-align:center}.download a{display:inline-block;padding:11px 16px;background:#153c36;color:#a4f4d5;border-radius:12px;font-weight:700}
+@media(max-width:820px){.layout{grid-template-columns:1fr}.preview{grid-row:1}.screen{width:min(58vw,230px)}.wrap{padding-top:16px}.panel{padding:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a class="brand" href="/">Yvan<span>AI</span></a><a class="back" href="/">← Retour au chat</a></div>
+  <h1>Donne vie à tes idées avec <em>la vidéo.</em></h1>
+  <p class="lead">Décris ton projet. Claude prépare six scènes, puis YvanAI les anime en Motion Design et te permet d'enregistrer la vidéo.</p>
+  <div class="layout">
+    <section class="panel">
+      <label for="brief">Que veux-tu voir dans ta vidéo ?</label>
+      <textarea id="brief" maxlength="1200" placeholder="Exemple : une publicité de 30 secondes pour mon magasin d'électronique à Abidjan. Présente Arduino, LED et capteurs, avec un style futuriste bleu et violet."></textarea>
+      <div class="controls"><button class="btn primary" id="make">✨ Créer le storyboard avec Claude</button><button class="btn" id="render" disabled>▶ Exporter la vidéo (30 s)</button></div>
+      <div class="status" id="status" role="status">Durée : 30 secondes · Format vertical 9:16 · 1080 × 1920.</div>
+      <div class="progress" aria-label="Progression de l'export"><span id="bar"></span></div>
+      <div class="download" id="download"></div>
+      <div class="smallprint">La préparation du storyboard utilise ta clé API Claude et peut consommer des crédits. L'animation est rendue dans ton navigateur. L'export actuel est au format WebM (pas MP4) et ne contient pas encore de voix off ni de musique.</div>
+    </section>
+    <aside class="panel preview">
+      <div class="screen"><canvas id="canvas" width="540" height="960"></canvas></div>
+      <div><strong id="previewTitle">Aperçu Motion Design</strong><div class="hint">Ton animation apparaîtra ici après la création du storyboard.</div></div>
+      <div class="scenes" id="scenes"></div>
+    </aside>
+  </div>
+</div>
+<script>
+(() => {
+const $=id=>document.getElementById(id), brief=$("brief"), make=$("make"), render=$("render"), status=$("status"), canvas=$("canvas"), ctx=canvas.getContext("2d"), bar=$("bar"), scenesBox=$("scenes"), download=$("download");
+let script=null, previewFrame=0, previewStart=performance.now(), raf=0;
+const W=canvas.width,H=canvas.height,DURATION=30000;
+const clean=s=>String(s||"").replace(/[<>]/g,"").trim();
+function setStatus(t,type=""){status.className="status "+type;status.textContent=t}
+function wrap(text,max){const words=String(text||"").split(/\s+/);const lines=[];let line="";for(const word of words){const next=line?line+" "+word:word;if(ctx.measureText(next).width>max&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);return lines.slice(0,4)}
+function draw(t){
+ const scenes=script?.scenes||[{title:"YvanAI",subtitle:"Ton idée prend vie.",visual:"particles"}];
+ const total=scenes.length, duration=DURATION/total, idx=Math.min(total-1,Math.floor(t/duration)), local=(t-idx*duration)/duration, scene=scenes[idx];
+ const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#111b48");g.addColorStop(.55,"#090f2c");g.addColorStop(1,"#050817");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ const pulse=.5+.5*Math.sin(t/850), cx=W/2, cy=H*.40;
+ ctx.save();ctx.globalAlpha=.18;
+ for(let i=0;i<8;i++){const a=t/1800+i*Math.PI/4,r=120+((i*37+t/22)%150);ctx.beginPath();ctx.arc(cx+Math.cos(a)*r,cy+Math.sin(a)*r,r*.25,0,Math.PI*2);ctx.fillStyle=i%2?"#63d9ff":"#a77cff";ctx.fill()}
+ ctx.restore();
+ ctx.save();ctx.translate(cx,cy);
+ const v=scene.visual||"particles";
+ if(v==="rings"||v==="orbit"||v==="spotlight"){for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(0,0,65+i*48+Math.sin(t/650+i)*7,0,Math.PI*2);ctx.strokeStyle=i%2?"rgba(99,217,255,.6)":"rgba(244,201,107,.55)";ctx.lineWidth=3;ctx.stroke()}}
+ else if(v==="bars"){for(let i=0;i<9;i++){const h=90+Math.abs(Math.sin(t/500+i*.7))*220;ctx.fillStyle=i%2?"rgba(99,217,255,.75)":"rgba(244,201,107,.75)";ctx.fillRect(-210+i*48,100-h/2,25,h)}}
+ else if(v==="grid"){ctx.strokeStyle="rgba(99,217,255,.35)";ctx.lineWidth=2;for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(i*55,-260);ctx.lineTo(i*55,260);ctx.stroke();ctx.beginPath();ctx.moveTo(-250,i*55);ctx.lineTo(250,i*55);ctx.stroke()}}
+ else {for(let i=0;i<28;i++){const a=i*2.4+t/1000,r=80+(i%7)*25+Math.sin(t/600+i)*12;ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,4+(i%4)*2,0,Math.PI*2);ctx.fillStyle=i%3?"#63d9ff":"#f4c96b";ctx.fill()}}
+ ctx.restore();
+ ctx.fillStyle="#f4c96b";ctx.font="700 20px system-ui";ctx.textAlign="center";ctx.fillText("Y V A N A I",cx,92);
+ ctx.fillStyle="#9ba8d6";ctx.font="600 15px system-ui";ctx.fillText("CRÉATION MOTION DESIGN",cx,H-100);
+ const fade=Math.min(1,local*5,(1-local)*5);ctx.globalAlpha=Math.max(.15,fade);
+ ctx.textAlign="center";ctx.fillStyle="#ffffff";ctx.font="800 52px system-ui";const titleLines=wrap(scene.title, W-80);titleLines.forEach((line,i)=>ctx.fillText(line,cx,cy+340+i*62));
+ ctx.fillStyle="#c4ccee";ctx.font="400 27px system-ui";const subLines=wrap(scene.subtitle,W-100);subLines.forEach((line,i)=>ctx.fillText(line,cx,cy+430+i*40));
+ ctx.globalAlpha=1;
+ ctx.fillStyle="rgba(255,255,255,.15)";ctx.fillRect(54,H-58,W-108,5);ctx.fillStyle="#f4c96b";ctx.fillRect(54,H-58,(W-108)*(t/DURATION),5);
+}
+function animate(){const now=performance.now();draw((now-previewStart)%DURATION);raf=requestAnimationFrame(animate)}
+function showScript(data){
+ script=data;scenesBox.innerHTML="";
+ $("previewTitle").textContent=data.title||"Aperçu Motion Design";
+ data.scenes.forEach((s,i)=>{const el=document.createElement("div");el.className="scene";const n=document.createElement("span");n.className="num";n.textContent=String(i+1);const d=document.createElement("div"),b=document.createElement("strong"),sm=document.createElement("small");b.textContent=s.title;sm.textContent=s.subtitle;d.append(b,sm);el.append(n,d);scenesBox.append(el)});
+ render.disabled=false;previewStart=performance.now();cancelAnimationFrame(raf);animate();
+}
+make.addEventListener("click",async()=>{
+ const text=brief.value.trim();if(text.length<8){setStatus("Décris un peu plus la vidéo à créer.","error");return}
+ make.disabled=true;render.disabled=true;download.style.display="none";setStatus("Claude prépare les six scènes…");
+ try{
+  const res=await fetch("/api/video/script",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:text})});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.code||"claude_error");
+  showScript(data.script);setStatus("Storyboard prêt. Tu peux prévisualiser les scènes puis exporter la vidéo.","ok");
+ }catch(e){const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",claude_not_configured:"La clé Claude n'est pas configurée sur le serveur. Ajoute ANTHROPIC_API_KEY dans Render > Environment.",claude_bad_key:"La clé Claude a été refusée. Vérifie-la dans Render sans la partager ici.",claude_busy:"Claude est temporairement occupé ou la limite API est atteinte.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Claude n'a pas renvoyé un storyboard valide. Réessaie.",claude_unavailable:"Impossible de joindre Claude pour le moment."};setStatus(messages[e.message]||"La création du storyboard a échoué. Réessaie.","error")}
+ finally{make.disabled=false}
+});
+render.addEventListener("click",()=>{
+ if(!script||!canvas.captureStream||!window.MediaRecorder){setStatus("Ton navigateur ne prend pas en charge l'export vidéo. Essaie avec Chrome récent sur ordinateur.","error");return}
+ const stream=canvas.captureStream(30),types=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];
+ const mime=types.find(t=>MediaRecorder.isTypeSupported(t));if(!mime){setStatus("L'export WebM n'est pas pris en charge par ce navigateur. Essaie Chrome ou Edge.","error");return}
+ const chunks=[];let recorder;
+ try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:5000000})}catch(e){setStatus("Impossible de démarrer l'export sur cet appareil.","error");return}
+ render.disabled=true;make.disabled=true;download.style.display="none";bar.style.width="0%";setStatus("Export en cours… garde cette page ouverte pendant 30 secondes.");
+ const start=performance.now();previewStart=start;
+ recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+ recorder.onerror=()=>{setStatus("Une erreur est survenue pendant l'export.","error");render.disabled=false;make.disabled=false;stream.getTracks().forEach(t=>t.stop())};
+ recorder.onstop=()=>{
+  stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger ma vidéo (.webm)";download.innerHTML="";download.append(a);download.style.display="block";setStatus("Vidéo terminée ! Télécharge ton fichier WebM.","ok");render.disabled=false;make.disabled=false;
+ };
+ recorder.start(500);
+ function tick(now){const elapsed=Math.min(DURATION,now-start);draw(elapsed);bar.style.width=(elapsed/DURATION*100)+"%";if(elapsed>=DURATION){recorder.stop();return}requestAnimationFrame(tick)}
+ requestAnimationFrame(tick);
+});
+draw(0);
+})();
+</script>
+</body>
+</html>
