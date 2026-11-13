@@ -391,6 +391,67 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 #historyClear { color:var(--danger); }
 
 
+
+/* ===== STARS AI — live thinking indicator ===== */
+.msg.ai .bubble:has(.thinking) {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+}
+.thinking {
+  position: relative;
+  min-height: 42px;
+  padding: 10px 15px 10px 52px;
+  gap: 5px;
+  border: 1px solid rgba(244,201,107,.18);
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(244,201,107,.075), rgba(73,91,190,.10), rgba(244,201,107,.075));
+  background-size: 220% 100%;
+  box-shadow: 0 5px 22px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.035);
+  animation: thinkingGlow 3.2s ease-in-out infinite;
+  font-size: 13px;
+  letter-spacing: .015em;
+}
+.thinking::before {
+  content: "";
+  position: absolute;
+  left: 14px; top: 50%;
+  width: 24px; height: 24px;
+  margin-top: -12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(244,201,107,.22);
+  border-top-color: #f4c96b;
+  border-right-color: rgba(244,201,107,.7);
+  box-shadow: 0 0 14px rgba(244,201,107,.14);
+  animation: thinkingSpin 1.5s linear infinite;
+}
+.thinking::after {
+  content: "✦";
+  position: absolute;
+  left: 21px; top: 50%;
+  transform: translateY(-51%);
+  color: #ffe7a8;
+  font-size: 10px;
+  text-shadow: 0 0 10px rgba(244,201,107,.9);
+  animation: thinkingStar 1.8s ease-in-out infinite;
+}
+.thinking i {
+  width: 4px; height: 4px;
+  margin-left: 1px;
+  background: #ffe5a0;
+  box-shadow: 0 0 8px rgba(244,201,107,.75);
+  animation: thinkingDot 1.1s ease-in-out infinite;
+}
+.thinking i:nth-child(2) { animation-delay: .16s; }
+.thinking i:nth-child(3) { animation-delay: .32s; }
+@keyframes thinkingSpin { to { transform: rotate(360deg); } }
+@keyframes thinkingStar { 0%,100% { opacity: .55; transform: translateY(-51%) scale(.82); } 50% { opacity: 1; transform: translateY(-51%) scale(1.18); } }
+@keyframes thinkingDot { 0%,100% { opacity: .25; transform: translateY(1px) scale(.7); } 50% { opacity: 1; transform: translateY(-2px) scale(1.2); } }
+@keyframes thinkingGlow { 0%,100% { background-position: 0% 50%; border-color: rgba(244,201,107,.14); } 50% { background-position: 100% 50%; border-color: rgba(244,201,107,.32); } }
+@media (prefers-reduced-motion: reduce) {
+  .thinking, .thinking::before, .thinking::after, .thinking i { animation: none !important; }
+}
+
 /* ===== STARS AI — visual refresh / premium motion layer ===== */
 :root {
   --star-glow: rgba(244, 201, 107, .22);
