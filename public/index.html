@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>STARS AI</title>
-<meta name="description" content="STARS AI — ton assistant d'intelligence artificielle en français.">
+<title>YvanAI</title>
+<meta name="description" content="YvanAI — ton assistant d'intelligence artificielle en français.">
 <meta name="theme-color" content="#070b1f">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="STARS AI">
+<meta name="apple-mobile-web-app-title" content="YvanAI">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23070b1f'/%3E%3Cpath d='M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z' fill='%23f4c96b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -392,7 +392,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 
 
 
-/* ===== STARS AI — live thinking indicator ===== */
+/* ===== YvanAI — live thinking indicator ===== */
 .msg.ai .bubble:has(.thinking) {
   min-height: 66px;
   display: flex;
@@ -452,7 +452,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   .thinking, .thinking::before, .thinking::after, .thinking i { animation: none !important; }
 }
 
-/* ===== STARS AI — visual refresh / premium motion layer ===== */
+/* ===== YvanAI — visual refresh / premium motion layer ===== */
 :root {
   --star-glow: rgba(244, 201, 107, .22);
   --glass: rgba(14, 20, 49, .78);
@@ -658,7 +658,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
 }
 
 
-/* ===== STARS AI — animated identity avatar ===== */
+/* ===== YvanAI — animated identity avatar ===== */
 .msg .stars-avatar {
   position: relative;
   display: inline-grid;
@@ -713,7 +713,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
 }
 
 
-/* ===== STARS AI — voice states: listen, think, speak ===== */
+/* ===== YvanAI — voice states: listen, think, speak ===== */
 .orb {
   overflow: visible;
   transition: background .45s ease, box-shadow .45s ease, filter .35s ease, transform .3s ease;
@@ -778,7 +778,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   <header>
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L19.2 12.8 L30 16 L19.2 19.2 L16 30 L12.8 19.2 L2 16 L12.8 12.8 Z" fill="#f4c96b"/><circle cx="26" cy="6" r="1.6" fill="#e9ecfb"/></svg>
-      <h1>STARS <span>AI</span></h1>
+      <h1>Yvan<span>AI</span></h1>
     </div>
     <div class="actions">
       <button class="btn-ghost" id="historyToggle" type="button" aria-expanded="false">Historique</button>
@@ -813,14 +813,14 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
       <div class="welcome-kicker">TON ASSISTANT IA POUR ALLER PLUS LOIN</div>
-      <h2 id="greet">Fais grandir tes idées avec <em>STARS AI</em>.</h2>
-      <p>Crée du contenu, prépare tes publicités, développe ton activité ou donne vie à tes idées. STARS AI t'accompagne en français, simplement et rapidement.</p>
+      <h2 id="greet">Fais grandir tes idées avec <em>YvanAI</em>.</h2>
+      <p>Crée du contenu, prépare tes publicités, développe ton activité ou donne vie à tes idées. YvanAI t'accompagne en français, simplement et rapidement.</p>
       <button class="install-cta" type="button" data-install hidden>
         <img src="/icons/icon-192.png" alt="">
-        <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
+        <span><strong>Installer l'appli YvanAI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
       </button>
       <div class="workspace-label">Ton espace de travail</div>
-      <div class="workspace-grid" aria-label="Les espaces STARS AI">
+      <div class="workspace-grid" aria-label="Les espaces YvanAI">
         <button class="workspace-card" type="button" data-q="Agis comme mon conseiller Business. Aide-moi à développer mon entreprise : commence par me demander le nom de mon activité, mes produits ou services, mes clients et mon objectif prioritaire. Propose ensuite un plan d'action concret.">
           <span class="workspace-icon" aria-hidden="true">▦</span>
           <strong>Business</strong>
@@ -831,7 +831,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
           <strong>Studio</strong>
           <span>Crée des visuels avec l'IA et prépare tes contenus créatifs.</span>
         </a>
-        <button class="workspace-card" type="button" data-q="Tu es mon assistant personnel STARS AI. Aide-moi à avancer sur mon projet. Demande-moi ce que je veux accomplir aujourd'hui, puis guide-moi étape par étape.">
+        <button class="workspace-card" type="button" data-q="Tu es mon assistant personnel YvanAI. Aide-moi à avancer sur mon projet. Demande-moi ce que je veux accomplir aujourd'hui, puis guide-moi étape par étape.">
           <span class="workspace-icon" aria-hidden="true">✧</span>
           <strong>Assistant IA</strong>
           <span>Écris, apprends, réfléchis et résous tes problèmes.</span>
@@ -876,7 +876,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
           <button type="button" role="tab" id="tabSignup" aria-selected="true">S'inscrire</button>
           <button type="button" role="tab" id="tabLogin" aria-selected="false">Se connecter</button>
         </div>
-        <h2 id="authTitle">Rejoins <em>STARS AI</em></h2>
+        <h2 id="authTitle">Rejoins <em>YvanAI</em></h2>
         <p id="authLead">Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.</p>
         <form class="card" id="startForm" novalidate>
           <div class="field" id="nameField">
@@ -897,7 +897,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
           <button class="btn-star" id="startBtn" type="submit">Créer mon compte</button>
           <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
-        <p class="legal">En utilisant STARS AI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
+        <p class="legal">En utilisant YvanAI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
         <p class="legal" data-install-link hidden><a href="/telecharger">📲 Installer l'appli sur ton téléphone</a></p>
       </div>
       <div id="step2" hidden>
@@ -931,22 +931,22 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
       </button>
       <input id="photoInput" type="file" accept="image/*" multiple hidden>
       <label for="input" hidden>Message</label>
-      <textarea id="input" rows="1" placeholder="Écris à STARS AI…"></textarea>
-      <button id="micBtn" type="button" aria-label="Parler avec STARS AI (mode vocal)" title="Mode vocal : parler avec STARS AI">
+      <textarea id="input" rows="1" placeholder="Écris à YvanAI…"></textarea>
+      <button id="micBtn" type="button" aria-label="Parler avec YvanAI (mode vocal)" title="Mode vocal : parler avec YvanAI">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
       <button id="send" type="submit" aria-label="Envoyer" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
       </button>
     </form>
-    <div class="fine" id="fine">STARS AI peut se tromper. Vérifie les informations importantes.</div>
+    <div class="fine" id="fine">YvanAI peut se tromper. Vérifie les informations importantes.</div>
   </footer>
 </div>
 
 <dialog class="sheet" id="reportDlg" aria-labelledby="reportTitle">
   <form id="reportForm" novalidate>
     <h3 id="reportTitle">Signaler cette réponse</h3>
-    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre STARS AI plus sûre.</p>
+    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre YvanAI plus sûre.</p>
     <div class="choices" role="radiogroup" aria-label="Raison du signalement">
       <label class="choice"><input type="radio" name="reason" value="offensant"> Contenu choquant ou offensant</label>
       <label class="choice"><input type="radio" name="reason" value="faux_dangereux"> Information fausse ou dangereuse</label>
@@ -975,9 +975,9 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   </div>
 </dialog>
 
-<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec STARS AI" hidden>
+<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec YvanAI" hidden>
   <div class="voice-inner">
-    <p class="vtitle">STARS <span>AI</span> · appel vocal</p>
+    <p class="vtitle">Yvan<span>AI</span> · appel vocal</p>
     <button class="orb" id="orb" type="button" aria-label="Parler">
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z" fill="#1a1404" opacity=".85"/></svg>
     </button>
@@ -1232,7 +1232,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   }
 
   const ERRORS = {
-    no_key: "STARS AI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
+    no_key: "YvanAI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
     bad_key: "La clé API a été refusée. Vérifie-la dans Render (Environment).",
     no_credit: "Le compte de l'IA n'a plus de crédit.",
     upstream_busy: "L'IA est très demandée en ce moment. Réessaie dans un instant.",
@@ -1304,7 +1304,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
     pending = []; renderAttach();
     input.value = ""; autosize();
     const b = addMsg("ai", "");
-    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> STARS AI ' + (imgs.length ? "lit ta photo…" : "réfléchit…") + '</span>';
+    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> YvanAI ' + (imgs.length ? "lit ta photo…" : "réfléchit…") + '</span>';
     ctl = new AbortController(); setBusy(true);
     const recent = turns.slice(-20);
     const history = recent.map((t, i) => {
@@ -1443,7 +1443,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   const isFr = /^fr/i.test(navLang);
   const recLang = isFr ? "fr-FR" : navLang;
   const HINT = "Parle normalement. Touche le cercle pour me couper la parole.";
-  const STATUS = { listening: "Je t'écoute…", thinking: "STARS AI réfléchit…", speaking: "STARS AI parle…", idle: "Touche le cercle pour parler" };
+  const STATUS = { listening: "Je t'écoute…", thinking: "YvanAI réfléchit…", speaking: "YvanAI parle…", idle: "Touche le cercle pour parler" };
   let call = { active: false };
   let ttsVoice = null;
 
@@ -1554,7 +1554,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
     };
     rec.onerror = e => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        endCall(); flash("Autorise le micro pour parler avec STARS AI (touche le cadenas à côté de l'adresse du site).");
+        endCall(); flash("Autorise le micro pour parler avec YvanAI (touche le cadenas à côté de l'adresse du site).");
       } else if (e.error === "no-speech") call.silent++;
       else if (e.error === "network" || e.error === "audio-capture") call.recError = e.error;
     };
@@ -1719,7 +1719,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
     me = null; turns = [];
     emailIn.value = ""; nameIn.value = "";
     showAuth("");
-    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur STARS AI !";
+    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur YvanAI !";
   });
 
   /* ---------- Sign-up / sign-in ---------- */
@@ -1763,7 +1763,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
     forgotLine.hidden = !login || !passwordsOn;
     passIn.autocomplete = login ? "current-password" : "new-password";
     passIn.placeholder = login ? "Ton mot de passe" : "Au moins " + passwordMin + " caractères";
-    if (signup) setTitle("Rejoins ", "STARS AI");
+    if (signup) setTitle("Rejoins ", "YvanAI");
     else if (login) setTitle("Content de te ", "revoir");
     else setTitle("Mot de passe ", "oublié");
     document.getElementById("authLead").textContent = signup
@@ -2034,7 +2034,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
   window.addEventListener("appinstalled", () => {
     installEvt = null; appInstalled = true; refreshInstall();
-    flash("STARS AI est installée ! Tu la trouveras sur ton écran d'accueil.");
+    flash("YvanAI est installée ! Tu la trouveras sur ton écran d'accueil.");
   });
   document.querySelectorAll("[data-install]").forEach(btn => btn.addEventListener("click", async () => {
     account.open = false;
@@ -2052,7 +2052,7 @@ dialog.sheet[open] { animation: dialogIn .22s ease both; }
   (async () => {
     let status = { ready: true, authRequired: false };
     try { status = await (await fetch("/api/status")).json(); } catch (e) {}
-    if (!status.ready) { fine.textContent = "STARS AI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
+    if (!status.ready) { fine.textContent = "YvanAI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
     passwordsOn = status.passwords !== false;
     passwordMin = status.passwordMin || 8;
     if (status.authRequired) {
