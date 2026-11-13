@@ -944,7 +944,7 @@ async function imageApi(req, res, url) {
       }
       b64 = data.result?.image || data.image || "";
       if (typeof b64 === "string" && b64.startsWith("data:")) {
-        const m = /^data:(image\\/[a-z0-9.+-]+);base64,(.+)$/i.exec(b64);
+        const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(b64);
         if (m) { mime = m[1]; b64 = m[2]; }
       }
     } else {
