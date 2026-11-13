@@ -1,6 +1,6 @@
 // YvanAI — service worker : rend l'appli installable et affiche une page claire quand il n'y a pas d'internet.
 // Les messages à l'IA (/api/...) ne passent jamais par le cache.
-const CACHE = "yvanai-v3";
+const CACHE = "yvanai-v4";
 const SHELL = ["/offline.html", "/icons/yvanai-icon.svg", "/icons/yvanai-favicon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", event => {
