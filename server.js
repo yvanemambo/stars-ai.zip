@@ -677,7 +677,7 @@ async function callGemini(messages, signal, name, voice, guide, memory) {
           contents,
           generationConfig: { maxOutputTokens: MAX_TOKENS }
         })
-      });
+      }, signal, FIRST_BYTE_TIMEOUT_MS);
     } catch (e) {
       if (signal.aborted) throw e;
       pauseModel(model, 5 * 60_000, "ne répond pas");
@@ -725,7 +725,7 @@ async function callOpenAI(messages, signal, name, voice, guide, memory) {
         max_completion_tokens: MAX_TOKENS,
         stream: true
       })
-    });
+    }, signal, FIRST_BYTE_TIMEOUT_MS);
   } catch (e) {
     if (signal.aborted) throw e;
     throw new UpstreamError("upstream_busy", 504, e.message);
