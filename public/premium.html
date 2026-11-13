@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070b1f">
-<title>STARS AI Premium</title>
+<title>YvanAI Premium</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/favicon-48.png">
 <style>
@@ -70,13 +70,13 @@
 <body>
 <main>
   <header>
-    <a class="brand" href="/"><img src="/icons/icon-192.png" alt="">STARS <span>AI</span></a>
+    <a class="brand" href="/"><img src="/icons/icon-192.png" alt="">Yvan<span>AI</span></a>
     <a class="back" href="/">← Retour au chat</a>
   </header>
 
   <section class="hero">
     <span class="badge">Premium</span>
-    <h1>Utilise STARS AI sans limite</h1>
+    <h1>Utilise YvanAI sans limite</h1>
     <div class="price" id="price">1 000 FCFA <small>/ mois</small></div>
   </section>
 
@@ -84,7 +84,7 @@
 
   <section class="card" id="needLogin" hidden>
     <h2>Connecte-toi d'abord</h2>
-    <p>Pour passer à Premium, il faut un compte STARS AI.</p>
+    <p>Pour passer à Premium, il faut un compte YvanAI.</p>
     <a class="btn" href="/">Se connecter ou s'inscrire</a>
   </section>
 
@@ -105,7 +105,7 @@
       <li><span><strong>Messages illimités</strong>, au lieu de <span id="freeDaily">25</span> par jour</span></li>
       <li><span><strong>Exercices en photo</strong> et <strong>mode vocal</strong> sans limite</span></li>
       <li><span><strong>Toujours disponible</strong>, même quand le service gratuit atteint sa limite du jour</span></li>
-      <li><span>Tu <strong>soutiens STARS AI</strong> pour qu'elle continue de s'améliorer</span></li>
+      <li><span>Tu <strong>soutiens YvanAI</strong> pour qu'elle continue de s'améliorer</span></li>
     </ul>
   </section>
 
@@ -169,7 +169,7 @@
 
   function contactHtml(i) {
     const parts = [];
-    if (i.whatsapp) parts.push('<a class="btn" href="https://wa.me/' + i.whatsapp + '?text=' + encodeURIComponent("Bonjour, j'ai une question sur STARS AI Premium.") + '">Écrire sur WhatsApp</a>');
+    if (i.whatsapp) parts.push('<a class="btn" href="https://wa.me/' + i.whatsapp + '?text=' + encodeURIComponent("Bonjour, j'ai une question sur YvanAI Premium.") + '">Écrire sur WhatsApp</a>');
     parts.push('<a class="btn ghost" href="mailto:' + i.contactEmail + '">' + i.contactEmail + '</a>');
     return parts.join("");
   }
