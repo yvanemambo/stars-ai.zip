@@ -40,6 +40,10 @@ const CLOUDFLARE_MODELS = [
 ].filter((m, i, a) => a.indexOf(m) === i);
 const CLOUDFLARE_AI = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 
+// Génération de scripts Motion Design avec Claude (la clé reste côté serveur).
+const CLAUDE_API_KEY = env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY");
+const CLAUDE_MODEL = env("CLAUDE_MODEL") || "claude-haiku-5-5";
+
 // Inscription
 const MAIL_WEBHOOK_URL = env("MAIL_WEBHOOK_URL");       // URL /exec du script Google
 const MAIL_WEBHOOK_SECRET = env("MAIL_WEBHOOK_SECRET"); // même valeur que SECRET dans le script
@@ -1111,6 +1115,60 @@ async function memoryApi(req, res, url) {
   json(res, 404, { code: "not_found" });
 }
 
+
+async function handleVideoScript(req, res, ip) {
+  const user = currentUser(req);
+  if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
+  if (!CLAUDE_API_KEY) return json(res, 503, { code: "claude_not_configured" });
+  if (!allow("video:" + (user ? user.email : ip), 3, 60_000)) return json(res, 429, { code: "rate_limited" });
+  const payload = await readJson(req, 8000);
+  const brief = String(payload?.prompt || "").trim().slice(0, 1200);
+  if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
+  const system = `Tu es directeur artistique et scénariste Motion Design. Réponds UNIQUEMENT avec un objet JSON valide, sans Markdown ni commentaire, de forme :
+{"title":"Titre court","scenes":[{"title":"Titre de scène","subtitle":"Phrase courte","visual":"particles"}]}
+Fournis exactement 6 scènes pour une vidéo de 30 secondes, 5 secondes par scène. Français naturel, orthographe parfaite, textes courts adaptés au mobile. Chaque scène contient title (max 48 caractères), subtitle (max 100 caractères) et visual choisi parmi particles, rings, bars, orbit, grid, spotlight. Ne mets aucun texte entre guillemets dans les champs. N'invente pas de faits ou de promesses commerciales. `;
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "authorization": "Bearer " + CLAUDE_API_KEY,
+        "anthropic-version": "2026-10-21",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 1400,
+        system,
+        messages: [{ role: "user", content: "Crée un storyboard Motion Design de 30 secondes à partir de cette description : " + brief }]
+      }),
+      signal: AbortSignal.timeout(45_000)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const status = response.status;
+      console.warn("[video] Claude a refusé la demande (HTTP " + status + ").");
+      return json(res, status === 401 || status === 403 ? 502 : status === 429 ? 429 : 502,
+        { code: status === 401 || status === 403 ? "claude_bad_key" : status === 429 ? "claude_busy" : "claude_error" });
+    }
+    const answer = Array.isArray(data.content) ? data.content.filter(x => x.type === "text").map(x => x.text).join("\\n") : "";
+    const cleaned = answer.replace(/^\\s*\`\`\`(?:json)?/i, "").replace(/\`\`\`\\s*$/, "").trim();
+    let script;
+    try { script = JSON.parse(cleaned); } catch { return json(res, 502, { code: "bad_script" }); }
+    if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
+    const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
+    script.title = String(script.title || "Ma vidéo").slice(0, 60);
+    script.scenes = script.scenes.map((scene, i) => ({
+      title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48),
+      subtitle: String(scene.subtitle || "").slice(0, 100),
+      visual: allowed.has(scene.visual) ? scene.visual : "particles"
+    }));
+    return json(res, 200, { ok: true, script });
+  } catch (e) {
+    console.warn("[video] génération indisponible :", e.name || "erreur");
+    return json(res, 502, { code: "claude_unavailable" });
+  }
+}
+
 async function handleChat(req, res, ip) {
   const user = currentUser(req);
   if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
@@ -1639,6 +1697,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/conversations" || url.pathname.startsWith("/api/conversations/")) return await conversationApi(req, res, url);
     if (url.pathname === "/api/image" || url.pathname.startsWith("/api/image/")) return await imageApi(req, res, url);
     if (url.pathname === "/api/memory" || url.pathname.startsWith("/api/memory/")) return await memoryApi(req, res, url);
+    if (req.method === "POST" && url.pathname === "/api/video/script") return await handleVideoScript(req, res, ip);
     if (req.method === "POST" && url.pathname === "/api/chat") return await handleChat(req, res, ip);
     json(res, 404, { code: "not_found" });
   } catch (e) {
