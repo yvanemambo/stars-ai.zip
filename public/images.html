@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070b1f">
-<title>Créer une image — STARS AI</title>
+<title>Créer une image — YvanAI</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/favicon-48.png">
 <style>
@@ -16,8 +16,8 @@ main{max-width:760px;margin:0 auto;display:grid;gap:18px}header{display:flex;ali
 </head>
 <body>
 <main>
-<header><a class="brand" href="/"><img src="/icons/icon-192.png" alt="">STARS <span>AI</span></a><a class="back" href="/">← Retour au chat</a></header>
-<section class="hero"><h1>🎨 Crée tes images</h1><p>Décris ton idée. STARS AI la transforme en image grâce à Gemini.</p></section>
+<header><a class="brand" href="/"><img src="/icons/icon-192.png" alt="">Yvan<span>AI</span></a><a class="back" href="/">← Retour au chat</a></header>
+<section class="hero"><h1>🎨 Crée tes images</h1><p>Décris ton idée. YvanAI la transforme en image grâce à Gemini.</p></section>
 <section class="card">
 <div class="quota" id="quota">Vérification de ton quota…</div>
 <div class="field"><label for="prompt">Décris l’image que tu veux créer</label><textarea id="prompt" maxlength="1000" placeholder="Ex. : Une ville futuriste à Abidjan au coucher du soleil, style illustration cinématographique, couleurs chaudes…"></textarea></div>
@@ -29,12 +29,12 @@ main{max-width:760px;margin:0 auto;display:grid;gap:18px}header{display:flex;ali
 <div class="status" id="status" role="status" aria-live="polite"></div>
 <p class="hint">Les comptes gratuits disposent de 3 générations par jour. Les images sont soumises aux règles de sécurité.</p>
 </section>
-<section class="card result" id="result" hidden><h2 style="margin:0;font-size:18px">Ton image est prête</h2><img id="output" alt="Image générée par STARS AI"><div class="actions"><a id="download" download="stars-ai-image.png">⬇ Télécharger l’image</a><a href="/images">Créer une autre image</a></div></section>
+<section class="card result" id="result" hidden><h2 style="margin:0;font-size:18px">Ton image est prête</h2><img id="output" alt="Image générée par YvanAI"><div class="actions"><a id="download" download="stars-ai-image.png">⬇ Télécharger l’image</a><a href="/images">Créer une autre image</a></div></section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 const status=$("status");
-const messages={auth_required:"Connecte-toi à STARS AI pour créer une image.",images_off:"La génération d’images n’est pas activée sur le serveur.",images_down:"Le compteur d’images est temporairement indisponible. Réessaie plus tard.",bad_prompt:"Écris une description d’au moins 3 caractères.",prompt_too_long:"La description est trop longue.",rate_limited:"Tu vas trop vite. Attends une minute avant de réessayer.",busy:"Une image est déjà en cours de création.",user_limit:"Tu as atteint ta limite quotidienne.",site_limit:"La limite quotidienne globale est atteinte. Réessaie demain.",refused:"Cette demande ne peut pas être générée. Essaie une autre description.",bad_key:"La clé Gemini a été refusée. Vérifie la configuration du serveur.",upstream_busy:"Gemini est très sollicité. Réessaie dans un instant.",no_image:"Gemini n’a pas renvoyé d’image. Essaie avec une description différente.",upstream_error:"La génération a échoué. Réessaie."};
+const messages={auth_required:"Connecte-toi à YvanAI pour créer une image.",images_off:"La génération d’images n’est pas activée sur le serveur.",images_down:"Le compteur d’images est temporairement indisponible. Réessaie plus tard.",bad_prompt:"Écris une description d’au moins 3 caractères.",prompt_too_long:"La description est trop longue.",rate_limited:"Tu vas trop vite. Attends une minute avant de réessayer.",busy:"Une image est déjà en cours de création.",user_limit:"Tu as atteint ta limite quotidienne.",site_limit:"La limite quotidienne globale est atteinte. Réessaie demain.",refused:"Cette demande ne peut pas être générée. Essaie une autre description.",bad_key:"La clé Gemini a été refusée. Vérifie la configuration du serveur.",upstream_busy:"Gemini est très sollicité. Réessaie dans un instant.",no_image:"Gemini n’a pas renvoyé d’image. Essaie avec une description différente.",upstream_error:"La génération a échoué. Réessaie."};
 async function api(url,opts={}){const r=await fetch(url,{credentials:"same-origin",...opts});let d={};try{d=await r.json()}catch{}if(!r.ok){const e=new Error(messages[d.code]||"Une erreur est survenue.");e.code=d.code;e.data=d;throw e}return d}
 async function loadQuota(){try{const q=await api("/api/image/quota");$("quota").innerHTML="Images utilisées aujourd’hui : <strong>"+q.used+" / "+q.limit+"</strong>"+(q.premium?" · Premium":"");}catch(e){$("quota").textContent=e.message;}}
 $("generate").addEventListener("click",async()=>{
