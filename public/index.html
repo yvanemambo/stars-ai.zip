@@ -443,11 +443,11 @@ header { position: relative; z-index: 40; }
   animation: thinkingSpin 1.5s linear infinite;
 }
 .thinking::after {
-  content: "✦";
+  content: none;
   position: absolute;
   left: 21px; top: 50%;
   transform: translateY(-51%);
-  color: #ffe7a8;
+  display: none;
   font-size: 10px;
   text-shadow: 0 0 10px rgba(244,201,107,.9);
   animation: thinkingStar 1.8s ease-in-out infinite;
