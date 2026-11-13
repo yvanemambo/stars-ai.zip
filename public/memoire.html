@@ -14,7 +14,7 @@
   header { display:flex; align-items:center; gap:12px; margin:8px 0 18px; }
   header .back { text-decoration:none; font-size:15px; border:1px solid var(--line); border-radius:10px; padding:6px 12px; color:var(--text); }
   h1 { font-size:22px; margin:0; }
-  .star { color:var(--gold); }
+  .memory-mark { display:inline-grid;place-items:center;width:24px;height:24px;margin-right:7px;border-radius:8px;background:rgba(164,104,255,.18);color:#d8b5ff;font-weight:800;font-size:14px; }
   p.intro { color:var(--muted); margin:0 0 16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
   .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -52,7 +52,7 @@
 <main>
   <header>
     <a class="back" href="/">← Retour</a>
-    <h1><span class="star">✦</span> Mes souvenirs</h1>
+    <h1><span class="memory-mark" aria-hidden="true">Y</span> Mes souvenirs</h1>
   </header>
   <p class="intro">YvanAI peut retenir ce qui l'aide à mieux te répondre : tes projets, tes préférences. Tu gardes le contrôle : tu vois tout, tu modifies, tu supprimes. Elle ne retient jamais de mot de passe, de clé, de donnée bancaire.</p>
 
