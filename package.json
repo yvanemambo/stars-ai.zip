@@ -1,7 +1,7 @@
 {
-  "name": "stars-ai",
+  "name": "yvan-ai",
   "version": "1.0.0",
-  "description": "Assistant IA STARS AI",
+  "description": "Assistant IA YvanAI",
   "main": "server.js",
   "type": "module",
   "scripts": {
