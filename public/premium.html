@@ -254,7 +254,7 @@
   function fmtDate(d) { return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }); }
   function showActive(until, paid) {
     hide("waveCard", "perks", "step1", "step2", "pendingCard", "noMethods", "doneCard");
-    $("activeTitle").textContent = paid ? "✓ Paiement reçu : ton Premium est actif" : "⭐ Ton Premium est actif";
+    $("activeTitle").textContent = paid ? "✓ Paiement reçu : ton Premium est actif" : "✓ Ton Premium est actif";
     $("activeText").textContent = "Messages illimités jusqu'au " + fmtDate(until) + ".";
     show("activeCard");
   }
