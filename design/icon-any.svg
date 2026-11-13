@@ -11,13 +11,8 @@
     </radialGradient>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
-  <g fill="#dfe4ff">
-    <circle cx="96" cy="112" r="3" opacity=".7"/><circle cx="150" cy="420" r="2.5" opacity=".6"/>
-    <circle cx="430" cy="380" r="3" opacity=".6"/><circle cx="72" cy="300" r="2" opacity=".5"/>
-    <circle cx="420" cy="210" r="2" opacity=".5"/>
-  </g>
   <g transform="translate(256 256) scale(1) translate(-256 -256)">
-    <path d="M256 76 L297 215 L436 256 L297 297 L256 436 L215 297 L76 256 L215 215 Z" fill="url(#gold)"/>
-    <circle cx="392" cy="120" r="17" fill="#e9ecfb"/>
+    <path d="M112 116h72l72 105 72-105h72L292 278v118h-72V278z" fill="url(#gold)"/>
+    
   </g>
 </svg>
