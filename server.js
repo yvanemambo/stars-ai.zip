@@ -29,6 +29,17 @@ const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages 
 const DAILY_LIMIT = Number(env("DAILY_LIMIT")) || 500;              // messages / jour pour tout le site
 const FIRST_BYTE_TIMEOUT_MS = Number(env("FIRST_BYTE_TIMEOUT_MS")) || 20000;
 const GEMINI_BASE_URL = env("GEMINI_BASE_URL") || "https://generativelanguage.googleapis.com";
+const CLOUDFLARE_ACCOUNT_ID = env("CLOUDFLARE_ACCOUNT_ID");
+const CLOUDFLARE_API_TOKEN = env("CLOUDFLARE_API_TOKEN");
+const CLOUDFLARE_BASE_URL = CLOUDFLARE_ACCOUNT_ID
+  ? `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1`
+  : "";
+const CLOUDFLARE_MODELS = [
+  env("CLOUDFLARE_MODEL") || "@cf/zai-org/glm-4.7-flash",
+  "@cf/google/gemma-4-26b-a4b-it",
+  "@cf/nvidia/nemotron-3-120b-a12b"
+].filter((m, i, a) => a.indexOf(m) === i);
+const CLOUDFLARE_AI = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 
 // Inscription
 const MAIL_WEBHOOK_URL = env("MAIL_WEBHOOK_URL");       // URL /exec du script Google
@@ -226,7 +237,7 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
-const provider = OPENAI_API_KEY ? "openai" : GEMINI_API_KEY ? "gemini" : null;
+const provider = CLOUDFLARE_AI ? "cloudflare" : GEMINI_API_KEY ? "gemini" : OPENAI_API_KEY ? "openai" : null;
 
 const VOICE_RULES = `
 
@@ -649,7 +660,7 @@ function codeFor(status) {
   return "upstream_error";
 }
 // Erreurs pour lesquelles on essaie le modèle suivant.
-const RETRY_NEXT = new Set([404, 429, 500, 503, 529]);
+const RETRY_NEXT = new Set([403, 404, 429, 500, 503, 529]);
 
 // Un modèle qui a atteint sa limite (429), qui est surchargé (503) ou qui ne répond pas est mis de côté
 // un moment : les messages suivants vont directement au modèle qui marche, sans attendre.
@@ -664,6 +675,49 @@ function usableModels(list) {
   return ok.length ? ok : list; // si tout est en pause, on réessaie quand même
 }
 const PAUSE_FOR = { 429: 15 * 60_000, 404: 6 * 3600_000, 500: 60_000, 503: 2 * 60_000, 529: 2 * 60_000 };
+
+// ---------- Cloudflare Workers AI (modèles gratuits avec quota quotidien) ----------
+async function callCloudflare(messages, signal, name, voice, guide, memory) {
+  const content = messages.map(m => ({
+    role: m.role,
+    content: [
+      ...m.images.map(i => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } })),
+      { type: "text", text: m.content || PHOTO_ONLY_TEXT }
+    ]
+  }));
+  const models = usableModels(CLOUDFLARE_MODELS);
+  let last = new UpstreamError("upstream_error", 404, "Aucun modèle Cloudflare disponible");
+  for (const model of models) {
+    let res;
+    try {
+      res = await fetchWithFirstByteTimeout(`${CLOUDFLARE_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "system", content: rules(name, voice, guide, memory) }, ...content],
+          max_tokens: MAX_TOKENS,
+          stream: true
+        })
+      }, signal, FIRST_BYTE_TIMEOUT_MS);
+    } catch (e) {
+      if (signal.aborted) throw e;
+      pauseModel(model, 2 * 60_000, "ne répond pas");
+      last = new UpstreamError("upstream_busy", 504, "timeout");
+      continue;
+    }
+    if (res.ok) return { res, model, provider: "cloudflare" };
+    const detail = await res.text().catch(() => "");
+    if (RETRY_NEXT.has(res.status)) {
+      pauseModel(model, PAUSE_FOR[res.status] || 2 * 60_000, "HTTP " + res.status);
+      last = new UpstreamError(codeFor(res.status), res.status, detail);
+      console.warn(`[cloudflare] ${model} indisponible (HTTP ${res.status}), essai du suivant.`);
+      continue;
+    }
+    throw new UpstreamError(codeFor(res.status), res.status, detail);
+  }
+  throw last;
+}
 
 // ---------- Gemini (Google) ----------
 async function callGemini(messages, signal, name, voice, guide, memory) {
@@ -1097,7 +1151,16 @@ async function handleChat(req, res, ip) {
   const voice = payload?.voice === true;
   const guide = guideFor(messages);
   try {
-    if (provider === "openai") {
+    if (provider === "cloudflare") {
+      try {
+        upstream = await callCloudflare(messages, ac.signal, user?.name, voice, guide, memText);
+      } catch (cloudflareError) {
+        if (ac.signal.aborted) return;
+        if (!GEMINI_API_KEY) throw cloudflareError;
+        console.warn("[cloudflare] modèles indisponibles, bascule vers Gemini :", cloudflareError.code || cloudflareError.message);
+        upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
+      }
+    } else if (provider === "openai") {
       try {
         upstream = await callOpenAI(messages, ac.signal, user?.name, voice, guide, memText);
       } catch (openAiError) {
@@ -1119,7 +1182,7 @@ async function handleChat(req, res, ip) {
   const send = obj => res.write(JSON.stringify(obj) + "\n");
   let truncated = false, refused = false, any = false, reply = "";
   try {
-    const gen = upstream.provider === "openai" ? streamOpenAI(upstream.res) : streamGemini(upstream.res);
+    const gen = upstream.provider === "gemini" ? streamGemini(upstream.res) : streamOpenAI(upstream.res);
     for await (const ev of gen) {
       if (ev.t) { any = true; if (reply.length < 4000) reply += ev.t; send({ t: ev.t }); }
       if (ev.truncated) truncated = true;
@@ -1658,7 +1721,7 @@ async function selfCheck() {
 }
 
 server.listen(PORT, () => {
-  const aiLabel = provider === "openai" ? "OpenAI (" + OPENAI_MODEL + ")" : provider === "gemini" ? "Gemini (" + GEMINI_MODEL + ")" : "AUCUNE CLÉ";
+  const aiLabel = provider === "cloudflare" ? "Cloudflare Workers AI (" + CLOUDFLARE_MODELS.join(" → ") + ")" : provider === "openai" ? "OpenAI (" + OPENAI_MODEL + ")" : provider === "gemini" ? "Gemini (" + GEMINI_MODEL + ")" : "AUCUNE CLÉ";
   console.log(`YvanAI en ligne sur le port ${PORT} — IA : ${aiLabel} — inscription : ${AUTH_REQUIRED ? "obligatoire" : "désactivée"}`);
   if (process.env.SKIP_SELF_CHECK !== "1") selfCheck();
 });
