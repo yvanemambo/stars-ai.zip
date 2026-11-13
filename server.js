@@ -1221,7 +1221,7 @@ const TYPES = { ".apk": "application/vnd.android.package-archive", ".png": "imag
 const PAGES = { "/antivirus": "antivirus.html", "/monscanner": "antivirus.html", "/premium": "premium.html", "/memoire": "memoire.html", "/memory": "memoire.html", "/images": "images.html", "/image": "images.html", "/yvanai": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/telecharger/stars-ai.apk": "downloads/stars-ai.apk", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
 async function serveStatic(req, res, pathname) {
   let rel = PAGES[pathname];
-  if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg)$/.test(pathname)) rel = pathname.slice(1);
+  if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg|svg)$/.test(pathname)) rel = pathname.slice(1);
   if (!rel) return false;
   const file = path.join(PUBLIC_DIR, rel);
   if (!file.startsWith(PUBLIC_DIR + path.sep)) return false;
