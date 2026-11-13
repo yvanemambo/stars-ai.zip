@@ -147,10 +147,14 @@ function cleanConvMessages(raw) {
 // Les quotas Supabase limitent les coûts et empêchent les abus.
 const numEnv = (k, d) => { const v = env(k); return v !== "" && Number.isFinite(Number(v)) ? Number(v) : d; };
 const IMAGE_MODEL = env("GEMINI_IMAGE_MODEL") || "gemini-3.1-flash-image";
+const CLOUDFLARE_ACCOUNT_ID = env("CLOUDFLARE_ACCOUNT_ID");
+const CLOUDFLARE_API_TOKEN = env("CLOUDFLARE_API_TOKEN");
+const CLOUDFLARE_IMAGE_MODEL = env("CLOUDFLARE_IMAGE_MODEL") || "@cf/black-forest-labs/flux-1-schnell";
+const CLOUDFLARE_IMAGES = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);
 const IMAGE_PREMIUM_DAILY = numEnv("IMAGE_PREMIUM_DAILY", 30);
 const IMAGE_SITE_DAILY = numEnv("IMAGE_SITE_DAILY", 100);
-const IMAGES_ON = !!GEMINI_API_KEY && MEMBERS && env("IMAGES_ENABLED") !== "0";
+const IMAGES_ON = (CLOUDFLARE_IMAGES || !!GEMINI_API_KEY) && MEMBERS && env("IMAGES_ENABLED") !== "0";
 const IMAGE_SIZES = { carre: "1:1", portrait: "3:4", paysage: "4:3" };
 const IMAGE_SAFE_SUFFIX = "\n\n(Image adaptée à tous les publics : pas de nudité, pas de violence explicite, pas de personne réelle identifiable.)";
 const imageBusy = new Set();
@@ -920,41 +924,66 @@ async function imageApi(req, res, url) {
     }
     if (!a?.ok) return json(res, 429, { code: a?.reason === "site_limit" ? "site_limit" : "user_limit", limit: q.limit, used: a?.used ?? q.limit, premium: q.premium });
     reserved = true;
-    const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(IMAGE_MODEL)}:generateContent`, {
-      method: "POST", signal: AbortSignal.timeout(180_000),
-      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt + IMAGE_SAFE_SUFFIX }] }],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio } }
-      })
-    });
-    const responseText = await r.text();
-    if (!r.ok) {
-      let detail = {};
-      try { detail = JSON.parse(responseText)?.error || {}; } catch {}
-      const msg = String(detail.message || "").toLowerCase();
-      const code = r.status === 429 || r.status >= 500 ? "upstream_busy" : r.status === 400 && /safety|blocked|policy/.test(msg) ? "refused" : r.status === 401 || r.status === 403 ? "bad_key" : "upstream_error";
-      console.error(`[images] Gemini HTTP ${r.status} (${code})`);
-      await refund();
-      return json(res, code === "refused" ? 422 : code === "upstream_busy" ? 503 : 502, { code });
-    }
-    let imagePart;
-    try {
-      const data = JSON.parse(responseText);
-      for (const candidate of data.candidates || []) {
-        imagePart = (candidate.content?.parts || []).find(part => part.inlineData?.data);
-        if (imagePart) break;
+    let b64 = "", mime = "image/jpeg", providerName = "Gemini";
+    if (CLOUDFLARE_IMAGES) {
+      providerName = "Cloudflare";
+      const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${encodeURIComponent(CLOUDFLARE_IMAGE_MODEL)}`, {
+        method: "POST", signal: AbortSignal.timeout(180_000),
+        headers: { "content-type": "application/json", authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
+        body: JSON.stringify({ prompt: (prompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
+      });
+      const responseText = await r.text();
+      let data = {};
+      try { data = JSON.parse(responseText); } catch {}
+      if (!r.ok || data.success === false) {
+        const detail = String(data.errors?.[0]?.message || data.error?.message || responseText).slice(0, 300);
+        const code = r.status === 429 || r.status >= 500 ? "upstream_busy" : r.status === 400 && /safety|blocked|policy/i.test(detail) ? "refused" : r.status === 401 || r.status === 403 ? "bad_key" : "upstream_error";
+        console.error(`[images] Cloudflare HTTP ${r.status} (${code}) : ${detail.replace(/\\s+/g, " ")}`);
+        await refund();
+        return json(res, code === "refused" ? 422 : code === "upstream_busy" ? 503 : 502, { code });
       }
-    } catch {}
-    const b64 = imagePart?.inlineData?.data;
-    const mime = imagePart?.inlineData?.mimeType || "image/png";
+      b64 = data.result?.image || data.image || "";
+      if (typeof b64 === "string" && b64.startsWith("data:")) {
+        const m = /^data:(image\\/[a-z0-9.+-]+);base64,(.+)$/i.exec(b64);
+        if (m) { mime = m[1]; b64 = m[2]; }
+      }
+    } else {
+      const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(IMAGE_MODEL)}:generateContent`, {
+        method: "POST", signal: AbortSignal.timeout(180_000),
+        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt + IMAGE_SAFE_SUFFIX }] }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio } }
+        })
+      });
+      const responseText = await r.text();
+      if (!r.ok) {
+        let detail = {};
+        try { detail = JSON.parse(responseText)?.error || {}; } catch {}
+        const msg = String(detail.message || "").toLowerCase();
+        const code = r.status === 429 || r.status >= 500 ? "upstream_busy" : r.status === 400 && /safety|blocked|policy/.test(msg) ? "refused" : r.status === 401 || r.status === 403 ? "bad_key" : "upstream_error";
+        console.error(`[images] Gemini HTTP ${r.status} (${code})`);
+        await refund();
+        return json(res, code === "refused" ? 422 : code === "upstream_busy" ? 503 : 502, { code });
+      }
+      let imagePart;
+      try {
+        const data = JSON.parse(responseText);
+        for (const candidate of data.candidates || []) {
+          imagePart = (candidate.content?.parts || []).find(part => part.inlineData?.data);
+          if (imagePart) break;
+        }
+      } catch {}
+      b64 = imagePart?.inlineData?.data || "";
+      mime = imagePart?.inlineData?.mimeType || "image/png";
+    }
     if (typeof b64 !== "string" || b64.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(b64) || !["image/png", "image/jpeg", "image/webp"].includes(mime)) {
-      console.error("[images] Gemini n'a retourné aucune image exploitable");
+      console.error(`[images] ${providerName} n'a retourné aucune image exploitable`);
       await refund();
       return json(res, 502, { code: "no_image" });
     }
     reserved = false;
-    console.log(`[images] image Gemini générée pour ${mask(email)} (${a.used}/${q.limit})`);
+    console.log(`[images] image ${providerName} générée pour ${mask(email)} (${a.used}/${q.limit})`);
     return json(res, 200, { image: `data:${mime};base64,${b64}`, used: a.used, limit: q.limit });
   } catch (e) {
     console.error("[images]", e.name === "TimeoutError" ? "Gemini trop lent" : e.message);
@@ -1595,7 +1624,9 @@ async function selfCheck() {
   if (IMAGES_ON) {
     try {
       await rpc("stars_image_used", { p_email: "verification@example.com" });
-      console.log(`[vérif] Génération d'images Gemini activée (${IMAGE_MODEL}, quotas : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).`);
+      console.log(CLOUDFLARE_IMAGES
+        ? `[vérif] Génération d'images Cloudflare activée (${CLOUDFLARE_IMAGE_MODEL}, quota interne : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).`
+        : `[vérif] Génération d'images Gemini activée (${IMAGE_MODEL}, quotas internes : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).`);
     } catch (e) { console.error("[vérif] Compteurs d'images indisponibles (vérifier les fonctions SQL stars_image_*) :", e.message); }
   } else console.log("[vérif] Génération d'images désactivée (clé Gemini, Supabase ou IMAGES_ENABLED).");
 
