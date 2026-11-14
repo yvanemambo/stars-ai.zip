@@ -514,6 +514,7 @@ async function authStart(req, res, ip) {
   const body = await readJson(req);
   const mode = ["login", "reset"].includes(body?.mode) ? body.mode : "signup";
   const email = String(body?.email || "").trim().toLowerCase();
+  console.log(`[auth] demande ${mode} reçue pour ${mask(email)}`);
   let name = cleanName(body?.name);
   if (email.length > 254 || !EMAIL_RE.test(email)) return json(res, 400, { code: "bad_email" });
   if (mode === "signup" && !name) return json(res, 400, { code: "bad_name" });
