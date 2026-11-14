@@ -1,7 +1,7 @@
-// STARS AI — service worker : rend l'appli installable et affiche une page claire quand il n'y a pas d'internet.
+// YvanAI — service worker : rend l'appli installable et affiche une page claire quand il n'y a pas d'internet.
 // Les messages à l'IA (/api/...) ne passent jamais par le cache.
-const CACHE = "stars-ai-v2";
-const SHELL = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.webmanifest"];
+const CACHE = "yvanai-v5";
+const SHELL = ["/offline.html", "/icons/yvanai-icon.svg", "/icons/yvanai-favicon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -37,7 +37,7 @@ self.addEventListener("fetch", event => {
 const METHOD = { wave: "Wave", orange: "Orange Money", mtn: "MTN MoMo", moov: "Moov Money" };
 self.addEventListener("push", event => {
   event.waitUntil((async () => {
-    let title = "STARS AI", body = "Ouvre ton tableau de bord STARS AI.";
+    let title = "YvanAI", body = "Ouvre ton tableau de bord YvanAI.";
     try {
       const r = await fetch("/api/admin/overview", { credentials: "include" });
       if (r.ok) {
@@ -54,8 +54,8 @@ self.addEventListener("push", event => {
       }
     } catch (e) {}
     await self.registration.showNotification(title, {
-      body, icon: "/icons/icon-192.png", badge: "/icons/favicon-48.png",
-      tag: "stars-payment", renotify: true, data: { url: "/admin" }
+      body, icon: "/icons/yvanai-icon.svg", badge: "/icons/yvanai-favicon.svg",
+      tag: "yvanai-payment", renotify: true, data: { url: "/admin" }
     });
   })());
 });

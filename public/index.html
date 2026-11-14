@@ -3,19 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>STARS AI</title>
-<meta name="description" content="STARS AI — ton assistant d'intelligence artificielle en français.">
+<title>YvanAI</title>
+<meta name="description" content="YvanAI — ton assistant d'intelligence artificielle en français.">
 <meta name="theme-color" content="#070b1f">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="/icons/yvanai-favicon.svg">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="STARS AI">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23070b1f'/%3E%3Cpath d='M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z' fill='%23f4c96b'/%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-title" content="YvanAI">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
 <style>
-/* Layout: one-screen chat under a live star field; header, scrolling thread, composer docked at the bottom. Single committed night look. */
+/* Layout: premium animated night interface with aurora lighting; header, scrolling thread, composer docked at the bottom. */
 :root {
   --sky: #070b1f;
   --sky-2: #0f1534;
@@ -46,7 +48,6 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 [hidden] { display: none !important; }
-#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
 .app {
   position: relative; z-index: 1;
   height: 100%;
@@ -60,7 +61,6 @@ header {
   padding-block: 16px 10px;
 }
 .brand { display: flex; align-items: center; gap: 10px; }
-.brand svg { width: 28px; height: 28px; flex: none; }
 .brand h1 {
   margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 18px; letter-spacing: 0.14em;
 }
@@ -124,6 +124,9 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--star); o
 .thinking i:nth-child(2) { animation-delay: .2s; } .thinking i:nth-child(3) { animation-delay: .4s; }
 @keyframes twinkle { 0%,100% { opacity: .25; transform: scale(.7) } 50% { opacity: 1; transform: scale(1) } }
 .note { color: var(--danger); font-size: 13px; margin-top: 6px; }
+.retry-btn { display:inline-flex; align-items:center; gap:7px; margin-top:10px; padding:8px 13px; border:1px solid rgba(244,201,107,.45); border-radius:999px; background:rgba(244,201,107,.10); color:var(--star); font:600 13px var(--f-body); cursor:pointer; transition:background .2s,border-color .2s; }
+.retry-btn:hover { background:rgba(244,201,107,.18); border-color:var(--star); }
+.retry-btn:disabled { opacity:.6; cursor:wait; }
 
 footer { padding-block: 8px 14px; }
 .composer {
@@ -282,6 +285,10 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   background: rgba(7, 11, 31, .85); color: var(--ink); font: 600 14px/22px var(--f-body); padding: 0;
 }
 .attach .pic.loading::after { content: ""; position: absolute; inset: 0; background: rgba(7,11,31,.55); }
+.attach .file-chip { display:flex; align-items:center; gap:8px; max-width:min(260px,100%); padding:7px 10px; border:1px solid var(--line); border-radius:10px; color:var(--ink-dim); font-size:12px; background:rgba(5,8,24,.45); }
+.attach .file-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attach .file-chip button { flex:none; border:0; background:transparent; color:var(--ink); cursor:pointer; font-size:16px; }
+.attach .file-chip.loading { opacity:.65; }
 .bubble .pics { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .bubble .pics + .txt:not(:empty) { margin-top: 8px; }
 .bubble .pics img { max-width: min(220px, 100%); max-height: 220px; border-radius: 12px; display: block; }
@@ -307,12 +314,28 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   background: #ff5a5f; border: 2px solid var(--sky);
 }
 .account summary:focus-visible { outline: 2px solid var(--star); outline-offset: 2px; }
+/* Keep the account dropdown above the chat thread and make its full content reachable. */
+header { position: relative; z-index: 40; }
+.actions { position: relative; z-index: 41; }
+.account { position: relative; z-index: 42; }
+.account[open] { z-index: 43; }
 .account .menu {
-  position: absolute; right: 0; top: 42px; z-index: 5; min-width: 220px; max-width: calc(100vw - 32px);
-  background: #111836; border: 1px solid var(--line); border-radius: 14px; padding: 14px;
-  display: grid; gap: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.45);
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 44;
+  width: min(320px, calc(100vw - 32px)); min-width: 0; max-width: calc(100vw - 32px);
+  max-height: min(560px, calc(100dvh - 88px)); overflow-y: auto; overscroll-behavior: contain;
+  background: rgba(17, 24, 54, .985); border: 1px solid rgba(160, 172, 230, .24);
+  border-radius: 16px; padding: 16px; display: grid; gap: 13px;
+  box-shadow: 0 20px 48px rgba(0,0,0,.58), 0 0 0 1px rgba(255,255,255,.025);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
 }
-.account .menu small { color: var(--ink-dim); overflow-wrap: anywhere; }
+.account .menu > * { min-width: 0; }
+.account .menu small { color: var(--ink-dim); overflow-wrap: anywhere; line-height: 1.45; }
+.account .menu .menu-link { display: block; width: 100%; min-height: 24px; line-height: 1.45; overflow-wrap: anywhere; }
+.account .menu .btn-ghost { width: 100%; min-height: 40px; }
+.account .menu .menu-sep { margin-block: 1px; }
+@media (max-width: 520px) {
+  .account .menu { max-height: calc(100dvh - 76px); padding: 14px; gap: 12px; }
+}
 
 /* Sign-up screen */
 .auth { padding-block: 7vh 24px; max-width: 440px; }
@@ -390,17 +413,925 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 .history-state { display:grid; gap:10px; justify-items:start; }
 #historyClear { color:var(--danger); }
 
+
+
+/* ===== YvanAI — live thinking indicator ===== */
+.msg.ai .bubble:has(.thinking) {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+}
+.thinking {
+  position: relative;
+  min-height: 42px;
+  padding: 10px 15px 10px 52px;
+  gap: 5px;
+  border: 1px solid rgba(244,201,107,.18);
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(244,201,107,.075), rgba(73,91,190,.10), rgba(244,201,107,.075));
+  background-size: 220% 100%;
+  box-shadow: 0 5px 22px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.035);
+  animation: thinkingGlow 3.2s ease-in-out infinite;
+  font-size: 13px;
+  letter-spacing: .015em;
+}
+.thinking::before {
+  content: "";
+  position: absolute;
+  left: 14px; top: 50%;
+  width: 24px; height: 24px;
+  margin-top: -12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(244,201,107,.22);
+  border-top-color: #f4c96b;
+  border-right-color: rgba(244,201,107,.7);
+  box-shadow: 0 0 14px rgba(244,201,107,.14);
+  animation: thinkingSpin 1.5s linear infinite;
+}
+.thinking::after {
+  content: none;
+  position: absolute;
+  left: 21px; top: 50%;
+  transform: translateY(-51%);
+  display: none;
+  font-size: 10px;
+  text-shadow: 0 0 10px rgba(244,201,107,.9);
+  animation: thinkingStar 1.8s ease-in-out infinite;
+}
+.thinking i {
+  width: 4px; height: 4px;
+  margin-left: 1px;
+  background: #ffe5a0;
+  box-shadow: 0 0 8px rgba(244,201,107,.75);
+  animation: thinkingDot 1.1s ease-in-out infinite;
+}
+.thinking i:nth-child(2) { animation-delay: .16s; }
+.thinking i:nth-child(3) { animation-delay: .32s; }
+@keyframes thinkingSpin { to { transform: rotate(360deg); } }
+@keyframes thinkingStar { 0%,100% { opacity: .55; transform: translateY(-51%) scale(.82); } 50% { opacity: 1; transform: translateY(-51%) scale(1.18); } }
+@keyframes thinkingDot { 0%,100% { opacity: .25; transform: translateY(1px) scale(.7); } 50% { opacity: 1; transform: translateY(-2px) scale(1.2); } }
+@keyframes thinkingGlow { 0%,100% { background-position: 0% 50%; border-color: rgba(244,201,107,.14); } 50% { background-position: 100% 50%; border-color: rgba(244,201,107,.32); } }
+@media (prefers-reduced-motion: reduce) {
+  .thinking, .thinking::before, .thinking::after, .thinking i { animation: none !important; }
+}
+
+/* ===== YvanAI — visual refresh / premium motion layer ===== */
+:root {
+  --star-glow: rgba(244, 201, 107, .22);
+  --glass: rgba(14, 20, 49, .78);
+}
+body {
+  background:
+    radial-gradient(ellipse at 14% 18%, rgba(70, 81, 177, .20), transparent 38%),
+    radial-gradient(ellipse at 88% 78%, rgba(139, 87, 185, .13), transparent 34%),
+    linear-gradient(145deg, #070b1f 0%, #0b1029 48%, #090d22 100%);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: -30%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 25% 35%, rgba(73, 105, 255, .10), transparent 24%),
+    radial-gradient(circle at 72% 62%, rgba(244, 201, 107, .07), transparent 22%);
+  filter: blur(30px);
+  animation: starsAurora 18s ease-in-out infinite alternate;
+}
+@keyframes starsAurora {
+  0% { transform: translate3d(-2%, -1%, 0) scale(.96); opacity: .65; }
+  100% { transform: translate3d(2%, 2%, 0) scale(1.06); opacity: 1; }
+}
+.app { max-width: 1040px; }
+header {
+  position: relative;
+  padding-block: 18px 14px;
+  border-bottom: 1px solid rgba(160, 172, 230, .10);
+  background: linear-gradient(180deg, rgba(11, 16, 42, .60), rgba(11, 16, 42, 0));
+  backdrop-filter: blur(12px);
+}
+.brand { gap: 12px; }
+.brand svg {
+  width: 34px; height: 34px;
+  filter: drop-shadow(0 0 10px rgba(244, 201, 107, .55));
+  animation: brandFloat 4s ease-in-out infinite;
+}
+@keyframes brandFloat { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(8deg); } }
+.brand h1 { font-size: 17px; letter-spacing: .19em; }
+.brand h1 span { text-shadow: 0 0 18px rgba(244, 201, 107, .48); }
+.btn-ghost {
+  border-color: rgba(174, 188, 255, .18);
+  background: rgba(255,255,255,.025);
+  transition: transform .2s ease, color .2s ease, border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.btn-ghost:hover { transform: translateY(-1px); background: rgba(255,255,255,.06); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+#thread { padding: 20px 4px 30px; scrollbar-width: thin; scrollbar-color: rgba(160,172,230,.28) transparent; }
+.welcome {
+  position: relative;
+  isolation: isolate;
+  padding: clamp(34px, 7vh, 76px) clamp(4px, 2vw, 20px) 30px;
+  gap: 22px;
+  animation: welcomeIn .8s cubic-bezier(.2,.8,.2,1) both;
+}
+.welcome::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(520px, 75vw); aspect-ratio: 1;
+  top: 0; left: 50%; transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(81, 100, 219, .16), rgba(244,201,107,.045) 42%, transparent 70%);
+  filter: blur(12px);
+  pointer-events: none;
+  animation: heroPulse 7s ease-in-out infinite alternate;
+}
+@keyframes welcomeIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes heroPulse { from { opacity: .55; transform: translateX(-50%) scale(.92); } to { opacity: 1; transform: translateX(-50%) scale(1.08); } }
+.welcome-kicker {
+  display: inline-flex; align-items: center; gap: 10px;
+  width: fit-content; padding: 8px 13px;
+  border: 1px solid rgba(244,201,107,.22);
+  border-radius: 999px;
+  background: rgba(244,201,107,.055);
+  box-shadow: 0 0 24px rgba(244,201,107,.055);
+  font-size: 10px; letter-spacing: .2em;
+}
+.welcome-kicker::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: #a6f0c6; box-shadow: 0 0 12px rgba(166,240,198,.9);
+}
+.welcome h2 {
+  max-width: 16ch;
+  font-size: clamp(32px, 6.2vw, 58px);
+  line-height: 1.12;
+  letter-spacing: -.045em;
+}
+.welcome h2 em {
+  display: inline-block;
+  background: linear-gradient(100deg, #ffe9ae 5%, #f4c96b 42%, #fff5d7 72%, #d9a94e 100%);
+  background-size: 220% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: goldShimmer 7s linear infinite;
+  filter: drop-shadow(0 0 20px rgba(244,201,107,.15));
+}
+@keyframes goldShimmer { to { background-position: 220% center; } }
+.welcome > p { font-size: 15px; max-width: 58ch; line-height: 1.75; }
+.workspace-label { margin: 12px 0 -8px; letter-spacing: .19em; font-size: 10px; }
+.workspace-grid { gap: 14px; }
+.workspace-card {
+  position: relative;
+  min-height: 154px;
+  overflow: hidden;
+  padding: 20px;
+  gap: 12px;
+  border-radius: 20px;
+  border-color: rgba(160,172,230,.15);
+  background:
+    linear-gradient(145deg, rgba(30,40,88,.76), rgba(11,17,44,.82)),
+    rgba(16,22,53,.8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 12px 35px rgba(0,0,0,.12);
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), border-color .28s ease, box-shadow .28s ease, background .28s ease;
+}
+.workspace-card::after {
+  content: ""; position: absolute; width: 130px; height: 130px; right: -65px; bottom: -75px;
+  border-radius: 50%; background: rgba(244,201,107,.08); filter: blur(2px);
+  transition: transform .35s ease, background .35s ease;
+}
+.workspace-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(244,201,107,.48);
+  box-shadow: 0 18px 42px rgba(0,0,0,.24), 0 0 28px rgba(244,201,107,.07);
+}
+.workspace-card:hover::after { transform: scale(1.7); background: rgba(244,201,107,.13); }
+.workspace-icon {
+  width: 42px; height: 42px; border-radius: 14px;
+  border: 1px solid rgba(244,201,107,.18);
+  background: linear-gradient(145deg, rgba(244,201,107,.17), rgba(244,201,107,.045));
+  box-shadow: 0 5px 20px rgba(244,201,107,.07);
+  transition: transform .3s ease;
+}
+.workspace-card:hover .workspace-icon { transform: translateY(-2px) rotate(-5deg); }
+.workspace-card strong { font-size: 13px; letter-spacing: .015em; }
+.workspace-card span:last-child { line-height: 1.6; }
+.msg { gap: 13px; padding-block: 16px; animation: messageIn .32s ease both; }
+@keyframes messageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.msg .avatar { filter: drop-shadow(0 0 8px rgba(244,201,107,.17)); }
+.msg.ai .bubble {
+  padding: 13px 16px;
+  border: 1px solid rgba(160,172,230,.10);
+  border-radius: 4px 18px 18px 18px;
+  background: linear-gradient(145deg, rgba(21,29,67,.52), rgba(12,18,43,.34));
+}
+.msg.user .bubble {
+  background: linear-gradient(135deg, #35428e, #252f69);
+  border: 1px solid rgba(171,185,255,.17);
+  box-shadow: 0 8px 22px rgba(4,8,30,.18);
+}
+.bubble pre { box-shadow: inset 0 1px 0 rgba(255,255,255,.035); }
+.composer {
+  border-radius: 23px;
+  border-color: rgba(160,172,230,.20);
+  background: rgba(17,24,57,.86);
+  box-shadow: 0 12px 42px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.045);
+  transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+.composer:focus-within {
+  border-color: rgba(244,201,107,.58);
+  box-shadow: 0 12px 42px rgba(0,0,0,.25), 0 0 0 4px rgba(244,201,107,.055), 0 0 28px rgba(244,201,107,.08);
+}
+#input { min-height: 40px; }
+#send {
+  background: linear-gradient(145deg, #ffe9ae, #f4c96b 62%, #dba849);
+  box-shadow: 0 4px 16px rgba(244,201,107,.23);
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+#send:not(:disabled):hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 7px 22px rgba(244,201,107,.34); }
+#send:not(:disabled):active { transform: scale(.95); }
+#micBtn, #photoBtn { transition: color .2s ease, border-color .2s ease, background .2s ease, transform .2s ease; }
+#micBtn:hover, #photoBtn:hover { transform: translateY(-2px); background: rgba(244,201,107,.07); }
+.fine { opacity: .78; font-size: 11px; }
+#historyPanel {
+  border-right: 1px solid rgba(160,172,230,.16);
+  background: rgba(9,14,36,.96);
+  backdrop-filter: blur(22px);
+  box-shadow: 18px 0 60px rgba(0,0,0,.32);
+}
+dialog.sheet { backdrop-filter: blur(18px); }
+dialog.sheet[open] { animation: dialogIn .22s ease both; }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 650px) {
+  .app { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+  header { padding-block: 13px 11px; }
+  .brand svg { width: 30px; height: 30px; }
+  .brand h1 { font-size: 15px; }
+  #thread { padding: 12px 0 20px; }
+  .welcome { padding-top: 5vh; gap: 18px; }
+  .welcome h2 { font-size: clamp(30px, 9vw, 43px); }
+  .workspace-grid { gap: 10px; }
+  .workspace-card { min-height: 0; padding: 15px; border-radius: 16px; }
+  .msg.ai .bubble { padding: 11px 12px; }
+  footer { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before, .brand svg, .welcome, .welcome::before, .welcome h2 em,
+  .workspace-card, .workspace-icon, .msg, dialog.sheet[open] { animation: none !important; }
+  .workspace-card, .btn-ghost, #send, #micBtn, #photoBtn { transition: none !important; }
+}
+
+
+/* ===== YvanAI — animated identity avatar ===== */
+.msg .stars-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  margin-top: 1px;
+  border-radius: 50%;
+  isolation: isolate;
+}
+.stars-avatar::before,
+.stars-avatar::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border: 1px solid rgba(244,201,107,.45);
+  border-radius: 50%;
+  box-shadow: 0 0 13px rgba(244,201,107,.14), inset 0 0 10px rgba(244,201,107,.08);
+}
+.stars-avatar::after {
+  inset: -3px;
+  border-color: rgba(112,139,255,.35);
+  border-right-color: rgba(244,201,107,.8);
+  animation: starsAvatarOrbit 7s linear infinite;
+}
+.stars-avatar__orbit {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px dashed rgba(244,201,107,.3);
+  animation: starsAvatarOrbit 18s linear infinite reverse;
+}
+.stars-avatar__core {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #354477, #111a3a 72%);
+  box-shadow: 0 0 14px rgba(244,201,107,.22), inset 0 0 8px rgba(255,255,255,.08);
+  animation: starsAvatarPulse 3.4s ease-in-out infinite;
+}
+.stars-avatar__core svg { width: 19px; height: 19px; filter: drop-shadow(0 0 4px rgba(255,218,135,.8)); }
+.msg.ai:has(.thinking) .stars-avatar::after { animation-duration: 1.6s; border-width: 1.5px; }
+.msg.ai:has(.thinking) .stars-avatar__core { animation-duration: 1s; }
+.msg.ai:has(.thinking) .stars-avatar { filter: drop-shadow(0 0 7px rgba(244,201,107,.3)); }
+@keyframes starsAvatarOrbit { to { transform: rotate(360deg); } }
+@keyframes starsAvatarPulse { 0%,100% { transform: scale(.94); filter: brightness(.92); } 50% { transform: scale(1.06); filter: brightness(1.2); } }
+@media (prefers-reduced-motion: reduce) {
+  .stars-avatar::after, .stars-avatar__orbit, .stars-avatar__core { animation: none !important; }
+}
+
+
+/* ===== YvanAI — voice states: listen, think, speak ===== */
+.orb {
+  overflow: visible;
+  transition: background .45s ease, box-shadow .45s ease, filter .35s ease, transform .3s ease;
+}
+.orb::before, .orb::after {
+  transition: border-color .35s ease, box-shadow .35s ease;
+}
+.voice[data-state="idle"] .orb {
+  background: radial-gradient(circle at 34% 28%, #fff4d2 0%, #f4c96b 46%, #98701f 100%);
+  box-shadow: 0 0 58px rgba(244,201,107,.28), inset 0 -10px 30px rgba(120,80,10,.35);
+}
+.voice[data-state="listening"] .orb {
+  background: radial-gradient(circle at 34% 28%, #e3fbff 0%, #55c9ed 42%, #235aaf 100%);
+  box-shadow: 0 0 76px rgba(69,190,255,.48), inset 0 -12px 30px rgba(10,44,105,.35);
+}
+.voice[data-state="listening"] .orb::before,
+.voice[data-state="listening"] .orb::after {
+  border-color: rgba(103,218,255,.75);
+  box-shadow: 0 0 20px rgba(65,190,255,.25);
+}
+.voice[data-state="thinking"] .orb {
+  background: radial-gradient(circle at 34% 28%, #f0e5ff 0%, #a987f4 43%, #5541a5 100%);
+  box-shadow: 0 0 78px rgba(157,115,255,.42), inset 0 -12px 30px rgba(48,25,105,.4);
+  filter: saturate(1) brightness(1);
+}
+.voice[data-state="thinking"] .orb::before,
+.voice[data-state="thinking"] .orb::after {
+  opacity: .8;
+  border-color: rgba(202,170,255,.75);
+  animation: thinkOrbit 2.4s linear infinite;
+}
+.voice[data-state="thinking"] .orb::after { animation-direction: reverse; animation-duration: 3.6s; inset: -18px; }
+.voice[data-state="speaking"] .orb {
+  background: radial-gradient(circle at 34% 28%, #fff2d9 0%, #ffc16b 42%, #e36d57 100%);
+  box-shadow: 0 0 84px rgba(255,153,98,.5), inset 0 -12px 30px rgba(115,38,28,.35);
+}
+.voice[data-state="speaking"] .orb::before,
+.voice[data-state="speaking"] .orb::after {
+  opacity: .85;
+  border-color: rgba(255,190,135,.7);
+  animation: speakWave .8s ease-out infinite;
+}
+.voice[data-state="speaking"] .orb::after { animation-delay: .4s; }
+.voice[data-state="listening"] .vstatus { color: #8cddff; text-shadow: 0 0 18px rgba(69,190,255,.35); }
+.voice[data-state="thinking"] .vstatus { color: #d0b8ff; text-shadow: 0 0 18px rgba(157,115,255,.4); }
+.voice[data-state="speaking"] .vstatus { color: #ffd09a; text-shadow: 0 0 18px rgba(255,153,98,.38); }
+@keyframes thinkOrbit { to { transform: rotate(360deg); } }
+@keyframes speakWave { from { transform: scale(.92); opacity: .75; } to { transform: scale(1.55); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .voice[data-state] .orb, .voice[data-state] .orb::before, .voice[data-state] .orb::after {
+    animation: none !important;
+  }
+}
+
+
+/* ===== YvanAI motion identity — animated violet/gold reactor, no star motif ===== */
+#sky { display:none !important; }
+body {
+  background:
+    radial-gradient(ellipse at 50% 12%, rgba(112,45,208,.22), transparent 34%),
+    radial-gradient(ellipse at 8% 82%, rgba(74,45,170,.18), transparent 30%),
+    radial-gradient(ellipse at 92% 72%, rgba(225,164,48,.10), transparent 27%),
+    linear-gradient(135deg,#050611 0%,#0b0920 48%,#080b1c 100%);
+  background-size: 150% 150%;
+  animation: yvanaiAtmosphere 22s ease-in-out infinite alternate;
+}
+@keyframes yvanaiAtmosphere { 0%{background-position:0% 20%;} 100%{background-position:100% 80%;} }
+body::before {
+  inset:-45%;
+  background:
+    conic-gradient(from 0deg at 50% 50%,transparent 0 22%,rgba(140,70,255,.11) 30%,transparent 39% 63%,rgba(255,194,65,.08) 72%,transparent 82%);
+  filter:blur(58px);
+  animation:yvanaiNebula 32s linear infinite;
+}
+@keyframes yvanaiNebula { to { transform:rotate(360deg) scale(1.08); } }
+.app { position:relative; z-index:1; }
+header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(0,0,0,.12); }
+.brand svg { filter:drop-shadow(0 0 9px rgba(165,75,255,.65)) drop-shadow(0 0 18px rgba(255,196,65,.2)); animation:brandOrbitFloat 5s ease-in-out infinite; }
+@keyframes brandOrbitFloat { 0%,100%{transform:translateY(0) rotate(-4deg);} 50%{transform:translateY(-4px) rotate(4deg);} }
+.brand h1 span { color:#e3b0ff; text-shadow:0 0 16px rgba(175,83,255,.65),0 0 28px rgba(255,196,65,.25); }
+.welcome { padding-top:clamp(16px,3vh,34px); gap:17px; }
+.hero-reactor {
+  width:clamp(142px,22vw,190px); aspect-ratio:1; position:relative; align-self:center;
+  display:grid; place-items:center; margin:0 auto 2px; isolation:isolate;
+  filter:drop-shadow(0 0 35px rgba(132,63,255,.23));
+}
+.reactor-halo { position:absolute; inset:13%; border-radius:50%; background:radial-gradient(circle,rgba(149,74,255,.30),rgba(110,51,210,.08) 48%,transparent 72%); filter:blur(10px); animation:reactorBreathe 4.5s ease-in-out infinite; }
+.reactor-ring { position:absolute; border-radius:50%; border:1px solid transparent; pointer-events:none; }
+.reactor-ring-a { inset:5%; border-top-color:#d9a6ff; border-right-color:rgba(160,80,255,.7); border-bottom-color:rgba(255,202,91,.55); box-shadow:0 0 18px rgba(163,79,255,.16); animation:reactorSpin 9s linear infinite; }
+.reactor-ring-b { inset:15%; border-width:2px; border-left-color:rgba(255,204,89,.9); border-bottom-color:rgba(156,76,255,.6); transform:rotate(-34deg); animation:reactorSpinReverse 6.5s linear infinite; }
+.reactor-ring-c { inset:-2%; border-style:dashed; border-color:rgba(176,119,255,.28); animation:reactorSpin 24s linear infinite; }
+.reactor-core {
+  width:47%; aspect-ratio:1; border-radius:32%; display:grid; place-items:center;
+  background:radial-gradient(circle at 30% 24%,#3b1a67 0%,#170d31 58%,#090816 100%);
+  border:1px solid rgba(226,190,255,.55);
+  box-shadow:inset 0 0 28px rgba(167,76,255,.3),0 0 22px rgba(151,70,255,.38),0 0 54px rgba(255,190,65,.13);
+  transform:rotate(45deg); animation:coreLevitate 4s ease-in-out infinite;
+}
+.reactor-core b { transform:rotate(-45deg); font:700 clamp(48px,8vw,70px)/1 "Unbounded",sans-serif; letter-spacing:-.12em; padding-right:.12em; color:transparent; background:linear-gradient(145deg,#f2d2ff 8%,#b65aff 48%,#ffd36c 88%); -webkit-background-clip:text; background-clip:text; filter:drop-shadow(0 0 13px rgba(205,130,255,.6)); }
+.reactor-glint { position:absolute; width:9px; height:9px; right:18%; top:18%; border-radius:50%; background:#ffe4a0; box-shadow:0 0 12px 4px rgba(255,198,77,.48); animation:glintPulse 2.8s ease-in-out infinite; }
+@keyframes reactorSpin { to{transform:rotate(360deg);} }
+@keyframes reactorSpinReverse { to{transform:rotate(-360deg);} }
+@keyframes reactorBreathe { 0%,100%{opacity:.65;transform:scale(.88);} 50%{opacity:1;transform:scale(1.12);} }
+@keyframes coreLevitate { 0%,100%{translate:0 0;scale:1;} 50%{translate:0 -5px;scale:1.035;} }
+@keyframes glintPulse { 0%,100%{opacity:.45;scale:.7;} 50%{opacity:1;scale:1.35;} }
+.welcome-kicker { border-color:rgba(177,108,255,.34); background:linear-gradient(100deg,rgba(126,54,205,.14),rgba(255,196,65,.06)); box-shadow:0 0 26px rgba(138,69,231,.09); }
+.welcome h2 em { background-image:linear-gradient(100deg,#d9a6ff 0%,#a94dff 35%,#ffe0a0 68%,#c17aff 100%); background-size:240% auto; animation:goldShimmer 5s linear infinite; }
+.workspace-card { background:linear-gradient(145deg,rgba(35,23,72,.72),rgba(11,14,35,.88)); border-color:rgba(167,116,255,.2); box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 38px rgba(0,0,0,.2); }
+.workspace-card::after { background:rgba(151,75,255,.13); }
+.workspace-card:hover { border-color:rgba(202,151,255,.58); box-shadow:0 18px 46px rgba(0,0,0,.3),0 0 30px rgba(146,75,255,.13); }
+.workspace-icon { color:#e2bdff; border-color:rgba(179,117,255,.28); background:linear-gradient(145deg,rgba(156,78,255,.24),rgba(255,194,65,.07)); box-shadow:0 5px 20px rgba(145,75,255,.12); }
+.composer { border-color:rgba(167,116,255,.28); background:rgba(13,12,34,.9); }
+.composer:focus-within { border-color:rgba(193,132,255,.72); box-shadow:0 12px 42px rgba(0,0,0,.3),0 0 0 4px rgba(154,80,255,.09),0 0 30px rgba(154,80,255,.14); }
+#send { background:linear-gradient(145deg,#e7c5ff,#a74eff 58%,#7130c7); color:#fff; box-shadow:0 4px 18px rgba(154,73,255,.34); }
+#send:not(:disabled):hover { box-shadow:0 7px 25px rgba(154,73,255,.48); }
+.thinking::after { content:none !important; display:none !important; }
+.thinking::before { border-color:rgba(182,112,255,.75); border-top-color:#ffd16b; box-shadow:0 0 14px rgba(156,78,255,.22); }
+.stars-avatar__core svg { filter:hue-rotate(245deg) saturate(1.5); }
+@media(max-width:650px) {
+  .welcome { padding-top:14px; }
+  .hero-reactor { width:132px; margin-bottom:0; }
+  .workspace-card { background:linear-gradient(145deg,rgba(35,23,72,.78),rgba(11,14,35,.92)); }
+}
+@media(prefers-reduced-motion:reduce) {
+  body,body::before,.brand svg,.reactor-halo,.reactor-ring,.reactor-core,.reactor-glint,.welcome h2 em { animation:none !important; }
+}
+
+/* YvanAI live response states — Y mark only, no star motifs */
+.msg.ai .stars-avatar__core svg { filter: drop-shadow(0 0 5px rgba(190,145,255,.55)); }
+.msg.ai:has(.thinking) .stars-avatar::after {
+  border-color: rgba(174,125,255,.75);
+  border-top-color: #ffd16b;
+  animation-duration: 1.35s;
+}
+.msg.ai:has(.thinking) .stars-avatar__core {
+  background: radial-gradient(circle at 35% 28%, #7652bd, #21133f 74%);
+  box-shadow: 0 0 20px rgba(164,112,255,.38), inset 0 0 9px rgba(255,255,255,.12);
+}
+.msg.ai:not(:has(.thinking)) .stars-avatar__core {
+  animation-duration: 2.8s;
+}
+.msg.ai:not(:has(.thinking)) .bubble {
+  animation: yvanAnswerArrive .35s ease-out both;
+}
+.thinking::before {
+  border-color: rgba(174,125,255,.65);
+  border-top-color: #ffd16b;
+  border-right-color: rgba(174,125,255,.9);
+  animation-duration: 1.25s;
+}
+@keyframes yvanAnswerArrive {
+  from { opacity: .45; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg.ai:not(:has(.thinking)) .bubble { animation: none !important; }
+}
+
+/* Natural voice captions and clearer listening feedback */
+.vtext {
+  padding: 14px 16px; border: 1px solid rgba(169,133,255,.18); border-radius: 18px;
+  background: linear-gradient(145deg,rgba(20,17,43,.72),rgba(12,16,36,.58));
+  box-shadow: inset 0 1px rgba(255,255,255,.035),0 10px 30px rgba(0,0,0,.12);
+  text-align:left; scrollbar-width:thin; scrollbar-color:rgba(169,133,255,.35) transparent;
+}
+.vtext:empty { display:none; }
+.vtext p { margin:0 0 8px; }
+.vtext p:last-child { margin-bottom:0; }
+.vtext .you { color:#c4b5fd; font-size:13px; }
+.voice[data-state="speaking"] .vstatus { color:#f4d58d; }
+.voice[data-state="listening"] .vstatus { color:#c8b5ff; }
+.voice[data-state="thinking"] .vstatus { color:#e8d6a5; }
+
+/* ===== YvanAI voice room — violet & gold reactor ===== */
+.voice {
+  background:
+    radial-gradient(ellipse at 50% 44%, rgba(104,72,190,.25), transparent 38%),
+    radial-gradient(ellipse at 50% 12%, rgba(244,201,107,.10), transparent 42%),
+    linear-gradient(145deg,#070713 0%,#0d1028 52%,#080b1b 100%);
+}
+.voice::before {
+  content:""; position:fixed; width:min(78vw,560px); aspect-ratio:1; border-radius:50%;
+  border:1px solid rgba(167,130,255,.12); box-shadow:0 0 90px rgba(111,75,205,.12),inset 0 0 80px rgba(244,201,107,.035);
+  pointer-events:none; animation:voiceHalo 8s ease-in-out infinite alternate;
+}
+@keyframes voiceHalo { from { transform:scale(.88) rotate(0); opacity:.5; } to { transform:scale(1.08) rotate(12deg); opacity:1; } }
+.voice-inner { position:relative; z-index:1; gap:20px; }
+.vtitle span { color:#f4c96b; text-shadow:0 0 18px rgba(244,201,107,.45); }
+.orb {
+  width:176px; height:176px; margin:24px 0 8px;
+  background:radial-gradient(circle at 34% 27%,#f4e8ff 0%,#a985ff 17%,#6542bb 48%,#211844 78%,#111126 100%);
+  border:1px solid rgba(244,201,107,.55);
+  box-shadow:0 0 32px rgba(139,102,255,.36),0 0 82px rgba(139,102,255,.22),inset 0 0 32px rgba(255,255,255,.12),inset 0 -18px 35px rgba(5,4,20,.55);
+}
+.orb svg { width:64px; height:64px; filter:drop-shadow(0 0 12px rgba(244,201,107,.55)); }
+.orb::before,.orb::after { inset:-13px; border-color:rgba(164,129,255,.55); }
+.voice[data-state="listening"] .orb { box-shadow:0 0 34px rgba(139,102,255,.5),0 0 100px rgba(139,102,255,.28),inset 0 0 32px rgba(255,255,255,.14); }
+.voice[data-state="thinking"] .orb { border-color:rgba(244,201,107,.75); }
+.voice[data-state="speaking"] .orb { box-shadow:0 0 36px rgba(244,201,107,.45),0 0 100px rgba(139,102,255,.28),inset 0 0 34px rgba(255,255,255,.15); }
+.voice[data-state="idle"] .orb { filter:grayscale(.2) brightness(.78); }
+.voice-wave { height:30px; display:flex; align-items:center; justify-content:center; gap:5px; opacity:.35; }
+.voice-wave i { display:block; width:4px; height:7px; border-radius:99px; background:linear-gradient(180deg,#ffe6a2,#a985ff); transform:scaleY(.7); }
+.voice[data-state="listening"] .voice-wave,
+.voice[data-state="speaking"] .voice-wave { opacity:1; }
+.voice[data-state="listening"] .voice-wave i { animation:voiceBars .72s ease-in-out infinite alternate; }
+.voice[data-state="speaking"] .voice-wave i { animation:voiceBars .38s ease-in-out infinite alternate; }
+.voice-wave i:nth-child(2),.voice[data-state="speaking"] .voice-wave i:nth-child(2) { animation-delay:.12s; }
+.voice-wave i:nth-child(3),.voice[data-state="speaking"] .voice-wave i:nth-child(3) { animation-delay:.24s; }
+.voice-wave i:nth-child(4),.voice[data-state="speaking"] .voice-wave i:nth-child(4) { animation-delay:.08s; }
+.voice-wave i:nth-child(5),.voice[data-state="speaking"] .voice-wave i:nth-child(5) { animation-delay:.2s; }
+.voice-wave i:nth-child(6) { animation-delay:.3s; }
+.voice-wave i:nth-child(7) { animation-delay:.16s; }
+@keyframes voiceBars { from { height:6px; transform:scaleY(.65); } to { height:28px; transform:scaleY(1); } }
+.vstatus { color:#f3edff; text-shadow:0 0 18px rgba(169,133,255,.18); }
+.hang { box-shadow:0 8px 28px rgba(229,72,77,.2); transition:transform .2s ease,box-shadow .2s ease; }
+.hang:hover { transform:translateY(-2px); box-shadow:0 12px 32px rgba(229,72,77,.3); }
+.thinking::after { display:none !important; content:none !important; }
+@media (prefers-reduced-motion:reduce) {
+  .voice::before,.voice-wave i { animation:none !important; }
+  .voice-wave i { height:8px; }
+}
+
+
+/* YvanAI visual refinement — violet aurora, glass surfaces and clearer controls */
+body::before, body::after {
+  content:""; position:fixed; inset:-18%; z-index:0; pointer-events:none;
+}
+body::before {
+  background:
+    radial-gradient(ellipse at 18% 28%,rgba(135,63,245,.19),transparent 34%),
+    radial-gradient(ellipse at 78% 18%,rgba(73,91,210,.16),transparent 32%),
+    radial-gradient(ellipse at 65% 82%,rgba(166,73,255,.12),transparent 36%);
+  filter:blur(24px); animation:yvanAurora 22s ease-in-out infinite alternate;
+}
+body::after {
+  background:radial-gradient(ellipse at 48% 108%,rgba(255,190,75,.075),transparent 42%);
+  opacity:.9;
+}
+@keyframes yvanAurora {
+  0% { transform:translate3d(-2%,1%,0) scale(1); }
+  50% { transform:translate3d(2%,-2%,0) scale(1.035); }
+  100% { transform:translate3d(-1%,2%,0) scale(1.015); }
+}
+.app { max-width:900px; }
+header {
+  position:relative; padding-block:17px 13px; margin-bottom:5px;
+  border-bottom:1px solid rgba(177,150,255,.13);
+}
+.brand { gap:12px; }
+.brand h1 { letter-spacing:.1em; }
+.btn-ghost {
+  background:rgba(24,25,57,.42); border-color:rgba(180,160,255,.18);
+  transition:background .2s ease,border-color .2s ease,transform .2s ease;
+}
+.btn-ghost:hover { background:rgba(127,72,210,.14); border-color:rgba(195,145,255,.48); transform:translateY(-1px); }
+.workspace-grid { gap:14px; }
+.workspace-card {
+  position:relative; overflow:hidden; min-height:142px; padding:19px;
+  border-color:rgba(176,145,255,.2);
+  background:
+    radial-gradient(circle at 100% 0%,rgba(151,83,255,.17),transparent 48%),
+    linear-gradient(145deg,rgba(31,35,78,.9),rgba(12,17,43,.9));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 12px 28px rgba(2,4,18,.12);
+  transition:transform .24s ease,border-color .24s ease,box-shadow .24s ease;
+}
+.workspace-card::after {
+  content:""; position:absolute; inset:auto -30% -75% 20%; height:110px;
+  background:radial-gradient(ellipse,rgba(151,76,255,.2),transparent 68%);
+  opacity:0; transition:opacity .25s ease; pointer-events:none;
+}
+.workspace-card:hover {
+  transform:translateY(-4px); border-color:rgba(203,160,255,.62);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 18px 38px rgba(2,4,18,.3),0 0 24px rgba(137,69,226,.12);
+}
+.workspace-card:hover::after { opacity:1; }
+.workspace-icon {
+  border:1px solid rgba(190,145,255,.22);
+  background:linear-gradient(145deg,rgba(151,79,244,.22),rgba(255,196,87,.09));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 18px rgba(112,57,190,.12);
+}
+.workspace-card strong { letter-spacing:.01em; }
+.welcome > p { font-size:15.5px; }
+.composer {
+  border-color:rgba(177,145,255,.25);
+  background:linear-gradient(125deg,rgba(23,25,61,.94),rgba(14,20,48,.92));
+  box-shadow:0 14px 42px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.055);
+  transition:border-color .2s ease,box-shadow .2s ease;
+}
+.composer:focus-within {
+  border-color:rgba(190,137,255,.7);
+  box-shadow:0 0 0 3px rgba(143,75,232,.1),0 16px 42px rgba(0,0,0,.24);
+}
+#send {
+  background:linear-gradient(135deg,#e1baff 0%,#a84cf4 55%,#ffd16a 100%);
+  color:#160d27; box-shadow:0 5px 18px rgba(153,75,232,.28);
+  transition:transform .2s ease,filter .2s ease,box-shadow .2s ease;
+}
+#send:not(:disabled):hover { transform:translateY(-2px) scale(1.04); filter:brightness(1.08); box-shadow:0 8px 24px rgba(153,75,232,.4); }
+#micBtn:hover,#photoBtn:hover { background:rgba(145,75,224,.12); }
+#thread { scrollbar-color:rgba(157,111,224,.42) transparent; scrollbar-width:thin; }
+.msg.ai .bubble { text-shadow:0 1px 1px rgba(0,0,0,.12); }
+@media(max-width:650px) {
+  .app { padding-left:max(13px,env(safe-area-inset-left,0px)); padding-right:max(13px,env(safe-area-inset-right,0px)); }
+  header { padding-block:13px 11px; }
+  .workspace-card { min-height:0; padding:15px; }
+  .welcome { padding-top:clamp(14px,2.5vh,24px); }
+  .composer { border-radius:18px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  body::before { animation:none !important; }
+  .workspace-card,.btn-ghost,#send,.composer { transition:none !important; }
+}
+
+
+/* YvanAI clean identity: remove all decorative star/sparkle marks, including legacy mobile avatar. */
+.stars-avatar::before,.stars-avatar::after,.stars-avatar__orbit,.thinking::after,.reactor-glint{display:none!important;content:none!important;}
+.msg .stars-avatar{border:1px solid rgba(178,137,255,.42);background:rgba(104,67,170,.16);box-shadow:0 0 12px rgba(137,86,220,.12);}
+.stars-avatar__core{animation:none!important;box-shadow:none!important;border:1px solid rgba(190,145,255,.3);}
+
+/* Motion design: subtle, fast and accessible animations */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -35%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 18% 28%, rgba(74, 104, 220, .18), transparent 42%),
+    radial-gradient(ellipse at 82% 68%, rgba(31, 180, 190, .12), transparent 40%);
+  filter: blur(24px);
+  animation: yvanAurora 18s ease-in-out infinite alternate;
+  transform: translate3d(0,0,0);
+}
+@keyframes yvanAurora {
+  0% { transform: translate3d(-2%, -1%, 0) scale(1); }
+  50% { transform: translate3d(2%, 2%, 0) scale(1.06); }
+  100% { transform: translate3d(-1%, 3%, 0) scale(1.02); }
+}
+.app { animation: yvanAppIn .55s ease-out both; }
+@keyframes yvanAppIn {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.welcome > * { animation: yvanRise .55s ease-out both; }
+.welcome > *:nth-child(2) { animation-delay: .07s; }
+.welcome > *:nth-child(3) { animation-delay: .14s; }
+.welcome > *:nth-child(4) { animation-delay: .21s; }
+.welcome > *:nth-child(5) { animation-delay: .28s; }
+@keyframes yvanRise {
+  from { opacity: 0; transform: translateY(13px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg { animation: yvanMessageIn .24s ease-out both; }
+@keyframes yvanMessageIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.composer { transition: border-color .22s ease, box-shadow .22s ease, transform .22s ease; }
+.composer:focus-within { box-shadow: 0 0 0 3px rgba(119, 145, 255, .10), 0 8px 28px rgba(0,0,0,.12); }
+#send { transition: transform .18s ease, filter .18s ease, opacity .18s ease; }
+#send:not(:disabled):hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.08); }
+#send:not(:disabled):active { transform: scale(.94); }
+.btn-ghost, .chip, .workspace-card, .act, .menu-link { transition: transform .18s ease, color .18s ease, border-color .18s ease, background .18s ease; }
+.chip:hover, .workspace-card:hover { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+
+/* Historique : panneau fixé à la fenêtre, sans débordement */
+.app { animation-fill-mode: none; }
+#historyPanel {
+  position: fixed;
+  inset: 0 auto 0 0;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 24px));
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+#historyPanel > * { min-width: 0; max-width: 100%; }
+#historyPanel .history-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+}
+#historyPanel .history-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#historyNew, #historyClear {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  justify-content: center;
+  white-space: normal;
+}
+#historyList {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 2px 8px 0;
+}
+.history-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px;
+  padding: 5px 6px;
+  overflow: hidden;
+}
+.history-open {
+  display: block;
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-action { flex: 0 0 32px; width: 32px; min-width: 32px; }
+.history-state, .history-empty {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  #historyPanel { width: min(320px, calc(100vw - 24px)); }
+}
+/* Historique compact et sans débordement, style liste de conversations */
+#historyPanel {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 20px));
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+  gap: 12px;
+}
+#historyPanel > * { min-width: 0; }
+#historyPanel .history-head { flex: 0 0 auto; min-height: 38px; }
+#historyPanel .history-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#historyNew, #historyClear { flex: 0 0 auto; width: 100%; justify-content: center; }
+#historyList {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 2px 2px 8px 0;
+}
+.history-item {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px;
+  padding: 5px 6px;
+  overflow: hidden;
+}
+.history-open {
+  display: block;
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-action { flex: 0 0 32px; width: 32px; min-width: 32px; }
+.history-state, .history-empty { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  #historyPanel { width: min(340px, calc(100vw - 16px)); }
+}
+
+/* Sidebar discussions — indépendante du conteneur animé de l'application */
+#historyShade {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+  background: rgba(3, 5, 16, .62);
+  backdrop-filter: blur(2px);
+}
+#historyPanel {
+  position: fixed !important;
+  inset: 0 auto 0 0 !important;
+  z-index: 9999 !important;
+  box-sizing: border-box !important;
+  width: min(290px, calc(100vw - 36px)) !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  padding: max(18px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom)) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+  background: #101322 !important;
+  border-right: 1px solid rgba(255,255,255,.09) !important;
+  box-shadow: 16px 0 48px rgba(0,0,0,.38) !important;
+  transform: translateX(-105%);
+  transition: transform .22s ease;
+}
+#historyPanel.open { transform: translateX(0) !important; }
+#historyPanel .history-head { flex: 0 0 auto; min-height: 36px; }
+#historyPanel .history-head h2 { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+#historyNew {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-height: 42px;
+  justify-content: flex-start !important;
+  padding: 0 12px !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.055) !important;
+  border: 1px solid rgba(255,255,255,.11) !important;
+}
+#historyList {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 2px 8px 0 !important;
+}
+#historyList .history-item {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  border-radius: 9px !important;
+}
+#historyList .history-open { min-width: 0 !important; }
+#historyClear {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  justify-content: center !important;
+  min-height: 38px;
+  font-size: 12px;
+  opacity: .78;
+}
+@media (prefers-reduced-motion: reduce) {
+  #historyPanel { transition: none !important; }
+}
+
+
+/* Inline Motion Design player inside the conversation */
+.video-chat-card{margin-top:14px;padding:14px;border:1px solid rgba(167,116,255,.32);border-radius:18px;background:linear-gradient(145deg,rgba(23,25,62,.96),rgba(8,13,35,.98));max-width:620px}.video-chat-card h3{margin:0 0 8px;font-size:16px}.video-chat-card .vc-muted{color:var(--muted,#a3add6);font-size:12px;line-height:1.5}.video-chat-card .vc-stage{width:min(100%,230px);aspect-ratio:9/16;margin:12px auto;border-radius:14px;overflow:hidden;background:#05091c;border:1px solid #ffffff25}.video-chat-card canvas{width:100%;height:100%;display:block}.video-chat-card .vc-scenes{display:grid;gap:6px;margin:10px 0}.video-chat-card .vc-scene{padding:8px 10px;border:1px solid rgba(160,172,230,.16);border-radius:9px;font-size:12px}.video-chat-card .vc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.video-chat-card button,.video-chat-card a{border:1px solid rgba(160,172,230,.25);border-radius:10px;padding:9px 12px;background:#25234d;color:#fff;font:600 12px system-ui;cursor:pointer;text-decoration:none}.video-chat-card button.primary{background:#f4c96b;color:#171323;border:0}.video-chat-card button:disabled{opacity:.5;cursor:wait}.video-chat-card .vc-progress{height:6px;background:#080e27;border-radius:9px;overflow:hidden;margin-top:10px}.video-chat-card .vc-progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#63d9ff,#f4c96b)}
 </style>
 </head>
 <body>
 
-<canvas id="sky" aria-hidden="true"></canvas>
+  <div id="historyShade" hidden></div>
+  <aside id="historyPanel" aria-label="Historique des discussions" aria-hidden="true">
+    <div class="history-head"><h2>Mes discussions</h2><button class="history-action" id="historyClose" type="button" aria-label="Fermer">✕</button></div>
+    <button class="btn-ghost" id="historyNew" type="button">＋ Nouvelle discussion</button>
+    <div id="historyList"><div class="history-empty">Chargement de tes discussions…</div></div>
+    <button class="btn-ghost" id="historyClear" type="button">Effacer tout l'historique</button>
+  </aside>
 
 <div class="app">
   <header>
     <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L19.2 12.8 L30 16 L19.2 19.2 L16 30 L12.8 19.2 L2 16 L12.8 12.8 Z" fill="#f4c96b"/><circle cx="26" cy="6" r="1.6" fill="#e9ecfb"/></svg>
-      <h1>STARS <span>AI</span></h1>
+
+      <h1>Yvan<span>AI</span></h1>
     </div>
     <div class="actions">
       <button class="btn-ghost" id="historyToggle" type="button" aria-expanded="false">Historique</button>
@@ -411,10 +1342,9 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
           <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
           <div class="plan" id="planLine"></div>
-          <a class="menu-link gold" id="premiumLink" href="/premium">⭐ Passer à Premium</a>
-          <a class="menu-link" id="adminLink" href="/admin" hidden>🛠 Tableau de bord</a>
+          <a class="menu-link gold" id="premiumLink" href="/premium">Passer à Premium</a>
+          <a class="menu-link" id="adminLink" href="/yvanai" hidden>🛠 Tableau de bord</a>
           <a class="menu-link" id="memLink" href="/memoire" hidden>🧠 Mes souvenirs</a>
-          <a class="menu-link" id="imgLink" href="/images" hidden>🎨 Images</a>
           <div class="menu-sep"></div>
           <button class="menu-link" type="button" data-install hidden>📲 Installer l'appli</button>
           <a class="menu-link" href="/ecoles">🏫 Offre écoles</a>
@@ -425,42 +1355,43 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     </div>
   </header>
 
-  <div id="historyShade" hidden></div>
-  <aside id="historyPanel" aria-label="Historique des discussions" aria-hidden="true">
-    <div class="history-head"><h2>Mes discussions</h2><button class="history-action" id="historyClose" type="button" aria-label="Fermer">✕</button></div>
-    <button class="btn-ghost" id="historyNew" type="button">＋ Nouvelle discussion</button>
-    <div id="historyList"><div class="history-empty">Chargement de tes discussions…</div></div>
-    <button class="btn-ghost" id="historyClear" type="button">Effacer tout l'historique</button>
-  </aside>
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
+      <div class="hero-reactor" aria-hidden="true">
+        <span class="reactor-halo"></span>
+        <span class="reactor-ring reactor-ring-a"></span>
+        <span class="reactor-ring reactor-ring-b"></span>
+        <span class="reactor-ring reactor-ring-c"></span>
+        <span class="reactor-core"><b>Y</b></span>
+        <span class="reactor-glint"></span>
+      </div>
       <div class="welcome-kicker">TON ASSISTANT IA POUR ALLER PLUS LOIN</div>
-      <h2 id="greet">Fais grandir tes idées avec <em>STARS AI</em>.</h2>
-      <p>Crée du contenu, prépare tes publicités, développe ton activité ou donne vie à tes idées. STARS AI t'accompagne en français, simplement et rapidement.</p>
+      <h2 id="greet">Fais grandir tes idées avec <em>YvanAI</em>.</h2>
+      <p>Crée du contenu, prépare tes publicités, développe ton activité ou donne vie à tes idées. YvanAI t'accompagne en français, simplement et rapidement.</p>
       <button class="install-cta" type="button" data-install hidden>
-        <img src="/icons/icon-192.png" alt="">
-        <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
+        <img src="/icons/yvanai-icon.svg" alt="">
+        <span><strong>Installer l'appli YvanAI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
       </button>
       <div class="workspace-label">Ton espace de travail</div>
-      <div class="workspace-grid" aria-label="Les espaces STARS AI">
+      <div class="workspace-grid" aria-label="Les espaces YvanAI">
         <button class="workspace-card" type="button" data-q="Agis comme mon conseiller Business. Aide-moi à développer mon entreprise : commence par me demander le nom de mon activité, mes produits ou services, mes clients et mon objectif prioritaire. Propose ensuite un plan d'action concret.">
           <span class="workspace-icon" aria-hidden="true">▦</span>
           <strong>Business</strong>
           <span>Développe ton activité, prépare tes offres et tes publicités.</span>
         </button>
-        <a class="workspace-card" href="/images">
-          <span class="workspace-icon" aria-hidden="true">✦</span>
-          <strong>Studio</strong>
-          <span>Crée des visuels avec l'IA et prépare tes contenus créatifs.</span>
-        </a>
-        <button class="workspace-card" type="button" data-q="Tu es mon assistant personnel STARS AI. Aide-moi à avancer sur mon projet. Demande-moi ce que je veux accomplir aujourd'hui, puis guide-moi étape par étape.">
-          <span class="workspace-icon" aria-hidden="true">✧</span>
+        <button class="workspace-card" type="button" data-q="Tu es mon assistant personnel YvanAI. Aide-moi à avancer sur mon projet. Demande-moi ce que je veux accomplir aujourd'hui, puis guide-moi étape par étape.">
+          <span class="workspace-icon" aria-hidden="true">⌘</span>
           <strong>Assistant IA</strong>
           <span>Écris, apprends, réfléchis et résous tes problèmes.</span>
         </button>
       </div>
       <div class="workspace-label">Outils Business</div>
       <div class="workspace-grid" aria-label="Outils pour développer ton activité">
+        <a class="workspace-card" href="/video">
+          <span class="workspace-icon" aria-hidden="true">▶</span>
+          <strong>Création vidéo</strong>
+          <span>Imagine une publicité Motion Design et exporte ton animation.</span>
+        </a>
         <button class="workspace-card" type="button" data-q="Agis comme un directeur marketing expérimenté. Aide-moi à créer une publicité qui convertit. Demande-moi le nom du produit, son prix, ses avantages, le public cible et le canal de diffusion. Puis rédige 3 versions : courte pour WhatsApp, accrocheuse pour Instagram et détaillée pour Facebook, avec un appel à l'action.">
           <span class="workspace-icon" aria-hidden="true">✎</span>
           <strong>Publicité commerciale</strong>
@@ -498,7 +1429,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <button type="button" role="tab" id="tabSignup" aria-selected="true">S'inscrire</button>
           <button type="button" role="tab" id="tabLogin" aria-selected="false">Se connecter</button>
         </div>
-        <h2 id="authTitle">Rejoins <em>STARS AI</em></h2>
+        <h2 id="authTitle">Rejoins <em>YvanAI</em></h2>
         <p id="authLead">Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.</p>
         <form class="card" id="startForm" novalidate>
           <div class="field" id="nameField">
@@ -519,7 +1450,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <button class="btn-star" id="startBtn" type="submit">Créer mon compte</button>
           <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
-        <p class="legal">En utilisant STARS AI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
+        <p class="legal">En utilisant YvanAI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
         <p class="legal" data-install-link hidden><a href="/telecharger">📲 Installer l'appli sur ton téléphone</a></p>
       </div>
       <div id="step2" hidden>
@@ -548,27 +1479,27 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   <footer id="composerWrap" hidden>
     <div class="attach" id="attach" hidden></div>
     <form class="composer" id="form">
-      <button id="photoBtn" type="button" aria-label="Ajouter une photo" title="Ajouter une photo d'exercice">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <button id="photoBtn" type="button" aria-label="Joindre un fichier" title="Joindre une image ou un document">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5H7a4 4 0 0 1 0-8h10a3 3 0 0 0 0-6H8"/><path d="m8 3-3 3 3 3"/></svg>
       </button>
-      <input id="photoInput" type="file" accept="image/*" multiple hidden>
+      <input id="photoInput" type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple hidden>
       <label for="input" hidden>Message</label>
-      <textarea id="input" rows="1" placeholder="Écris à STARS AI…"></textarea>
-      <button id="micBtn" type="button" aria-label="Parler avec STARS AI (mode vocal)" title="Mode vocal : parler avec STARS AI">
+      <textarea id="input" rows="1" placeholder="Écris à YvanAI…"></textarea>
+      <button id="micBtn" type="button" aria-label="Parler avec YvanAI (mode vocal)" title="Mode vocal : parler avec YvanAI">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
       <button id="send" type="submit" aria-label="Envoyer" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
       </button>
     </form>
-    <div class="fine" id="fine">STARS AI peut se tromper. Vérifie les informations importantes.</div>
+    <div class="fine" id="fine">YvanAI peut se tromper. Vérifie les informations importantes.</div>
   </footer>
 </div>
 
 <dialog class="sheet" id="reportDlg" aria-labelledby="reportTitle">
   <form id="reportForm" novalidate>
     <h3 id="reportTitle">Signaler cette réponse</h3>
-    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre STARS AI plus sûre.</p>
+    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre YvanAI plus sûre.</p>
     <div class="choices" role="radiogroup" aria-label="Raison du signalement">
       <label class="choice"><input type="radio" name="reason" value="offensant"> Contenu choquant ou offensant</label>
       <label class="choice"><input type="radio" name="reason" value="faux_dangereux"> Information fausse ou dangereuse</label>
@@ -597,12 +1528,16 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   </div>
 </dialog>
 
-<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec STARS AI" hidden>
+<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec YvanAI" hidden>
   <div class="voice-inner">
-    <p class="vtitle">STARS <span>AI</span> · appel vocal</p>
+    <p class="vtitle">Yvan<span>AI</span> · appel vocal</p>
     <button class="orb" id="orb" type="button" aria-label="Parler">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z" fill="#1a1404" opacity=".85"/></svg>
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <defs><linearGradient id="voiceYGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff0bd"/><stop offset=".48" stop-color="#f4c96b"/><stop offset="1" stop-color="#a879ff"/></linearGradient></defs>
+        <path d="M8 8 L20 22 L32 8 M20 22 L20 34" fill="none" stroke="url(#voiceYGradient)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
+    <div class="voice-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <p class="vstatus" id="vstatus" aria-live="polite">Je t'écoute…</p>
     <p class="vhint" id="vhint">Parle normalement. Touche le cercle pour me couper la parole.</p>
     <div class="vtext" id="vtext"></div>
@@ -615,35 +1550,6 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 
 <script>
 (() => {
-  /* ---------- Star field ---------- */
-  const cv = document.getElementById("sky"), cx = cv.getContext("2d");
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let stars = [], W = 0, H = 0, dpr = 1;
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    W = cv.clientWidth; H = cv.clientHeight;
-    cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const n = Math.round((W * H) / 5200);
-    stars = Array.from({ length: n }, () => ({
-      x: Math.random() * W, y: Math.random() * H,
-      r: Math.random() < 0.08 ? 1.4 + Math.random() : 0.4 + Math.random() * 0.8,
-      p: Math.random() * Math.PI * 2, s: 0.4 + Math.random() * 1.4,
-      gold: Math.random() < 0.12
-    }));
-  }
-  function draw(t) {
-    cx.clearRect(0, 0, W, H);
-    for (const s of stars) {
-      const a = reduce ? 0.7 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(s.p + t * 0.001 * s.s));
-      cx.globalAlpha = a;
-      cx.fillStyle = s.gold ? "#f4c96b" : "#dfe4ff";
-      cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.fill();
-    }
-    cx.globalAlpha = 1;
-    if (!reduce) requestAnimationFrame(draw);
-  }
-  addEventListener("resize", resize); resize(); requestAnimationFrame(draw);
-
   /* ---------- Greeting by time of day ---------- */
   function greet(name) {
     const h = new Date().getHours();
@@ -664,7 +1570,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   const fine = document.getElementById("fine");
   const SEND_ICON = send.innerHTML;
   const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
-  const AVATAR = '<svg class="avatar" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#161d42" stroke="rgba(244,201,107,.45)"/><path d="M16 6 L18.2 13.8 L26 16 L18.2 18.2 L16 26 L13.8 18.2 L6 16 L13.8 13.8 Z" fill="#f4c96b"/></svg>';
+  const AVATAR = '<span class="stars-avatar" aria-hidden="true"><span class="stars-avatar__orbit"></span><span class="stars-avatar__core"><svg viewBox="0 0 32 32"><path d="M8 7.5h16M16 7.5v17M16 17l-7 7M16 17l7 7" fill="none" stroke="url(#yvanAvatarGold)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="yvanAvatarGold" x1="8" y1="7" x2="25" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#c9a0ff"/><stop offset="1" stop-color="#ffd16b"/></linearGradient></defs></svg></span></span>';
 
   let turns = [], ctl = null, busy = false, me = null;
   let activeConversationId = null, saveTimer = null, historyItems = [], cloudHistoryReady = false;
@@ -685,9 +1591,11 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     const first = (messages || []).find(t => t.role === "user" && t.content && t.content.trim());
     return (first ? first.content.trim() : "Nouvelle discussion").replace(/\s+/g, " ").slice(0, 72);
   }
+  const API_ORIGIN = "https://yvan-ai.onrender.com";
+  const apiUrl = path => new URL(path, API_ORIGIN).toString();
   const historyTimeout = () => (typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined);
-  async function apiGet(url) { const r = await fetch(url, { signal: historyTimeout() }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
-  async function apiPost(url, body) { const r = await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:historyTimeout()}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
+  async function apiGet(url) { const r = await fetch(apiUrl(url), { signal: historyTimeout(), credentials: "include" }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
+  async function apiPost(url, body) { const r = await fetch(apiUrl(url),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:historyTimeout(),credentials:"include"}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
   function flashHistory(message) { if (typeof flash === "function") flash(message); }
   async function persistConversation() {
     if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
@@ -764,7 +1672,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     if(busy&&ctl)ctl.abort();
     clearTimeout(saveTimer); activeConversationId=makeId();
     try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){}
-    turns=[]; saveLocalOnly(); pending=[]; renderAttach();
+    turns=[]; saveLocalOnly(); pending=[]; pendingDocs=[]; renderAttach();
     thread.querySelectorAll(".msg").forEach(n=>n.remove()); welcome.hidden=false; input.focus(); closeHistory(); renderHistory();
   }
   function openHistory() { const panel=document.getElementById("historyPanel");panel.classList.add("open");panel.setAttribute("aria-hidden","false");document.getElementById("historyShade").hidden=false;document.getElementById("historyToggle").setAttribute("aria-expanded","true"); }
@@ -854,7 +1762,13 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   }
 
   const ERRORS = {
-    no_key: "STARS AI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
+    no_key: "YvanAI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
+    images_off: "La création d'images n'est pas activée pour le moment.",
+    user_limit: "Tu as atteint ta limite quotidienne de création d'images.",
+    site_limit: "La limite quotidienne de création d'images est atteinte pour le moment.",
+    no_image: "Le générateur n'a pas retourné d'image. Réessaie avec une autre description.",
+    images_down: "Le service de création d'images est momentanément indisponible.",
+    bad_prompt: "Décris un peu plus l'image que tu souhaites créer.",
     bad_key: "La clé API a été refusée. Vérifie-la dans Render (Environment).",
     no_credit: "Le compte de l'IA n'a plus de crédit.",
     upstream_busy: "L'IA est très demandée en ce moment. Réessaie dans un instant.",
@@ -873,11 +1787,11 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     send.setAttribute("aria-label", v ? "Arrêter" : "Envoyer");
     send.disabled = v ? false : !canSend();
   }
-  const canSend = () => loadingPics === 0 && (!!input.value.trim() || pending.length > 0);
+  const canSend = () => loadingPics === 0 && !loadingDocs && (!!input.value.trim() || pending.length > 0 || pendingDocs.length > 0);
 
   // Sends the conversation to the server and streams the answer back (one JSON object per line).
   async function chat(history, signal, onText, voice) {
-    const res = await fetch("/api/chat", {
+    const res = await fetch(apiUrl("/api/chat"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messages: history, voice: !!voice }),
@@ -913,12 +1827,82 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     return { text, truncated };
   }
 
-  // opts.voice: answer for the ear (short, read aloud); opts.onText(fullTextSoFar) follows the stream.
-  // Returns { ok, text, code } so the voice call knows what happened.
+
+  async function createMotionVideoInChat(container, prompt, images) {
+    container.innerHTML = '<div class="thinking"><i></i><i></i><i></i> Préparation du storyboard Motion Design…</div>';
+    const card=document.createElement("section");card.className="video-chat-card";
+    const heading=document.createElement("h3");heading.textContent="🎬 Création vidéo Motion Design";
+    const info=document.createElement("div");info.className="vc-muted";info.textContent="YvanAI prépare les scènes. L’aperçu et l’export resteront dans cette conversation.";
+    const stage=document.createElement("div");stage.className="vc-stage";
+    const canvas=document.createElement("canvas");canvas.width=540;canvas.height=960;stage.append(canvas);
+    const ctx=canvas.getContext("2d");
+    const scenes=document.createElement("div");scenes.className="vc-scenes";
+    const actions=document.createElement("div");actions.className="vc-actions";
+    const preview=document.createElement("button");preview.textContent="↻ Relancer l’aperçu";
+    const exportBtn=document.createElement("button");exportBtn.className="primary";exportBtn.textContent="⬇ Créer et télécharger la vidéo";
+    const progress=document.createElement("div");progress.className="vc-progress";const fill=document.createElement("span");progress.append(fill);
+    const note=document.createElement("div");note.className="vc-muted";note.textContent="Format vertical 9:16 · 30 secondes · export WebM. La vidéo est animée dans ton navigateur.";
+    actions.append(preview,exportBtn);card.append(heading,info,stage,scenes,actions,progress,note);container.replaceChildren(card);
+    let script;
+    try{
+      const res=await fetch(apiUrl("/api/video/script"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(data.code||"video_error");
+      script=data.script;
+    }catch(e){
+      info.textContent=({auth_required:"Connecte-toi pour créer une vidéo.",gemini_not_configured:"La création vidéo nécessite une clé Gemini configurée sur le serveur.",gemini_bad_key:"La clé Gemini est refusée. Vérifie-la dans Render.",free_limit:"La limite gratuite de création vidéo est atteinte.",rate_limited:"Attends un instant avant de recommencer.",gemini_busy:"Gemini est temporairement occupé.",gemini_unavailable:"Gemini est momentanément indisponible."})[e.message]||"Impossible de créer le storyboard. Réessaie.";
+      exportBtn.remove();preview.remove();progress.remove();return {ok:false,error:e.message};
+    }
+    const sceneImages=[];
+    for(const im of (images||[]).slice(0,6)){
+      try{const image=new Image();image.src="data:"+im.mime+";base64,"+im.data;await new Promise((ok,ko)=>{image.onload=ok;image.onerror=ko});sceneImages.push(image)}catch(e){}
+    }
+    (script.scenes||[]).forEach((s,i)=>{const row=document.createElement("div");row.className="vc-scene";row.textContent=(i+1)+". "+s.title+" — "+s.subtitle;scenes.append(row)});
+    heading.textContent="🎬 "+(script.title||"Ta vidéo Motion Design");
+    const duration=30000,W=270,H=480;
+    function draw(ms){
+      const list=script.scenes||[],total=list.length||1,each=duration/total,idx=Math.min(total-1,Math.floor(ms/each)),local=(ms-idx*each)/each,scene=list[idx]||{};
+      const im=sceneImages[idx];
+      if(im&&im.complete){const scale=Math.max(W/im.naturalWidth,H/im.naturalHeight),iw=im.naturalWidth*scale,ih=im.naturalHeight*scale;ctx.drawImage(im,(W-iw)/2,(H-ih)/2,iw,ih);const shade=ctx.createLinearGradient(0,0,0,H);shade.addColorStop(0,"rgba(3,7,24,.4)");shade.addColorStop(1,"rgba(3,7,24,.9)");ctx.fillStyle=shade;ctx.fillRect(0,0,W,H)}
+      else{const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#17245b");g.addColorStop(1,"#070b1f");ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+      ctx.save();ctx.globalAlpha=.25;for(let i=0;i<22;i++){const a=i*2.4+ms/1000,r=35+(i%7)*23;ctx.beginPath();ctx.arc(W/2+Math.cos(a)*r,H*.39+Math.sin(a)*r,3+(i%4)*2,0,Math.PI*2);ctx.fillStyle=i%3?"#63d9ff":"#f4c96b";ctx.fill()}ctx.restore();
+      ctx.textAlign="center";ctx.fillStyle="#f4c96b";ctx.font="bold 12px system-ui";ctx.fillText("Y V A N A I",W/2,42);
+      ctx.globalAlpha=Math.max(.2,Math.min(1,local*5,(1-local)*5));ctx.fillStyle="#fff";ctx.font="bold 27px system-ui";
+      const words=String(scene.title||"").split(/\s+/);let line="",lines=[];for(const word of words){const next=line?line+" "+word:word;if(ctx.measureText(next).width>W-36&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);lines.slice(0,3).forEach((x,i)=>ctx.fillText(x,W/2,H*.70+i*34));
+      ctx.fillStyle="#d5dcf5";ctx.font="14px system-ui";ctx.fillText(String(scene.subtitle||"").slice(0,48),W/2,H*.83);ctx.globalAlpha=1;
+      ctx.fillStyle="rgba(255,255,255,.18)";ctx.fillRect(16,H-22,W-32,3);ctx.fillStyle="#f4c96b";ctx.fillRect(16,H-22,(W-32)*Math.min(1,ms/duration),3);
+    }
+    let raf=0,previewStart=performance.now();
+    function animate(){draw((performance.now()-previewStart)%duration);raf=requestAnimationFrame(animate)}
+    function startPreview(){cancelAnimationFrame(raf);previewStart=performance.now();animate()}
+    preview.addEventListener("click",startPreview);
+    startPreview();
+    exportBtn.addEventListener("click",()=>{
+      if(!canvas.captureStream||!window.MediaRecorder){note.textContent="L’export vidéo n’est pas pris en charge par ce navigateur. Essaie Chrome ou Edge.";return}
+      const stream=canvas.captureStream(30),mime=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
+      if(!mime){note.textContent="Ce navigateur ne prend pas en charge l’export WebM.";stream.getTracks().forEach(t=>t.stop());return}
+      const chunks=[];let recorder;try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3500000})}catch(e){note.textContent="Impossible de démarrer l’export sur cet appareil.";return}
+      exportBtn.disabled=true;preview.disabled=true;cancelAnimationFrame(raf);fill.style.width="0%";note.textContent="Export en cours… garde cette conversation ouverte.";
+      const start=performance.now();recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+      recorder.onerror=()=>{note.textContent="Une erreur est survenue pendant l’export.";stream.getTracks().forEach(t=>t.stop());exportBtn.disabled=false;preview.disabled=false;startPreview()};
+      recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger la vidéo (.webm)";a.className="primary";actions.append(a);note.textContent="Vidéo terminée ! Tu peux la télécharger ici.";exportBtn.disabled=false;preview.disabled=false;startPreview()};
+      recorder.start(500);
+      function tick(now){const elapsed=Math.min(duration,now-start);draw(elapsed);fill.style.width=(elapsed/duration*100)+"%";if(elapsed>=duration){recorder.stop();return}requestAnimationFrame(tick)}
+      requestAnimationFrame(tick);
+    });
+    return {ok:true,title:script.title};
+  }
+
   async function ask(text, opts = {}) {
     if (busy || loadingPics > 0) return { ok: false, code: "busy" };
     const imgs = pending.slice();
-    if (!text.trim() && !imgs.length) return { ok: false, code: "empty" };
+    const docs = pendingDocs.slice();
+    if (!text.trim() && !imgs.length && !docs.length) return { ok: false, code: "empty" };
+    if (docs.length) {
+      const extracted = docs.map(d => "\n\n--- Contenu du fichier : " + d.name + " ---\n" + d.text).join("");
+      text = (text || "Analyse les fichiers joints et aide-moi à les utiliser pour ma demande.") + extracted;
+      if (text.length > 40000) text = text.slice(0, 40000) + "\n[Contenu tronqué pour respecter la limite.]";
+    }
     const thumbs = imgs.map(i => i.thumb);
     if (me && !activeConversationId) { activeConversationId = makeId(); try { localStorage.setItem(activeKey(), activeConversationId); } catch(e) {} }
     addMsg("user", text, thumbs);
@@ -926,7 +1910,17 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     pending = []; renderAttach();
     input.value = ""; autosize();
     const b = addMsg("ai", "");
-    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> STARS AI ' + (imgs.length ? "lit ta photo…" : "réfléchit…") + '</span>';
+    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> YvanAI ' + (imgs.length || docs.length ? "lit tes fichiers…" : "réfléchit…") + '</span>';
+    const videoIntent = /\b(video|vidéo|motion\s*design|motion design|clip publicitaire|cr[eé]e[r]? une animation)\b/i.test(text);
+    if(videoIntent && !opts.voice){
+      ctl = new AbortController(); setBusy(true);
+      try{
+        const result=await createMotionVideoInChat(b,text,imgs);
+        const assistantText=result.ok?"Ton storyboard est prêt. Tu peux regarder l’aperçu, puis exporter ta vidéo directement ici.":"Je n’ai pas pu préparer la vidéo pour le moment.";
+        turns.push({role:"assistant",content:assistantText});save();
+        return {ok:result.ok,text:assistantText};
+      }finally{setBusy(false);input.focus()}
+    }
     ctl = new AbortController(); setBusy(true);
     const recent = turns.slice(-20);
     const history = recent.map((t, i) => {
@@ -953,10 +1947,31 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
       if (code === "free_limit") {
         const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ");
-        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">⭐ Passer à Premium</a>';
+        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">Passer à Premium</a>';
         if (me) { me.used = lim; refreshPlan(); }
       } else if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
+        const retry = document.createElement("button");
+        retry.type = "button"; retry.className = "retry-btn";
+        retry.innerHTML = '<span aria-hidden="true">↻</span> Réessayer';
+        retry.addEventListener("click", async () => {
+          const failedTurn = [...turns].reverse().find(t => t.role === "user");
+          if (!failedTurn) return;
+          retry.disabled = true; retry.textContent = "Nouvel essai…";
+          const failedRow = b.closest(".msg");
+          const userRow = failedRow && failedRow.previousElementSibling;
+          if (failedRow) failedRow.remove();
+          if (userRow && userRow.classList.contains("user")) userRow.remove();
+          if (turns.length && turns[turns.length - 1].role === "assistant") turns.pop();
+          if (turns.length && turns[turns.length - 1] === failedTurn) turns.pop();
+          pending = (failedTurn.images || []).map((im, index) => ({
+            mime: im.mime, data: im.data,
+            thumb: (failedTurn.thumbs || [])[index] || ""
+          }));
+          renderAttach();
+          await ask(failedTurn.content || "");
+        });
+        b.appendChild(retry);
       } else if (!partial) { b.innerHTML = '<span class="thinking">Arrêté.</span>'; }
       return { ok: false, code, text: partial || "" };
     } finally { setBusy(false); if (!opts.voice) input.focus(); }
@@ -968,7 +1983,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   const attach = document.getElementById("attach");
   const photoBtn = document.getElementById("photoBtn"), photoInput = document.getElementById("photoInput");
   const FINE_TEXT = fine.textContent;
-  let pending = [], loadingPics = 0, flashTimer = null;
+  let pending = [], pendingDocs = [], loadingPics = 0, loadingDocs = false, flashTimer = null;
 
   function flash(msg) {
     fine.textContent = msg; fine.classList.add("warn");
@@ -1002,25 +2017,70 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       x.addEventListener("click", () => { pending.splice(i, 1); renderAttach(); });
       d.append(im, x); attach.appendChild(d);
     });
-    for (let k = 0; k < loadingPics; k++) { const d = document.createElement("div"); d.className = "pic loading"; attach.appendChild(d); }
-    attach.hidden = !pending.length && !loadingPics;
-    photoBtn.disabled = pending.length + loadingPics >= 3;
+    pendingDocs.forEach((p, i) => {
+      const d = document.createElement("div"); d.className = "file-chip";
+      const label = document.createElement("span"); label.textContent = "📄 " + p.name;
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "Retirer le fichier");
+      x.addEventListener("click", () => { pendingDocs.splice(i, 1); renderAttach(); });
+      d.append(label, x); attach.appendChild(d);
+    });
+    for (let k = 0; k < loadingPics + (loadingDocs ? 1 : 0); k++) { const d = document.createElement("div"); d.className = "file-chip loading"; d.textContent = "Lecture du fichier…"; attach.appendChild(d); }
+    attach.hidden = !pending.length && !pendingDocs.length && !loadingPics && !loadingDocs;
+    photoBtn.disabled = pending.length + loadingPics >= 3 && pendingDocs.length >= 3;
     autosize();
   }
 
+  async function extractDocument(file) {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (ext === "txt" || ext === "md") return (await file.text()).slice(0, 15000);
+    if (ext === "docx") {
+      if (!window.mammoth) throw new Error("word_unavailable");
+      const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      return (result.value || "").slice(0, 15000);
+    }
+    if (ext === "pdf") {
+      if (!window.pdfjsLib) throw new Error("pdf_unavailable");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      let out = "";
+      for (let pageNo = 1; pageNo <= Math.min(pdf.numPages, 30); pageNo++) {
+        const page = await pdf.getPage(pageNo);
+        const content = await page.getTextContent();
+        out += "\n" + content.items.map(item => item.str || "").join(" ");
+        if (out.length >= 15000) break;
+      }
+      return out.slice(0, 15000);
+    }
+    throw new Error("unsupported");
+  }
+
   async function addFiles(files) {
-    const room = 3 - pending.length - loadingPics;
-    const all = [...files].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
-    if (!all.length) return;
-    if (all.length > room) flash("3 photos maximum par message.");
-    const list = all.slice(0, room);
-    loadingPics += list.length; renderAttach();
-    for (const f of list) {
+    const selected = [...files];
+    const images = selected.filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+    const docs = selected.filter(f => /\.(pdf|docx|txt|md)$/i.test(f.name));
+    if (selected.length !== images.length + docs.length) flash("Formats acceptés : images, PDF, Word (.docx), TXT et MD.");
+    const imageRoom = 3 - pending.length - loadingPics;
+    if (images.length > imageRoom) flash("3 images maximum par message.");
+    const docRoom = 3 - pendingDocs.length;
+    if (docs.length > docRoom) flash("3 documents maximum par message.");
+    const imageList = images.slice(0, Math.max(0, imageRoom));
+    const docList = docs.slice(0, Math.max(0, docRoom));
+    if (docList.some(f => f.size > 8 * 1024 * 1024)) flash("Chaque document doit faire 8 Mo maximum.");
+    const acceptedDocs = docList.filter(f => f.size <= 8 * 1024 * 1024);
+    loadingPics += imageList.length; loadingDocs = acceptedDocs.length > 0; renderAttach();
+    for (const f of imageList) {
       try { pending.push(await prepImage(f)); }
       catch (e) { flash("Impossible de lire cette photo. Essaie avec une photo JPG ou PNG."); }
       loadingPics--; renderAttach();
     }
-    input.focus();
+    for (const f of acceptedDocs) {
+      try {
+        const content = await extractDocument(f);
+        pendingDocs.push({ name: f.name, text: content || "[Aucun texte lisible dans ce fichier.]" });
+      } catch (e) { flash("Impossible de lire " + f.name + ". Vérifie que le PDF contient du texte ou que le Word est au format .docx."); }
+      renderAttach();
+    }
+    loadingDocs = false; renderAttach(); input.focus();
   }
 
   photoBtn.addEventListener("click", () => photoInput.click());
@@ -1065,7 +2125,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   const isFr = /^fr/i.test(navLang);
   const recLang = isFr ? "fr-FR" : navLang;
   const HINT = "Parle normalement. Touche le cercle pour me couper la parole.";
-  const STATUS = { listening: "Je t'écoute…", thinking: "STARS AI réfléchit…", speaking: "STARS AI parle…", idle: "Touche le cercle pour parler" };
+  const STATUS = { listening: "Je t'écoute…", thinking: "YvanAI réfléchit…", speaking: "YvanAI parle…", idle: "Touche le cercle pour parler" };
   let call = { active: false };
   let ttsVoice = null;
 
@@ -1073,7 +2133,14 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     if (!synth) return null;
     const want = recLang.slice(0, 2).toLowerCase();
     const list = synth.getVoices().filter(v => (v.lang || "").toLowerCase().replace("_", "-").startsWith(want));
-    const score = v => (/natural|neural|online|premium|enhanced/i.test(v.name) ? 4 : 0) + (/google/i.test(v.name) ? 2 : 0) + ((v.lang || "").replace("_", "-") === recLang ? 1 : 0);
+    const score = v => {
+      const name = (v.name || "").toLowerCase();
+      const lang = (v.lang || "").replace("_", "-").toLowerCase();
+      return (/natural|neural|online|premium|enhanced/i.test(name) ? 5 : 0)
+        + (/google|microsoft|apple/i.test(name) ? 2 : 0)
+        + (lang === recLang.toLowerCase() ? 3 : lang.startsWith(want) ? 1 : 0)
+        + (/france|french|français/i.test(name) && want === "fr" ? 2 : 0);
+    };
     list.sort((a, b) => score(b) - score(a));
     return list[0] || null;
   }
@@ -1122,13 +2189,21 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   function say(piece, turn) {
     const text = toSpeech(piece);
     if (!text || !synth) return;
-    for (const c of chunks(text, 180)) {
+    // Shorter phrases sound less robotic and let the user interrupt naturally.
+    for (const c of chunks(text, 135)) {
       const u = new SpeechSynthesisUtterance(c);
       u.lang = ttsVoice ? ttsVoice.lang : recLang;
       if (ttsVoice) u.voice = ttsVoice;
-      u.rate = 1.05;
+      u.rate = 0.98;
+      u.pitch = 1.03;
+      u.volume = 1;
       call.queue++;
-      u.onstart = () => { if (call.active && call.turn === turn) setState("speaking"); };
+      u.onstart = () => {
+        if (call.active && call.turn === turn) {
+          setState("speaking");
+          vhint.textContent = "Je te réponds. Touche le cercle pour m'interrompre.";
+        }
+      };
       u.onend = u.onerror = () => {
         if (call.turn !== turn) return;
         call.queue = Math.max(0, call.queue - 1);
@@ -1176,7 +2251,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     };
     rec.onerror = e => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        endCall(); flash("Autorise le micro pour parler avec STARS AI (touche le cadenas à côté de l'adresse du site).");
+        endCall(); flash("Autorise le micro pour parler avec YvanAI (touche le cadenas à côté de l'adresse du site).");
       } else if (e.error === "no-speech") call.silent++;
       else if (e.error === "network" || e.error === "audio-capture") call.recError = e.error;
     };
@@ -1341,7 +2416,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     me = null; turns = [];
     emailIn.value = ""; nameIn.value = "";
     showAuth("");
-    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur STARS AI !";
+    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur YvanAI !";
   });
 
   /* ---------- Sign-up / sign-in ---------- */
@@ -1385,7 +2460,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     forgotLine.hidden = !login || !passwordsOn;
     passIn.autocomplete = login ? "current-password" : "new-password";
     passIn.placeholder = login ? "Ton mot de passe" : "Au moins " + passwordMin + " caractères";
-    if (signup) setTitle("Rejoins ", "STARS AI");
+    if (signup) setTitle("Rejoins ", "YvanAI");
     else if (login) setTitle("Content de te ", "revoir");
     else setTitle("Mot de passe ", "oublié");
     document.getElementById("authLead").textContent = signup
@@ -1451,7 +2526,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
     showChat();
     // Fetch the Premium status / daily counter for the account menu
-    fetch("/api/me").then(r => r.ok ? r.json() : null).then(d => { if (d && me && d.email === me.email) { me = d; refreshPlan(); } }).catch(() => {});
+    fetch(apiUrl("/api/me"), { credentials: "include" }).then(r => r.ok ? r.json() : null).then(d => { if (d && me && d.email === me.email) { me = d; refreshPlan(); } }).catch(() => {});
   }
 
   const AUTH_ERRORS = {
@@ -1475,7 +2550,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   async function post(url, body) {
     let res;
     try {
-      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+      res = await fetch(apiUrl(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}), credentials: "include" });
     } catch (e) { return { ok: false, data: { code: "network" } }; }
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, data };
@@ -1520,7 +2595,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
         cloudHistoryReady = true; renderHistory();
       } catch(e) { cloudHistoryReady = false; console.warn("[historique] chargement impossible",e.message); flashHistory("Historique en ligne indisponible pour le moment."); }
     } else { activeConversationId=null; }
-    showTurns(); pending = []; renderAttach(); input.focus();
+    showTurns(); pending = []; pendingDocs = []; renderAttach(); input.focus();
   }
 
   // Account menu: free counter or Premium date, plus the admin link for the owner.
@@ -1529,9 +2604,8 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     const plan = document.getElementById("planLine"), prem = document.getElementById("premiumLink");
     const adminLink = document.getElementById("adminLink");
     adminLink.hidden = !me.admin;
-    const memLink = document.getElementById("memLink"), imgLink = document.getElementById("imgLink");
+    const memLink = document.getElementById("memLink");
     if (memLink) memLink.hidden = !me.memory;
-    if (imgLink) imgLink.hidden = !me.images;
     const todo = me.admin ? (me.adminPending || 0) : 0;
     adminLink.textContent = "🛠 Tableau de bord" + (todo ? " · " + todo + " paiement" + (todo > 1 ? "s" : "") + " à vérifier" : "");
     adminLink.classList.toggle("gold", todo > 0);
@@ -1541,12 +2615,12 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       plan.innerHTML = "👑 <b>Propriétaire</b> : messages illimités";
       prem.textContent = "Voir la page Premium"; prem.classList.remove("gold");
     } else if (until && until > new Date()) {
-      plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
+      plan.innerHTML = "<b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
       prem.textContent = "Prolonger mon Premium"; prem.classList.remove("gold");
     } else if (me.freeDaily) {
       const used = Math.min(me.used || 0, me.freeDaily);
       plan.innerHTML = "Compte gratuit : <b>" + used + " / " + me.freeDaily + "</b> messages aujourd'hui" + (me.pending ? "<br>⏳ Paiement Premium en vérification" : "");
-      prem.textContent = "⭐ Passer à Premium"; prem.classList.add("gold");
+      prem.textContent = "Passer à Premium"; prem.classList.add("gold");
     } else plan.textContent = "";
   }
 
@@ -1656,7 +2730,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
   window.addEventListener("appinstalled", () => {
     installEvt = null; appInstalled = true; refreshInstall();
-    flash("STARS AI est installée ! Tu la trouveras sur ton écran d'accueil.");
+    flash("YvanAI est installée ! Tu la trouveras sur ton écran d'accueil.");
   });
   document.querySelectorAll("[data-install]").forEach(btn => btn.addEventListener("click", async () => {
     account.open = false;
@@ -1672,14 +2746,25 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 
   /* ---------- Start ---------- */
   (async () => {
-    let status = { ready: true, authRequired: false };
-    try { status = await (await fetch("/api/status")).json(); } catch (e) {}
-    if (!status.ready) { fine.textContent = "STARS AI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
+    // Sécurité : si le serveur ne répond pas, ne jamais ouvrir l'IA par défaut.
+    let status;
+    try {
+      const response = await fetch(apiUrl("/api/status"), { cache: "no-store", credentials: "include" });
+      if (!response.ok) throw new Error("status_unavailable");
+      status = await response.json();
+      if (!status || typeof status.authRequired !== "boolean") throw new Error("invalid_status");
+    } catch (e) {
+      fine.textContent = "Impossible de vérifier la connexion. Actualise la page ou réessaie dans un instant.";
+      fine.classList.add("warn");
+      showAuth("La connexion sécurisée n'a pas pu être vérifiée. Réessaie.");
+      return;
+    }
+    if (!status.ready) { fine.textContent = "YvanAI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
     passwordsOn = status.passwords !== false;
     passwordMin = status.passwordMin || 8;
     if (status.authRequired) {
       try {
-        const r = await fetch("/api/me");
+        const r = await fetch(apiUrl("/api/me"), { cache: "no-store", credentials: "include" });
         if (r.ok) me = await r.json();
       } catch (e) {}
       if (!me) return showAuth("");

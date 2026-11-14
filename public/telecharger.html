@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070b1f">
-<title>Installer STARS AI</title>
-<meta name="description" content="Installe STARS AI, ton assistant IA en français, sur ton téléphone.">
-<meta property="og:title" content="STARS AI — ton assistant IA en français">
+<title>Installer YvanAI</title>
+<meta name="description" content="Installe YvanAI, ton assistant IA en français, sur ton téléphone.">
+<meta property="og:title" content="YvanAI — ton assistant IA en français">
 <meta property="og:description" content="Questions, exercices en photo et mode vocal. Installe l'appli gratuitement.">
-<meta property="og:image" content="https://stars-ai.onrender.com/icons/icon-512.png">
+<meta property="og:image" content="https://yvan-ai.onrender.com/icons/yvanai-icon.svg?v=4">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/icons/favicon-48.png">
+<link rel="icon" href="/icons/yvanai-favicon.svg?v=4" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
   /* Layout: one centered column — app identity, the install action that fits this phone, then step-by-step help. */
@@ -52,54 +52,50 @@
 <body>
 <main>
   <section class="hero">
-    <img src="/icons/icon-512.png" alt="Icône de STARS AI">
-    <h1>STARS <span>AI</span></h1>
+    <img src="/icons/yvanai-icon.svg?v=4" alt="Icône de YvanAI">
+    <h1>Yvan<span>AI</span></h1>
     <p class="tag">Ton assistant IA en français : questions, exercices en photo et mode vocal. Gratuit et sans publicité.</p>
   </section>
 
   <!-- Installed already -->
   <section class="card" id="installedCard" hidden>
-    <h2 class="ok">✓ STARS AI est déjà installée</h2>
+    <h2 class="ok">✓ YvanAI est déjà installée</h2>
     <p>Tu la trouveras sur ton écran d'accueil.</p>
-    <a class="btn" href="/">Ouvrir STARS AI</a>
+    <a class="btn" href="/">Ouvrir YvanAI</a>
   </section>
 
   <!-- One-tap install (Chrome on Android / ordinateur) -->
   <section class="card" id="quickCard" hidden>
     <h2>Installer en un clic</h2>
-    <p>STARS AI s'ajoute sur ton écran d'accueil, comme une vraie appli.</p>
+    <p>YvanAI s'ajoute sur ton écran d'accueil, comme une vraie appli.</p>
     <button class="btn" id="quickBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
-      Installer STARS AI
+      Installer YvanAI
     </button>
   </section>
 
-  <!-- Android APK -->
+  <!-- Installation Android sans ancien APK -->
   <section class="card" id="androidCard">
-    <h2>Télécharger l'appli Android</h2>
-    <p>Le fichier de l'appli (1,9 Mo), pour les téléphones Android.</p>
-    <a class="btn" id="apkBtn" href="/telecharger/stars-ai.apk" download="STARS-AI.apk">
-      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48 19.44 6.3a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52M7 15.25A1.25 1.25 0 1 1 8.25 14 1.25 1.25 0 0 1 7 15.25m10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25"/></svg>
-      Télécharger pour Android
-    </a>
+    <h2>Installer YvanAI sur Android</h2>
+    <p>Installe la version actuelle de YvanAI directement depuis Chrome. Le nom et l'icône affichés seront ceux de YvanAI.</p>
     <ol>
-      <li>Touche <strong>Télécharger pour Android</strong>.</li>
-      <li>Quand le téléchargement est fini, ouvre le fichier <strong>STARS-AI.apk</strong>.</li>
-      <li>Si le téléphone affiche « Pour votre sécurité… », touche <strong>Paramètres</strong>, active <strong>Autoriser cette source</strong>, puis reviens en arrière.</li>
-      <li>Touche <strong>Installer</strong>, puis <strong>Ouvrir</strong>.</li>
+      <li>Ouvre cette page dans <strong>Google Chrome</strong>.</li>
+      <li>Touche le menu <strong>⋮</strong> en haut à droite.</li>
+      <li>Choisis <strong>Installer l'application</strong> ou <strong>Ajouter à l'écran d'accueil</strong>.</li>
+      <li>Confirme l'installation de <strong>YvanAI</strong>.</li>
     </ol>
-    <p class="note">L'avertissement est normal pour une appli qui ne vient pas encore du Play Store. STARS AI ne demande aucune autorisation spéciale : le micro et l'appareil photo ne servent que quand tu les touches.</p>
+    <p class="note">Si l'ancienne application Stars AI est encore installée, désinstalle-la d'abord pour éviter de garder son ancienne icône.</p>
   </section>
 
   <!-- iPhone -->
   <section class="card" id="iosCard" hidden>
     <h2>Sur iPhone</h2>
     <ol>
-      <li>Ouvre <strong>stars-ai.onrender.com</strong> dans <strong>Safari</strong>.</li>
+      <li>Ouvre <strong>yvan-ai.onrender.com</strong> dans <strong>Safari</strong>.</li>
       <li>Touche le bouton <strong>Partager</strong> (le carré avec une flèche vers le haut).</li>
       <li>Choisis <strong>Sur l'écran d'accueil</strong>, puis <strong>Ajouter</strong>.</li>
     </ol>
-    <p class="note">STARS AI apparaît alors sur ton écran d'accueil, comme une appli.</p>
+    <p class="note">YvanAI apparaît alors sur ton écran d'accueil, comme une appli.</p>
   </section>
 
   <!-- Opened inside WhatsApp / Facebook -->
@@ -109,7 +105,7 @@
   </section>
 
   <footer>
-    <a class="btn ghost" href="/">Utiliser STARS AI sans installer</a>
+    <a class="btn ghost" href="/">Utiliser YvanAI sans installer</a>
     <a class="small" href="/confidentialite">Politique de confidentialité</a>
   </footer>
 </main>
