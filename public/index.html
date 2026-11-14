@@ -1312,6 +1312,9 @@ body::before {
   #historyPanel { transition: none !important; }
 }
 
+
+/* Inline Motion Design player inside the conversation */
+.video-chat-card{margin-top:14px;padding:14px;border:1px solid rgba(167,116,255,.32);border-radius:18px;background:linear-gradient(145deg,rgba(23,25,62,.96),rgba(8,13,35,.98));max-width:620px}.video-chat-card h3{margin:0 0 8px;font-size:16px}.video-chat-card .vc-muted{color:var(--muted,#a3add6);font-size:12px;line-height:1.5}.video-chat-card .vc-stage{width:min(100%,230px);aspect-ratio:9/16;margin:12px auto;border-radius:14px;overflow:hidden;background:#05091c;border:1px solid #ffffff25}.video-chat-card canvas{width:100%;height:100%;display:block}.video-chat-card .vc-scenes{display:grid;gap:6px;margin:10px 0}.video-chat-card .vc-scene{padding:8px 10px;border:1px solid rgba(160,172,230,.16);border-radius:9px;font-size:12px}.video-chat-card .vc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.video-chat-card button,.video-chat-card a{border:1px solid rgba(160,172,230,.25);border-radius:10px;padding:9px 12px;background:#25234d;color:#fff;font:600 12px system-ui;cursor:pointer;text-decoration:none}.video-chat-card button.primary{background:#f4c96b;color:#171323;border:0}.video-chat-card button:disabled{opacity:.5;cursor:wait}.video-chat-card .vc-progress{height:6px;background:#080e27;border-radius:9px;overflow:hidden;margin-top:10px}.video-chat-card .vc-progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#63d9ff,#f4c96b)}
 </style>
 </head>
 <body>
@@ -1823,6 +1826,71 @@ body::before {
   }
 
 
+  async function createMotionVideoInChat(container, prompt, images) {
+    container.innerHTML = '<div class="thinking"><i></i><i></i><i></i> Préparation du storyboard Motion Design…</div>';
+    const card=document.createElement("section");card.className="video-chat-card";
+    const heading=document.createElement("h3");heading.textContent="🎬 Création vidéo Motion Design";
+    const info=document.createElement("div");info.className="vc-muted";info.textContent="YvanAI prépare les scènes. L’aperçu et l’export resteront dans cette conversation.";
+    const stage=document.createElement("div");stage.className="vc-stage";
+    const canvas=document.createElement("canvas");canvas.width=540;canvas.height=960;stage.append(canvas);
+    const ctx=canvas.getContext("2d");
+    const scenes=document.createElement("div");scenes.className="vc-scenes";
+    const actions=document.createElement("div");actions.className="vc-actions";
+    const preview=document.createElement("button");preview.textContent="↻ Relancer l’aperçu";
+    const exportBtn=document.createElement("button");exportBtn.className="primary";exportBtn.textContent="⬇ Créer et télécharger la vidéo";
+    const progress=document.createElement("div");progress.className="vc-progress";const fill=document.createElement("span");progress.append(fill);
+    const note=document.createElement("div");note.className="vc-muted";note.textContent="Format vertical 9:16 · 30 secondes · export WebM. La vidéo est animée dans ton navigateur.";
+    actions.append(preview,exportBtn);card.append(heading,info,stage,scenes,actions,progress,note);container.replaceChildren(card);
+    let script;
+    try{
+      const res=await fetch("/api/video/script",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(data.code||"video_error");
+      script=data.script;
+    }catch(e){
+      info.textContent=({auth_required:"Connecte-toi pour créer une vidéo.",gemini_not_configured:"La création vidéo nécessite une clé Gemini configurée sur le serveur.",gemini_bad_key:"La clé Gemini est refusée. Vérifie-la dans Render.",free_limit:"La limite gratuite de création vidéo est atteinte.",rate_limited:"Attends un instant avant de recommencer.",gemini_busy:"Gemini est temporairement occupé.",gemini_unavailable:"Gemini est momentanément indisponible."})[e.message]||"Impossible de créer le storyboard. Réessaie.";
+      exportBtn.remove();preview.remove();progress.remove();return {ok:false,error:e.message};
+    }
+    const sceneImages=[];
+    for(const im of (images||[]).slice(0,6)){
+      try{const image=new Image();image.src="data:"+im.mime+";base64,"+im.data;await new Promise((ok,ko)=>{image.onload=ok;image.onerror=ko});sceneImages.push(image)}catch(e){}
+    }
+    (script.scenes||[]).forEach((s,i)=>{const row=document.createElement("div");row.className="vc-scene";row.textContent=(i+1)+". "+s.title+" — "+s.subtitle;scenes.append(row)});
+    heading.textContent="🎬 "+(script.title||"Ta vidéo Motion Design");
+    const duration=30000,W=270,H=480;
+    function draw(ms){
+      const list=script.scenes||[],total=list.length||1,each=duration/total,idx=Math.min(total-1,Math.floor(ms/each)),local=(ms-idx*each)/each,scene=list[idx]||{};
+      const im=sceneImages[idx];
+      if(im&&im.complete){const scale=Math.max(W/im.naturalWidth,H/im.naturalHeight),iw=im.naturalWidth*scale,ih=im.naturalHeight*scale;ctx.drawImage(im,(W-iw)/2,(H-ih)/2,iw,ih);const shade=ctx.createLinearGradient(0,0,0,H);shade.addColorStop(0,"rgba(3,7,24,.4)");shade.addColorStop(1,"rgba(3,7,24,.9)");ctx.fillStyle=shade;ctx.fillRect(0,0,W,H)}
+      else{const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#17245b");g.addColorStop(1,"#070b1f");ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+      ctx.save();ctx.globalAlpha=.25;for(let i=0;i<22;i++){const a=i*2.4+ms/1000,r=35+(i%7)*23;ctx.beginPath();ctx.arc(W/2+Math.cos(a)*r,H*.39+Math.sin(a)*r,3+(i%4)*2,0,Math.PI*2);ctx.fillStyle=i%3?"#63d9ff":"#f4c96b";ctx.fill()}ctx.restore();
+      ctx.textAlign="center";ctx.fillStyle="#f4c96b";ctx.font="bold 12px system-ui";ctx.fillText("Y V A N A I",W/2,42);
+      ctx.globalAlpha=Math.max(.2,Math.min(1,local*5,(1-local)*5));ctx.fillStyle="#fff";ctx.font="bold 27px system-ui";
+      const words=String(scene.title||"").split(/\s+/);let line="",lines=[];for(const word of words){const next=line?line+" "+word:word;if(ctx.measureText(next).width>W-36&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);lines.slice(0,3).forEach((x,i)=>ctx.fillText(x,W/2,H*.70+i*34));
+      ctx.fillStyle="#d5dcf5";ctx.font="14px system-ui";ctx.fillText(String(scene.subtitle||"").slice(0,48),W/2,H*.83);ctx.globalAlpha=1;
+      ctx.fillStyle="rgba(255,255,255,.18)";ctx.fillRect(16,H-22,W-32,3);ctx.fillStyle="#f4c96b";ctx.fillRect(16,H-22,(W-32)*Math.min(1,ms/duration),3);
+    }
+    let raf=0,previewStart=performance.now();
+    function animate(){draw((performance.now()-previewStart)%duration);raf=requestAnimationFrame(animate)}
+    function startPreview(){cancelAnimationFrame(raf);previewStart=performance.now();animate()}
+    preview.addEventListener("click",startPreview);
+    startPreview();
+    exportBtn.addEventListener("click",()=>{
+      if(!canvas.captureStream||!window.MediaRecorder){note.textContent="L’export vidéo n’est pas pris en charge par ce navigateur. Essaie Chrome ou Edge.";return}
+      const stream=canvas.captureStream(30),mime=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
+      if(!mime){note.textContent="Ce navigateur ne prend pas en charge l’export WebM.";stream.getTracks().forEach(t=>t.stop());return}
+      const chunks=[];let recorder;try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3500000})}catch(e){note.textContent="Impossible de démarrer l’export sur cet appareil.";return}
+      exportBtn.disabled=true;preview.disabled=true;cancelAnimationFrame(raf);fill.style.width="0%";note.textContent="Export en cours… garde cette conversation ouverte.";
+      const start=performance.now();recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+      recorder.onerror=()=>{note.textContent="Une erreur est survenue pendant l’export.";stream.getTracks().forEach(t=>t.stop());exportBtn.disabled=false;preview.disabled=false;startPreview()};
+      recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger la vidéo (.webm)";a.className="primary";actions.append(a);note.textContent="Vidéo terminée ! Tu peux la télécharger ici.";exportBtn.disabled=false;preview.disabled=false;startPreview()};
+      recorder.start(500);
+      function tick(now){const elapsed=Math.min(duration,now-start);draw(elapsed);fill.style.width=(elapsed/duration*100)+"%";if(elapsed>=duration){recorder.stop();return}requestAnimationFrame(tick)}
+      requestAnimationFrame(tick);
+    });
+    return {ok:true,title:script.title};
+  }
+
   async function ask(text, opts = {}) {
     if (busy || loadingPics > 0) return { ok: false, code: "busy" };
     const imgs = pending.slice();
@@ -1841,6 +1909,16 @@ body::before {
     input.value = ""; autosize();
     const b = addMsg("ai", "");
     b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> YvanAI ' + (imgs.length || docs.length ? "lit tes fichiers…" : "réfléchit…") + '</span>';
+    const videoIntent = /\b(video|vidéo|motion\s*design|motion design|clip publicitaire|cr[eé]e[r]? une animation)\b/i.test(text);
+    if(videoIntent && !opts.voice){
+      ctl = new AbortController(); setBusy(true);
+      try{
+        const result=await createMotionVideoInChat(b,text,imgs);
+        const assistantText=result.ok?"Ton storyboard est prêt. Tu peux regarder l’aperçu, puis exporter ta vidéo directement ici.":"Je n’ai pas pu préparer la vidéo pour le moment.";
+        turns.push({role:"assistant",content:assistantText});save();
+        return {ok:result.ok,text:assistantText};
+      }finally{setBusy(false);input.focus()}
+    }
     ctl = new AbortController(); setBusy(true);
     const recent = turns.slice(-20);
     const history = recent.map((t, i) => {
