@@ -2508,10 +2508,26 @@ body::before {
         setTimeout(() => { copy.lastChild.textContent = "Copier"; }, 1500);
       } catch (e) { flash("Impossible de copier sur cet appareil."); }
     });
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.className = "act"; retry.innerHTML = '<span aria-hidden="true">↻</span><span>Réessayer</span>';
+    retry.disabled = !String(question || "").trim();
+    retry.addEventListener("click", async () => {
+      if (busy || !String(question || "").trim()) return;
+      retry.disabled = true; retry.lastChild.textContent = "Nouvel essai…";
+      const row = b.closest(".msg"), userRow = row && row.previousElementSibling;
+      const last = turns[turns.length - 1];
+      if (last && last.role === "assistant") turns.pop();
+      const previous = turns[turns.length - 1];
+      if (previous && previous.role === "user") turns.pop();
+      if (row) row.remove();
+      if (userRow && userRow.classList.contains("user")) userRow.remove();
+      save();
+      await ask(String(question));
+    });
     const rep = document.createElement("button");
     rep.type = "button"; rep.className = "act"; rep.innerHTML = ICON_FLAG + "<span>Signaler</span>";
     rep.addEventListener("click", () => openReport(question, answer, rep));
-    acts.append(copy, rep);
+    acts.append(copy, retry, rep);
     b.appendChild(acts);
   }
 
