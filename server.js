@@ -242,7 +242,16 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const GEMINI_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 
-const provider = GEMINI_API_KEYS.length ? "gemini" : CLOUDFLARE_AI ? "cloudflare" : OPENAI_API_KEY ? "openai" : null;
+// Priorité réelle : OpenAI d'abord, puis Cloudflare, puis Gemini en dernier recours.
+const provider = OPENAI_API_KEY ? "openai" : CLOUDFLARE_AI ? "cloudflare" : GEMINI_API_KEYS.length ? "gemini" : null;
+console.log("[IA] fournisseurs configurés :", JSON.stringify({
+  provider,
+  openai: !!OPENAI_API_KEY,
+  cloudflare: CLOUDFLARE_AI,
+  geminiKeys: GEMINI_API_KEYS.length,
+  geminiModel: GEMINI_MODEL,
+  imageModel: IMAGE_MODEL
+}));
 
 const VOICE_RULES = `
 
@@ -347,7 +356,11 @@ async function fetchGeminiWithRotation(url, options = {}, signal = options.signa
       const invalidKey = response.status === 400 && /api key not valid|api_key_invalid|invalid api key/i.test(detail);
       if (!invalidKey && ![401, 403, 429, 500, 502, 503, 504, 529].includes(response.status)) return response;
       lastResponse = response;
-      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} indisponible (HTTP ${response.status}), bascule vers la suivante.`);
+      let errorInfo = {};
+      try { errorInfo = JSON.parse(detail).error || {}; } catch {}
+      const reason = errorInfo.details?.find?.(d => d.reason || d.metadata?.quotaMetric)?.reason || errorInfo.status || "non_précisé";
+      const message = String(errorInfo.message || "").replace(/[\\r\\n]+/g, " ").slice(0, 220);
+      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} indisponible (HTTP ${response.status}, ${reason})${message ? ": " + message : ""}; bascule vers la suivante.`);
     } catch (error) {
       if (signal?.aborted) throw error;
       lastError = error;
