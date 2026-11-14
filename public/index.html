@@ -1960,6 +1960,7 @@ body::before {
     }
     if (ext === "pdf") {
       if (!window.pdfjsLib) throw new Error("pdf_unavailable");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
       const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
       let out = "";
       for (let pageNo = 1; pageNo <= Math.min(pdf.numPages, 30); pageNo++) {
@@ -2514,7 +2515,7 @@ body::before {
         cloudHistoryReady = true; renderHistory();
       } catch(e) { cloudHistoryReady = false; console.warn("[historique] chargement impossible",e.message); flashHistory("Historique en ligne indisponible pour le moment."); }
     } else { activeConversationId=null; }
-    showTurns(); pending = []; renderAttach(); input.focus();
+    showTurns(); pending = []; pendingDocs = []; renderAttach(); input.focus();
   }
 
   // Account menu: free counter or Premium date, plus the admin link for the owner.
