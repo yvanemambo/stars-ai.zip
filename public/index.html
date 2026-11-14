@@ -1778,7 +1778,7 @@ body::before {
   function showTurns() {
     thread.querySelectorAll(".msg").forEach(n=>n.remove());
     welcome.hidden = turns.length > 0; let lastQuestion="";
-    for(const raw of turns){ const t=storedTurn(raw); if(t.role==="user"){addMsg("user",t.content,t.thumbs);lastQuestion=t.content||"";} else { const b=addMsg("ai",t.content); if(t.imageId) restoreImageCard(b,t.imageId,t.imagePrompt||lastQuestion); else addActions(b,lastQuestion,t.content); } }
+    for(const raw of turns){ const t=storedTurn(raw); if(t.role==="user"){addMsg("user",t.content,t.thumbs);lastQuestion=t.content||"";} else { const b=addMsg("ai",t.content); if(t.imageId) restoreImageCard(b,t.imageId,t.imagePrompt||lastQuestion,t.imagePreview); else addActions(b,lastQuestion,t.content); } }
   }
   async function openConversation(id) {
     try {
