@@ -16,7 +16,7 @@ h1{font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing
 .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,390px);gap:22px;align-items:start}
 .panel{background:rgba(17,25,54,.86);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 20px 50px #0003}
 label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{width:100%;min-height:140px;resize:vertical;background:#080e27;border:1px solid var(--line);border-radius:13px;color:var(--ink);padding:14px;font:15px/1.6 system-ui,sans-serif;outline:none}textarea:focus{border-color:var(--gold)}
-.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.primary{background:linear-gradient(120deg,#f4c96b,#ffe6a6);color:#171323;border:0}.primary:disabled{opacity:.5;cursor:wait}
+.image-picker{margin-top:18px;padding:14px;border:1px dashed var(--line);border-radius:14px;background:#0b1230}.image-picker input{display:block;width:100%;margin-top:8px;color:var(--muted);font:13px system-ui}.image-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.image-thumb{position:relative;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:#080e27;border:1px solid var(--line)}.image-thumb img{width:100%;height:100%;object-fit:cover;display:block}.image-thumb span{position:absolute;left:5px;bottom:5px;padding:3px 6px;border-radius:6px;background:#050817d9;color:white;font-size:11px}.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.primary{background:linear-gradient(120deg,#f4c96b,#ffe6a6);color:#171323;border:0}.primary:disabled{opacity:.5;cursor:wait}
 .hint,.status{font-size:13px;line-height:1.55;color:var(--muted);margin-top:12px}.status.error{color:#ff9b9b}.status.ok{color:#8ee5b2}
 .preview{display:grid;gap:12px}.screen{width:min(100%,280px);aspect-ratio:9/16;margin:auto;border-radius:18px;overflow:hidden;border:1px solid #ffffff25;background:#05091c;box-shadow:0 18px 45px #0008}.screen canvas{display:block;width:100%;height:100%}
 .progress{height:7px;background:#070d24;border-radius:99px;overflow:hidden;margin-top:12px}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .1s}
@@ -34,6 +34,12 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
     <section class="panel">
       <label for="brief">Que veux-tu voir dans ta vidéo ?</label>
       <textarea id="brief" maxlength="1200" placeholder="Exemple : une publicité de 30 secondes pour mon magasin d'électronique à Abidjan. Présente Arduino, LED et capteurs, avec un style futuriste bleu et violet."></textarea>
+      <div class="image-picker">
+        <label for="sceneImages">Ajouter les images de ta vidéo (jusqu'à 6 images)</label>
+        <input id="sceneImages" type="file" accept="image/*" multiple>
+        <div class="hint">Choisis tes propres photos ou visuels. Ils seront associés aux scènes dans l'ordre de sélection. Formats acceptés : JPG, PNG et WebP.</div>
+        <div id="imageGallery" class="image-gallery" aria-live="polite"></div>
+      </div>
       <div class="controls"><button class="btn primary" id="make">✨ Créer le storyboard avec Gemini</button><button class="btn" id="render" disabled>▶ Exporter la vidéo (30 s)</button></div>
       <div class="status" id="status" role="status">Durée : 30 secondes · Format vertical 9:16 · 1080 × 1920.</div>
       <div class="progress" aria-label="Progression de l'export"><span id="bar"></span></div>
@@ -49,8 +55,8 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
 </div>
 <script>
 (() => {
-const $=id=>document.getElementById(id), brief=$("brief"), make=$("make"), render=$("render"), status=$("status"), canvas=$("canvas"), ctx=canvas.getContext("2d"), bar=$("bar"), scenesBox=$("scenes"), download=$("download");
-let script=null, previewFrame=0, previewStart=performance.now(), raf=0;
+const $=id=>document.getElementById(id), brief=$("brief"), make=$("make"), render=$("render"), status=$("status"), canvas=$("canvas"), ctx=canvas.getContext("2d"), bar=$("bar"), scenesBox=$("scenes"), download=$("download"), imageInput=$("sceneImages"), imageGallery=$("imageGallery");
+let script=null, previewFrame=0, previewStart=performance.now(), raf=0, sceneImages=[];
 const W=canvas.width/2,H=canvas.height/2,DURATION=30000;ctx.scale(2,2);
 const clean=s=>String(s||"").replace(/[<>]/g,"").trim();
 function setStatus(t,type=""){status.className="status "+type;status.textContent=t}
@@ -58,8 +64,16 @@ function wrap(text,max){const words=String(text||"").split(/\s+/);const lines=[]
 function draw(t){
  const scenes=script?.scenes||[{title:"YvanAI",subtitle:"Ton idée prend vie.",visual:"particles"}];
  const total=scenes.length, duration=DURATION/total, idx=Math.min(total-1,Math.floor(t/duration)), local=(t-idx*duration)/duration, scene=scenes[idx];
- const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#111b48");g.addColorStop(.55,"#090f2c");g.addColorStop(1,"#050817");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
- const pulse=.5+.5*Math.sin(t/850), cx=W/2, cy=H*.40;
+ const cx=W/2, cy=H*.40;
+ const chosenImage=sceneImages[idx];
+ if(chosenImage?.complete&&chosenImage.naturalWidth){
+   const scale=Math.max(W/chosenImage.naturalWidth,H/chosenImage.naturalHeight),iw=chosenImage.naturalWidth*scale,ih=chosenImage.naturalHeight*scale;
+   ctx.drawImage(chosenImage,(W-iw)/2,(H-ih)/2,iw,ih);
+   const shade=ctx.createLinearGradient(0,0,0,H);shade.addColorStop(0,"rgba(3,7,24,.50)");shade.addColorStop(.48,"rgba(3,7,24,.38)");shade.addColorStop(1,"rgba(3,7,24,.88)");ctx.fillStyle=shade;ctx.fillRect(0,0,W,H);
+ }else{
+   const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#111b48");g.addColorStop(.55,"#090f2c");g.addColorStop(1,"#050817");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ }
+ const pulse=.5+.5*Math.sin(t/850);
  ctx.save();ctx.globalAlpha=.18;
  for(let i=0;i<8;i++){const a=t/1800+i*Math.PI/4,r=120+((i*37+t/22)%150);ctx.beginPath();ctx.arc(cx+Math.cos(a)*r,cy+Math.sin(a)*r,r*.25,0,Math.PI*2);ctx.fillStyle=i%2?"#63d9ff":"#a77cff";ctx.fill()}
  ctx.restore();
@@ -85,6 +99,23 @@ function showScript(data){
  data.scenes.forEach((s,i)=>{const el=document.createElement("div");el.className="scene";const n=document.createElement("span");n.className="num";n.textContent=String(i+1);const d=document.createElement("div"),b=document.createElement("strong"),sm=document.createElement("small");b.textContent=s.title;sm.textContent=s.subtitle;d.append(b,sm);el.append(n,d);scenesBox.append(el)});
  render.disabled=false;previewStart=performance.now();cancelAnimationFrame(raf);animate();
 }
+imageInput.addEventListener("change",()=>{
+ const files=Array.from(imageInput.files||[]).slice(0,6);
+ sceneImages=[];
+ imageGallery.innerHTML="";
+ files.forEach((file,index)=>{
+   if(!file.type.startsWith("image/"))return;
+   const img=new Image();img.onload=()=>{if(script){previewStart=performance.now();draw(0)}};
+   img.src=URL.createObjectURL(file);sceneImages.push(img);
+   const thumb=document.createElement("div");thumb.className="image-thumb";
+   const preview=new Image();preview.alt="Image pour la scène "+(index+1);preview.src=img.src;
+   const tag=document.createElement("span");tag.textContent="Scène "+(index+1);
+   thumb.append(preview,tag);imageGallery.append(thumb);
+ });
+ if(files.length>6)setStatus("Les 6 premières images ont été sélectionnées.");
+ else if(files.length)setStatus(files.length+" image(s) ajoutée(s). Elles seront utilisées dans les scènes correspondantes.","ok");
+ if(script){previewStart=performance.now();draw(0)}
+});
 make.addEventListener("click",async()=>{
  const text=brief.value.trim();if(text.length<8){setStatus("Décris un peu plus la vidéo à créer.","error");return}
  make.disabled=true;render.disabled=true;download.style.display="none";setStatus("Gemini prépare les six scènes…");
