@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>STARS AI</title>
-<meta name="description" content="STARS AI — ton assistant d'intelligence artificielle en français.">
+<title>YvanAI</title>
+<meta name="description" content="YvanAI — ton assistant d'intelligence artificielle en français.">
 <meta name="theme-color" content="#070b1f">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="/icons/yvanai-favicon.svg">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="STARS AI">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23070b1f'/%3E%3Cpath d='M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z' fill='%23f4c96b'/%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-title" content="YvanAI">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
@@ -379,6 +379,92 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 .history-state { display:grid; gap:10px; justify-items:start; }
 #historyClear { color:var(--danger); }
 
+/* ===== YvanAI motion identity — animated violet/gold reactor, no star motif ===== */
+#sky { display:none !important; }
+body {
+  background:
+    radial-gradient(ellipse at 50% 12%, rgba(112,45,208,.22), transparent 34%),
+    radial-gradient(ellipse at 8% 82%, rgba(74,45,170,.18), transparent 30%),
+    radial-gradient(ellipse at 92% 72%, rgba(225,164,48,.10), transparent 27%),
+    linear-gradient(135deg,#050611 0%,#0b0920 48%,#080b1c 100%);
+  background-size: 150% 150%;
+  animation: yvanaiAtmosphere 22s ease-in-out infinite alternate;
+}
+@keyframes yvanaiAtmosphere { 0%{background-position:0% 20%;} 100%{background-position:100% 80%;} }
+body::before {
+  inset:-45%;
+  background:
+    conic-gradient(from 0deg at 50% 50%,transparent 0 22%,rgba(140,70,255,.11) 30%,transparent 39% 63%,rgba(255,194,65,.08) 72%,transparent 82%);
+  filter:blur(58px);
+  animation:yvanaiNebula 32s linear infinite;
+}
+@keyframes yvanaiNebula { to { transform:rotate(360deg) scale(1.08); } }
+.app { position:relative; z-index:1; }
+header { border-bottom-color:rgba(174,133,255,.18); box-shadow:0 12px 42px rgba(0,0,0,.12); }
+.brand svg { filter:drop-shadow(0 0 9px rgba(165,75,255,.65)) drop-shadow(0 0 18px rgba(255,196,65,.2)); animation:brandOrbitFloat 5s ease-in-out infinite; }
+@keyframes brandOrbitFloat { 0%,100%{transform:translateY(0) rotate(-4deg);} 50%{transform:translateY(-4px) rotate(4deg);} }
+.brand h1 span { color:#e3b0ff; text-shadow:0 0 16px rgba(175,83,255,.65),0 0 28px rgba(255,196,65,.25); }
+.welcome { padding-top:clamp(16px,3vh,34px); gap:17px; }
+.hero-reactor {
+  width:clamp(142px,22vw,190px); aspect-ratio:1; position:relative; align-self:center;
+  display:grid; place-items:center; margin:0 auto 2px; isolation:isolate;
+  filter:drop-shadow(0 0 35px rgba(132,63,255,.23));
+}
+.reactor-halo { position:absolute; inset:13%; border-radius:50%; background:radial-gradient(circle,rgba(149,74,255,.30),rgba(110,51,210,.08) 48%,transparent 72%); filter:blur(10px); animation:reactorBreathe 4.5s ease-in-out infinite; }
+.reactor-ring { position:absolute; border-radius:50%; border:1px solid transparent; pointer-events:none; }
+.reactor-ring-a { inset:5%; border-top-color:#d9a6ff; border-right-color:rgba(160,80,255,.7); border-bottom-color:rgba(255,202,91,.55); box-shadow:0 0 18px rgba(163,79,255,.16); animation:reactorSpin 9s linear infinite; }
+.reactor-ring-b { inset:15%; border-width:2px; border-left-color:rgba(255,204,89,.9); border-bottom-color:rgba(156,76,255,.6); transform:rotate(-34deg); animation:reactorSpinReverse 6.5s linear infinite; }
+.reactor-ring-c { inset:-2%; border-style:dashed; border-color:rgba(176,119,255,.28); animation:reactorSpin 24s linear infinite; }
+.reactor-core {
+  width:47%; aspect-ratio:1; border-radius:32%; display:grid; place-items:center;
+  background:radial-gradient(circle at 30% 24%,#3b1a67 0%,#170d31 58%,#090816 100%);
+  border:1px solid rgba(226,190,255,.55);
+  box-shadow:inset 0 0 28px rgba(167,76,255,.3),0 0 22px rgba(151,70,255,.38),0 0 54px rgba(255,190,65,.13);
+  transform:rotate(45deg); animation:coreLevitate 4s ease-in-out infinite;
+}
+.reactor-core b { transform:rotate(-45deg); font:700 clamp(48px,8vw,70px)/1 "Unbounded",sans-serif; letter-spacing:-.12em; padding-right:.12em; color:transparent; background:linear-gradient(145deg,#f2d2ff 8%,#b65aff 48%,#ffd36c 88%); -webkit-background-clip:text; background-clip:text; filter:drop-shadow(0 0 13px rgba(205,130,255,.6)); }
+.reactor-glint { position:absolute; width:9px; height:9px; right:18%; top:18%; border-radius:50%; background:#ffe4a0; box-shadow:0 0 12px 4px rgba(255,198,77,.48); animation:glintPulse 2.8s ease-in-out infinite; }
+@keyframes reactorSpin { to{transform:rotate(360deg);} }
+@keyframes reactorSpinReverse { to{transform:rotate(-360deg);} }
+@keyframes reactorBreathe { 0%,100%{opacity:.65;transform:scale(.88);} 50%{opacity:1;transform:scale(1.12);} }
+@keyframes coreLevitate { 0%,100%{translate:0 0;scale:1;} 50%{translate:0 -5px;scale:1.035;} }
+@keyframes glintPulse { 0%,100%{opacity:.45;scale:.7;} 50%{opacity:1;scale:1.35;} }
+.welcome-kicker { border-color:rgba(177,108,255,.34); background:linear-gradient(100deg,rgba(126,54,205,.14),rgba(255,196,65,.06)); box-shadow:0 0 26px rgba(138,69,231,.09); }
+.welcome h2 em { background-image:linear-gradient(100deg,#d9a6ff 0%,#a94dff 35%,#ffe0a0 68%,#c17aff 100%); background-size:240% auto; animation:goldShimmer 5s linear infinite; }
+.workspace-card { background:linear-gradient(145deg,rgba(35,23,72,.72),rgba(11,14,35,.88)); border-color:rgba(167,116,255,.2); box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 38px rgba(0,0,0,.2); }
+.workspace-card::after { background:rgba(151,75,255,.13); }
+.workspace-card:hover { border-color:rgba(202,151,255,.58); box-shadow:0 18px 46px rgba(0,0,0,.3),0 0 30px rgba(146,75,255,.13); }
+.workspace-icon { color:#e2bdff; border-color:rgba(179,117,255,.28); background:linear-gradient(145deg,rgba(156,78,255,.24),rgba(255,194,65,.07)); box-shadow:0 5px 20px rgba(145,75,255,.12); }
+.composer { border-color:rgba(167,116,255,.28); background:rgba(13,12,34,.9); }
+.composer:focus-within { border-color:rgba(193,132,255,.72); box-shadow:0 12px 42px rgba(0,0,0,.3),0 0 0 4px rgba(154,80,255,.09),0 0 30px rgba(154,80,255,.14); }
+#send { background:linear-gradient(145deg,#e7c5ff,#a74eff 58%,#7130c7); color:#fff; box-shadow:0 4px 18px rgba(154,73,255,.34); }
+#send:not(:disabled):hover { box-shadow:0 7px 25px rgba(154,73,255,.48); }
+.thinking::after { content:none !important; display:none !important; }
+.thinking::before { border-color:rgba(182,112,255,.75); border-top-color:#ffd16b; box-shadow:0 0 14px rgba(156,78,255,.22); }
+.stars-avatar__core svg { filter:hue-rotate(245deg) saturate(1.5); }
+@media(max-width:650px) {
+  .welcome { padding-top:14px; }
+  .hero-reactor { width:132px; margin-bottom:0; }
+  .workspace-card { background:linear-gradient(145deg,rgba(35,23,72,.78),rgba(11,14,35,.92)); }
+}
+@media(prefers-reduced-motion:reduce) {
+  body,body::before,.brand svg,.reactor-halo,.reactor-ring,.reactor-core,.reactor-glint,.welcome h2 em { animation:none !important; }
+}
+
+
+/* YvanAI live response states — Y mark only, no star motifs */
+.msg.ai .avatar { filter: drop-shadow(0 0 7px rgba(164,112,255,.3)); }
+.msg.ai:has(.thinking) .avatar { animation: rootAvatarThink 1.5s ease-in-out infinite; }
+.msg.ai:not(:has(.thinking)) .bubble { animation: yvanAnswerArrive .35s ease-out both; }
+.thinking::before { border-color:rgba(174,125,255,.65); border-top-color:#ffd16b; border-right-color:rgba(174,125,255,.9); }
+@keyframes rootAvatarThink { 50% { transform:scale(1.08); filter:drop-shadow(0 0 12px rgba(174,125,255,.65)); } }
+@keyframes yvanAnswerArrive { from {opacity:.45;transform:translateY(5px)} to {opacity:1;transform:translateY(0)} }
+@media(prefers-reduced-motion:reduce){.msg.ai:has(.thinking) .avatar,.msg.ai:not(:has(.thinking)) .bubble{animation:none!important}}
+
+/* YvanAI clean identity: remove all decorative star/sparkle marks, including legacy mobile avatar. */
+.stars-avatar::before,.stars-avatar::after,.stars-avatar__orbit,.thinking::after,.reactor-glint{display:none!important;content:none!important;}
+.msg .stars-avatar{border:1px solid rgba(178,137,255,.42);background:rgba(104,67,170,.16);box-shadow:0 0 12px rgba(137,86,220,.12);}
+.stars-avatar__core{animation:none!important;box-shadow:none!important;border:1px solid rgba(190,145,255,.3);}
 </style>
 </head>
 <body>
@@ -388,8 +474,8 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
 <div class="app">
   <header>
     <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L19.2 12.8 L30 16 L19.2 19.2 L16 30 L12.8 19.2 L2 16 L12.8 12.8 Z" fill="#f4c96b"/><circle cx="26" cy="6" r="1.6" fill="#e9ecfb"/></svg>
-      <h1>STARS <span>AI</span></h1>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="brandY" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e9baff"/><stop offset=".55" stop-color="#a33df4"/><stop offset="1" stop-color="#ffc52e"/></linearGradient></defs><path d="M9 12h10l13 18 13-18h10L36 37v15h-8V37z" fill="url(#brandY)" stroke="#e8c2ff" stroke-width="1.2" stroke-linejoin="round"/><ellipse cx="32" cy="32" rx="28" ry="11" transform="rotate(-25 32 32)" fill="none" stroke="#ffc52e" stroke-width="2.5"/></svg>
+      <h1>Yvan<span>AI</span></h1>
     </div>
     <div class="actions">
       <button class="btn-ghost" id="historyToggle" type="button" aria-expanded="false">Historique</button>
@@ -400,7 +486,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <div><strong id="meName"></strong><br><small id="meEmail"></small></div>
           <button class="btn-ghost" id="logout" type="button">Se déconnecter</button>
           <div class="plan" id="planLine"></div>
-          <a class="menu-link gold" id="premiumLink" href="/premium">⭐ Passer à Premium</a>
+          <a class="menu-link gold" id="premiumLink" href="/premium">Passer à Premium</a>
           <a class="menu-link" id="adminLink" href="/admin" hidden>🛠 Tableau de bord</a>
           <a class="menu-link" id="memLink" href="/memoire" hidden>🧠 Mes souvenirs</a>
           <a class="menu-link" id="imgLink" href="/images" hidden>🎨 Images</a>
@@ -423,11 +509,19 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   </aside>
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome" hidden>
+      <div class="hero-reactor" aria-hidden="true">
+        <span class="reactor-halo"></span>
+        <span class="reactor-ring reactor-ring-a"></span>
+        <span class="reactor-ring reactor-ring-b"></span>
+        <span class="reactor-ring reactor-ring-c"></span>
+        <span class="reactor-core"><b>Y</b></span>
+        <span class="reactor-glint"></span>
+      </div>
       <h2 id="greet">Bonsoir. Que veux-tu <em>explorer</em> aujourd'hui ?</h2>
-      <p>Je suis STARS AI. Pose-moi une question, envoie-moi un exercice, demande-moi d'écrire, d'expliquer, de traduire ou de coder. Je réponds en français ou dans ta langue.</p>
+      <p>Je suis YvanAI. Pose-moi une question, envoie-moi un exercice, demande-moi d'écrire, d'expliquer, de traduire ou de coder. Je réponds en français ou dans ta langue.</p>
       <button class="install-cta" type="button" data-install hidden>
-        <img src="/icons/icon-192.png" alt="">
-        <span><strong>Installer l'appli STARS AI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
+        <img src="/icons/yvanai-icon.svg" alt="">
+        <span><strong>Installer l'appli YvanAI</strong>Sur ton écran d'accueil, comme une vraie appli. Gratuit.</span>
       </button>
       <div class="chips">
         <button class="chip" type="button" data-q="Résous cette équation en expliquant chaque étape : 3x + 7 = 2x − 5"><small>Exercice</small>Résoudre 3x + 7 = 2x − 5</button>
@@ -444,7 +538,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <button type="button" role="tab" id="tabSignup" aria-selected="true">S'inscrire</button>
           <button type="button" role="tab" id="tabLogin" aria-selected="false">Se connecter</button>
         </div>
-        <h2 id="authTitle">Rejoins <em>STARS AI</em></h2>
+        <h2 id="authTitle">Rejoins <em>YvanAI</em></h2>
         <p id="authLead">Crée ton compte avec ton adresse Gmail. Tu vas recevoir un code à 6 chiffres pour confirmer que c'est bien toi.</p>
         <form class="card" id="startForm" novalidate>
           <div class="field" id="nameField">
@@ -465,7 +559,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
           <button class="btn-star" id="startBtn" type="submit">Créer mon compte</button>
           <p class="switch"><span id="switchText">Déjà un compte ?</span> <button class="link" id="switchBtn" type="button">Se connecter</button></p>
         </form>
-        <p class="legal">En utilisant STARS AI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
+        <p class="legal">En utilisant YvanAI, tu acceptes notre <a href="/confidentialite">politique de confidentialité</a>.</p>
         <p class="legal" data-install-link hidden><a href="/telecharger">📲 Installer l'appli sur ton téléphone</a></p>
       </div>
       <div id="step2" hidden>
@@ -499,22 +593,22 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       </button>
       <input id="photoInput" type="file" accept="image/*" multiple hidden>
       <label for="input" hidden>Message</label>
-      <textarea id="input" rows="1" placeholder="Écris à STARS AI…"></textarea>
-      <button id="micBtn" type="button" aria-label="Parler avec STARS AI (mode vocal)" title="Mode vocal : parler avec STARS AI">
+      <textarea id="input" rows="1" placeholder="Écris à YvanAI…"></textarea>
+      <button id="micBtn" type="button" aria-label="Parler avec YvanAI (mode vocal)" title="Mode vocal : parler avec YvanAI">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
       <button id="send" type="submit" aria-label="Envoyer" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
       </button>
     </form>
-    <div class="fine" id="fine">STARS AI peut se tromper. Vérifie les informations importantes.</div>
+    <div class="fine" id="fine">YvanAI peut se tromper. Vérifie les informations importantes.</div>
   </footer>
 </div>
 
 <dialog class="sheet" id="reportDlg" aria-labelledby="reportTitle">
   <form id="reportForm" novalidate>
     <h3 id="reportTitle">Signaler cette réponse</h3>
-    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre STARS AI plus sûre.</p>
+    <p>Dis-nous ce qui ne va pas. Ton signalement nous aide à rendre YvanAI plus sûre.</p>
     <div class="choices" role="radiogroup" aria-label="Raison du signalement">
       <label class="choice"><input type="radio" name="reason" value="offensant"> Contenu choquant ou offensant</label>
       <label class="choice"><input type="radio" name="reason" value="faux_dangereux"> Information fausse ou dangereuse</label>
@@ -543,9 +637,9 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   </div>
 </dialog>
 
-<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec STARS AI" hidden>
+<div class="voice" id="voice" data-state="idle" role="dialog" aria-modal="true" aria-label="Appel vocal avec YvanAI" hidden>
   <div class="voice-inner">
-    <p class="vtitle">STARS <span>AI</span> · appel vocal</p>
+    <p class="vtitle">Yvan<span>AI</span> · appel vocal</p>
     <button class="orb" id="orb" type="button" aria-label="Parler">
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 L18.6 13.4 L28 16 L18.6 18.6 L16 28 L13.4 18.6 L4 16 L13.4 13.4 Z" fill="#1a1404" opacity=".85"/></svg>
     </button>
@@ -610,7 +704,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   const fine = document.getElementById("fine");
   const SEND_ICON = send.innerHTML;
   const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
-  const AVATAR = '<svg class="avatar" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#161d42" stroke="rgba(244,201,107,.45)"/><path d="M16 6 L18.2 13.8 L26 16 L18.2 18.2 L16 26 L13.8 18.2 L6 16 L13.8 13.8 Z" fill="#f4c96b"/></svg>';
+  const AVATAR = '<svg class="avatar" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#161d42" stroke="rgba(174,125,255,.65)"/><path d="M8 7.5h16M16 7.5v17M16 17l-7 7M16 17l7 7" fill="none" stroke="url(#rootYGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="rootYGradient" x1="8" y1="7" x2="25" y2="25"><stop stop-color="#c9a0ff"/><stop offset="1" stop-color="#ffd16b"/></linearGradient></defs></svg>';
 
   let turns = [], ctl = null, busy = false, me = null;
   let activeConversationId = null, saveTimer = null, historyItems = [], cloudHistoryReady = false;
@@ -800,7 +894,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   }
 
   const ERRORS = {
-    no_key: "STARS AI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
+    no_key: "YvanAI n'est pas encore branchée à une IA : il faut ajouter une clé API dans Render.",
     bad_key: "La clé API a été refusée. Vérifie-la dans Render (Environment).",
     no_credit: "Le compte de l'IA n'a plus de crédit.",
     upstream_busy: "L'IA est très demandée en ce moment. Réessaie dans un instant.",
@@ -872,7 +966,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     pending = []; renderAttach();
     input.value = ""; autosize();
     const b = addMsg("ai", "");
-    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> STARS AI ' + (imgs.length ? "lit ta photo…" : "réfléchit…") + '</span>';
+    b.innerHTML = '<span class="thinking"><i></i><i></i><i></i> YvanAI ' + (imgs.length ? "lit ta photo…" : "réfléchit…") + '</span>';
     ctl = new AbortController(); setBusy(true);
     const recent = turns.slice(-20);
     const history = recent.map((t, i) => {
@@ -899,7 +993,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       if (partial) { turns.push({ role: "assistant", content: partial }); save(); addActions(b, text, partial); }
       if (code === "free_limit") {
         const lim = (me && me.freeDaily) || 25, price = ((me && me.price) || 1000).toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ");
-        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">⭐ Passer à Premium</a>';
+        b.innerHTML = '<div class="note" style="color:var(--ink)">Tu as utilisé tes <b>' + lim + ' messages gratuits</b> d\'aujourd\'hui. Reviens demain, ou passe à <b>Premium</b> (' + price + ' FCFA / mois) pour continuer sans limite.</div><a class="note-cta" href="/premium">Passer à Premium</a>';
         if (me) { me.used = lim; refreshPlan(); }
       } else if (code !== "cancelled") {
         b.insertAdjacentHTML("beforeend", '<div class="note">' + esc(ERRORS[code] || "Connexion interrompue. Réessaie.") + "</div>");
@@ -1011,7 +1105,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   const isFr = /^fr/i.test(navLang);
   const recLang = isFr ? "fr-FR" : navLang;
   const HINT = "Parle normalement. Touche le cercle pour me couper la parole.";
-  const STATUS = { listening: "Je t'écoute…", thinking: "STARS AI réfléchit…", speaking: "STARS AI parle…", idle: "Touche le cercle pour parler" };
+  const STATUS = { listening: "Je t'écoute…", thinking: "YvanAI réfléchit…", speaking: "YvanAI parle…", idle: "Touche le cercle pour parler" };
   let call = { active: false };
   let ttsVoice = null;
 
@@ -1122,7 +1216,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     };
     rec.onerror = e => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        endCall(); flash("Autorise le micro pour parler avec STARS AI (touche le cadenas à côté de l'adresse du site).");
+        endCall(); flash("Autorise le micro pour parler avec YvanAI (touche le cadenas à côté de l'adresse du site).");
       } else if (e.error === "no-speech") call.silent++;
       else if (e.error === "network" || e.error === "audio-capture") call.recError = e.error;
     };
@@ -1287,7 +1381,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     me = null; turns = [];
     emailIn.value = ""; nameIn.value = "";
     showAuth("");
-    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur STARS AI !";
+    info1.textContent = "Ton compte a bien été supprimé. À bientôt sur YvanAI !";
   });
 
   /* ---------- Sign-up / sign-in ---------- */
@@ -1331,7 +1425,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
     forgotLine.hidden = !login || !passwordsOn;
     passIn.autocomplete = login ? "current-password" : "new-password";
     passIn.placeholder = login ? "Ton mot de passe" : "Au moins " + passwordMin + " caractères";
-    if (signup) setTitle("Rejoins ", "STARS AI");
+    if (signup) setTitle("Rejoins ", "YvanAI");
     else if (login) setTitle("Content de te ", "revoir");
     else setTitle("Mot de passe ", "oublié");
     document.getElementById("authLead").textContent = signup
@@ -1487,12 +1581,12 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
       plan.innerHTML = "👑 <b>Propriétaire</b> : messages illimités";
       prem.textContent = "Voir la page Premium"; prem.classList.remove("gold");
     } else if (until && until > new Date()) {
-      plan.innerHTML = "⭐ <b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
+      plan.innerHTML = "<b>Premium</b> jusqu'au " + esc(until.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }));
       prem.textContent = "Prolonger mon Premium"; prem.classList.remove("gold");
     } else if (me.freeDaily) {
       const used = Math.min(me.used || 0, me.freeDaily);
       plan.innerHTML = "Compte gratuit : <b>" + used + " / " + me.freeDaily + "</b> messages aujourd'hui" + (me.pending ? "<br>⏳ Paiement Premium en vérification" : "");
-      prem.textContent = "⭐ Passer à Premium"; prem.classList.add("gold");
+      prem.textContent = "Passer à Premium"; prem.classList.add("gold");
     } else plan.textContent = "";
   }
 
@@ -1602,7 +1696,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
   window.addEventListener("appinstalled", () => {
     installEvt = null; appInstalled = true; refreshInstall();
-    flash("STARS AI est installée ! Tu la trouveras sur ton écran d'accueil.");
+    flash("YvanAI est installée ! Tu la trouveras sur ton écran d'accueil.");
   });
   document.querySelectorAll("[data-install]").forEach(btn => btn.addEventListener("click", async () => {
     account.open = false;
@@ -1620,7 +1714,7 @@ dialog.sheet p strong { color: var(--ink); overflow-wrap: anywhere; }
   (async () => {
     let status = { ready: true, authRequired: false };
     try { status = await (await fetch("/api/status")).json(); } catch (e) {}
-    if (!status.ready) { fine.textContent = "STARS AI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
+    if (!status.ready) { fine.textContent = "YvanAI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
     passwordsOn = status.passwords !== false;
     passwordMin = status.passwordMin || 8;
     if (status.authRequired) {

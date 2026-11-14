@@ -1,4 +1,4 @@
-# STARS AI
+# YvanAI
 
 Assistant d'intelligence artificielle en français, hébergé sur Render.
 
@@ -7,33 +7,33 @@ Assistant d'intelligence artificielle en français, hébergé sur Render.
 
 ## Brancher l'IA
 
-Dans Render › ton service `stars-ai` › **Environment**, ajoute la clé suivante :
+Dans Render › ton service `yvan-ai` › **Environment**, ajoute la clé suivante :
 
 | Variable | Où l'obtenir | Prix |
 |---|---|---|
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey | offre gratuite (avec limites), sans carte |
 
-STARS AI utilise Gemini comme unique fournisseur d'IA.
+YvanAI utilise Gemini comme unique fournisseur d'IA.
 
 ## Exercices et photos
 
 Le bouton appareil photo (ou coller / glisser une image) envoie jusqu'à 3 photos par message, réduites à 1600 px.
-STARS AI répond en « mode prof » : étape par étape, formules lisibles (x², √, ×), résultat en gras, et un exercice similaire pour s'entraîner.
+YvanAI répond en « mode prof » : étape par étape, formules lisibles (x², √, ×), résultat en gras, et un exercice similaire pour s'entraîner.
 
 ## Mode vocal (appel)
 
-Le bouton micro ouvre un appel : le navigateur écoute (reconnaissance vocale de Chrome / Safari), STARS AI répond
+Le bouton micro ouvre un appel : le navigateur écoute (reconnaissance vocale de Chrome / Safari), YvanAI répond
 en version courte « pour l'oral » (`voice: true` envoyé à `/api/chat`), la réponse est lue à voix haute phrase par phrase,
 puis l'écoute reprend. Toucher le cercle coupe la parole ; « Raccrocher » termine. Les échanges restent dans la discussion.
 
 ## Application Android (Play Store)
 
 Le site est installable (PWA) : `public/manifest.webmanifest`, `public/sw.js` (page hors ligne `offline.html`), icônes dans `public/icons/`.
-Le paquet Android se génère sur https://www.pwabuilder.com à partir de https://stars-ai.onrender.com.
+Le paquet Android se génère sur https://www.pwabuilder.com à partir de https://yvan-ai.onrender.com.
 Une fois l'appli signée, mettre le contenu de `assetlinks.json` dans la variable Render `ASSETLINKS_JSON`
 (servi sur `/.well-known/assetlinks.json`) pour enlever la barre d'adresse dans l'appli.
 
-Sans Play Store : la page `/telecharger` propose l'APK signé (`public/downloads/stars-ai.apk`, généré par PWABuilder)
+Sans Play Store : la page `/telecharger` propose l'APK signé (`(installation PWA YvanAI)`, généré par PWABuilder)
 et l'installation en un clic (Chrome) ; le bouton « Installer l'appli » du chat y mène quand Chrome ne propose pas l'installation.
 
 Exigences Google Play déjà en place : bouton « Signaler » sous chaque réponse (`/api/report`, table `stars_reports`),
