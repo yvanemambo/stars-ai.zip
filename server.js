@@ -22,7 +22,11 @@ const env = k => (process.env[k] || "").trim();
 const OPENAI_API_KEY = env("OPENAI_API_KEY");
 const OPENAI_MODEL = env("OPENAI_MODEL") || "gpt-4.1-mini";
 const OPENAI_BASE_URL = (env("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\/+$/, "");
-const GEMINI_API_KEY = env("GEMINI_API_KEY");
+const GEMINI_API_KEYS = [...new Set([
+  env("GEMINI_API_KEY"), env("GEMINI_API_KEY_2"), env("GEMINI_API_KEY_3"),
+  env("GEMINI_API_KEY_4"), env("GEMINI_API_KEY_5")
+].filter(Boolean))];
+const GEMINI_API_KEY = GEMINI_API_KEYS[0] || "";
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 4096; // limite par défaut pour des réponses plus rapides ; ajustable dans Render
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
@@ -166,7 +170,7 @@ const CLOUDFLARE_IMAGES = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);
 const IMAGE_PREMIUM_DAILY = numEnv("IMAGE_PREMIUM_DAILY", 30);
 const IMAGE_SITE_DAILY = numEnv("IMAGE_SITE_DAILY", 100);
-const IMAGES_ON = env("IMAGES_ENABLED") === "1" && !!GEMINI_API_KEY && !!MEMBERS; // Activation explicite avec quotas Supabase.
+const IMAGES_ON = env("IMAGES_ENABLED") === "1" && !!GEMINI_API_KEYS.length && !!MEMBERS; // Activation explicite avec quotas Supabase.
 const IMAGE_SIZES = { carre: "1:1", portrait: "3:4", paysage: "4:3" };
 const IMAGE_SAFE_SUFFIX = "\n\n(Image adaptée à tous les publics : pas de nudité, pas de violence explicite, pas de personne réelle identifiable.)";
 const imageBusy = new Set();
@@ -238,7 +242,7 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
-const provider = GEMINI_API_KEY ? "gemini" : CLOUDFLARE_AI ? "cloudflare" : OPENAI_API_KEY ? "openai" : null;
+const provider = GEMINI_API_KEYS.length ? "gemini" : CLOUDFLARE_AI ? "cloudflare" : OPENAI_API_KEY ? "openai" : null;
 
 const VOICE_RULES = `
 
@@ -323,6 +327,35 @@ async function fetchWithFirstByteTimeout(url, options, signal, ms) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Essaie les clés Gemini configurées l'une après l'autre sans jamais les journaliser.
+async function fetchGeminiWithRotation(url, options = {}, signal = options.signal, firstByteMs = 0) {
+  if (!GEMINI_API_KEYS.length) throw new UpstreamError("gemini_not_configured", 503, "Aucune clé Gemini configurée");
+  let lastResponse = null, lastError = null;
+  for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
+    if (signal?.aborted) throw signal.reason || new Error("aborted");
+    const headers = new Headers(options.headers || {});
+    headers.set("x-goog-api-key", GEMINI_API_KEYS[i]);
+    try {
+      const requestOptions = { ...options, headers };
+      const response = firstByteMs
+        ? await fetchWithFirstByteTimeout(url, requestOptions, signal, firstByteMs)
+        : await fetch(url, requestOptions);
+      if (![400, 401, 403, 429, 500, 502, 503, 504, 529].includes(response.status)) return response;
+      const detail = await response.clone().text().catch(() => "");
+      const invalidKey = response.status === 400 && /api key not valid|api_key_invalid|invalid api key/i.test(detail);
+      if (!invalidKey && ![401, 403, 429, 500, 502, 503, 504, 529].includes(response.status)) return response;
+      lastResponse = response;
+      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} indisponible (HTTP ${response.status}), bascule vers la suivante.`);
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      lastError = error;
+      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} : connexion indisponible, essai de la suivante.`);
+    }
+  }
+  if (lastResponse) return lastResponse;
+  throw lastError || new Error("Toutes les clés Gemini sont indisponibles");
 }
 
 // ---------- Limites anti-abus (en mémoire) ----------
@@ -740,9 +773,9 @@ async function callGemini(messages, signal, name, voice, guide, memory) {
   for (const model of models) {
     let res;
     try {
-      res = await fetchWithFirstByteTimeout(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+      res = await fetchGeminiWithRotation(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: rules(name, voice, guide, memory) }] },
           contents,
@@ -874,9 +907,9 @@ async function runMemoryCommand(email, cmd, mem) {
 async function extractWithAI(prov, content) {
   const signal = AbortSignal.timeout(25000);
   const model = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)])[0];
-  const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const r = await fetchGeminiWithRotation(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST", signal,
-    headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: EXTRACTION_SYSTEM }] },
       contents: [{ role: "user", parts: [{ text: content }] }],
@@ -1015,9 +1048,9 @@ async function imageApi(req, res, url) {
         if (m) { mime = m[1]; b64 = m[2]; }
       }
     } else {
-      const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(IMAGE_MODEL)}:generateContent`, {
+      const r = await fetchGeminiWithRotation(`${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(IMAGE_MODEL)}:generateContent`, {
         method: "POST", signal: AbortSignal.timeout(180_000),
-        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt + IMAGE_SAFE_SUFFIX }] }],
           generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio } }
@@ -1124,7 +1157,7 @@ async function memoryApi(req, res, url) {
 async function handleVideoScript(req, res, ip) {
   const user = currentUser(req);
   if (!user) return json(res, 401, { code: "auth_required" });
-  if (!GEMINI_API_KEY) return json(res, 503, { code: "gemini_not_configured" });
+  if (!GEMINI_API_KEYS.length) return json(res, 503, { code: "gemini_not_configured" });
   if (!allow("video:" + user.email, 3, 60_000)) return json(res, 429, { code: "rate_limited" });
   const owner = isAdmin(user);
   let premium = owner;
@@ -1143,9 +1176,9 @@ async function handleVideoScript(req, res, ip) {
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
   const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\"title\":\"Titre\",\"scenes\":[{\"title\":\"Scène\",\"subtitle\":\"Phrase\",\"visual\":\"particles\"}]}";
   try {
-    const response = await fetch(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent", {
+    const response = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
       signal: AbortSignal.timeout(45_000)
     });
@@ -1217,7 +1250,7 @@ async function handleChat(req, res, ip) {
         upstream = await callCloudflare(messages, ac.signal, user?.name, voice, guide, memText);
       } catch (cloudflareError) {
         if (ac.signal.aborted) return;
-        if (!GEMINI_API_KEY) throw cloudflareError;
+        if (!GEMINI_API_KEYS.length) throw cloudflareError;
         console.warn("[cloudflare] modèles indisponibles, bascule vers Gemini :", cloudflareError.code || cloudflareError.message);
         upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
       }
@@ -1226,7 +1259,7 @@ async function handleChat(req, res, ip) {
         upstream = await callOpenAI(messages, ac.signal, user?.name, voice, guide, memText);
       } catch (openAiError) {
         if (ac.signal.aborted) return;
-        if (!GEMINI_API_KEY) throw openAiError;
+        if (!GEMINI_API_KEYS.length) throw openAiError;
         console.warn("[openai] indisponible, bascule vers Gemini :", openAiError.code || openAiError.message);
         upstream = await callGemini(messages, ac.signal, user?.name, voice, guide, memText);
       }
@@ -1732,15 +1765,22 @@ const server = http.createServer(async (req, res) => {
 // ---------- Vérifications au démarrage (résultat dans les journaux Render, sans afficher les clés) ----------
 async function selfCheck() {
   try {
-    if (GEMINI_API_KEY) {
-      const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models?pageSize=200`, { headers: { "x-goog-api-key": GEMINI_API_KEY }, signal: AbortSignal.timeout(20000) });
-      const body = await r.text();
-      if (!r.ok) console.error(`[vérif] Clé Gemini REFUSÉE (HTTP ${r.status}) : ${body.slice(0, 300)}`);
-      else {
-        const names = (JSON.parse(body).models || []).map(m => m.name.replace("models/", ""));
-        console.log(`[vérif] Clé Gemini OK — ${names.length} modèles disponibles.`);
-        for (const m of [GEMINI_MODEL, ...GEMINI_FALLBACKS]) if (!names.includes(m)) pauseModel(m, 6 * 3600_000, "absent de la liste Google");
+    if (GEMINI_API_KEYS.length) {
+      let checked = 0;
+      for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
+        try {
+          const r = await fetch(`${GEMINI_BASE_URL}/v1beta/models?pageSize=200`, { headers: { "x-goog-api-key": GEMINI_API_KEYS[i] }, signal: AbortSignal.timeout(20000) });
+          if (r.ok) {
+            checked++;
+            if (i === 0) {
+              const names = (JSON.parse(await r.text()).models || []).map(m => m.name.replace("models/", ""));
+              for (const m of [GEMINI_MODEL, ...GEMINI_FALLBACKS]) if (!names.includes(m)) pauseModel(m, 6 * 3600_000, "absent de la liste Google");
+            }
+            console.log(`[vérif] Clé Gemini ${i + 1}/${GEMINI_API_KEYS.length} OK.`);
+          } else console.warn(`[vérif] Clé Gemini ${i + 1}/${GEMINI_API_KEYS.length} refusée (HTTP ${r.status}).`);
+        } catch (e) { console.warn(`[vérif] Clé Gemini ${i + 1}/${GEMINI_API_KEYS.length} inaccessible : ${e.message}`); }
       }
+      console.log(`[vérif] ${checked}/${GEMINI_API_KEYS.length} clé(s) Gemini valide(s).`);
     }
   } catch (e) {
     console.error("[vérif] Impossible de joindre l'IA :", e.message);
