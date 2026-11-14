@@ -360,7 +360,11 @@ async function fetchGeminiWithRotation(url, options = {}, signal = options.signa
       try { errorInfo = JSON.parse(detail).error || {}; } catch {}
       const reason = errorInfo.details?.find?.(d => d.reason || d.metadata?.quotaMetric)?.reason || errorInfo.status || "non_précisé";
       const message = String(errorInfo.message || "").replace(/[\\r\\n]+/g, " ").slice(0, 220);
-      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} indisponible (HTTP ${response.status}, ${reason})${message ? ": " + message : ""}; bascule vers la suivante.`);
+      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} indisponible (HTTP ${response.status}, ${reason})${message ? ": " + message : ""}.`);
+      // Les clés d'un même projet Google partagent les quotas et la capacité du modèle.
+      // Réessayer quatre fois avec des clés du même projet ne débloque pas un 429/503 :
+      // on rend la main à la sélection du modèle de secours pour éviter une longue attente.
+      if ([429, 500, 502, 503, 504, 529].includes(response.status)) break;
     } catch (error) {
       if (signal?.aborted) throw error;
       lastError = error;
@@ -1211,27 +1215,39 @@ async function handleVideoScript(req, res, ip) {
   const payload = await readJson(req, 8000);
   const brief = String(payload?.prompt || "").trim().slice(0, 1200);
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
-  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\"title\":\"Titre\",\"scenes\":[{\"title\":\"Scène\",\"subtitle\":\"Phrase\",\"visual\":\"particles\"}]}";
+  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\\"title\\":\\"Titre\\",\\"scenes\\":[{\\"title\\":\\"Scène\\",\\"subtitle\\":\\"Phrase\\",\\"visual\\":\\"particles\\"}]}";
+  const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
+  let response = null, responseModel = GEMINI_MODEL, lastDetail = "";
   try {
-    const response = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
-      signal: AbortSignal.timeout(45_000)
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const status = response.status;
-      console.warn("[video] Gemini HTTP " + status);
-      return json(res, status === 401 || status === 403 ? 502 : status === 429 || status >= 500 ? 503 : 502, { code: status === 401 || status === 403 ? "gemini_bad_key" : status === 429 || status >= 500 ? "gemini_busy" : "gemini_error" });
+    for (const model of models) {
+      responseModel = model;
+      response = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
+        signal: AbortSignal.timeout(45_000)
+      });
+      if (response.ok) break;
+      lastDetail = await response.text().catch(() => "");
+      if (!RETRY_NEXT.has(response.status)) break;
+      pauseModel(model, PAUSE_FOR[response.status] || 2 * 60_000, "vidéo HTTP " + response.status);
+      console.warn(`[video] ${model} indisponible (HTTP ${response.status}), essai du modèle suivant.`);
     }
-    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n");
+    if (!response?.ok) {
+      const status = response?.status || 503;
+      const code = status === 401 || status === 403 ? "gemini_bad_key" : status === 429 || status >= 500 ? "gemini_busy" : "gemini_error";
+      console.warn(`[video] aucun modèle disponible; dernier HTTP ${status} (${responseModel}) ${lastDetail.slice(0,180)}`);
+      return json(res, status === 429 || status >= 500 ? 503 : 502, { code });
+    }
+    const data = await response.json().catch(() => ({}));
+    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\\n");
     let script;
-    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
+    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
     if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
     script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), visual: allowed.has(scene.visual) ? scene.visual : "particles" }));
+    console.log(`[video] storyboard généré avec ${responseModel}`);
     return json(res, 200, { ok: true, script });
   } catch (e) {
     console.warn("[video] Gemini indisponible :", e.name || "erreur");
