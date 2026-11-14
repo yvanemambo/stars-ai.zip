@@ -1848,6 +1848,7 @@ body::before {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messages: history, voice: !!voice }),
+      credentials: "include",
       signal
     });
     if (!res.ok) {
@@ -1898,7 +1899,7 @@ body::before {
     actions.append(preview,exportBtn);card.append(heading,info,stage,scenes,actions,progress,note);container.replaceChildren(card);
     let script;
     try{
-      const res=await fetch(apiUrl("/api/video/script"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
+      const res=await fetch(apiUrl("/api/video/script"),{method:"POST",headers:{"content-type":"application/json"},credentials:"include",body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
       const data=await res.json().catch(()=>({}));
       if(!res.ok)throw new Error(data.code||"video_error");
       script=data.script;
