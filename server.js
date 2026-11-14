@@ -392,7 +392,7 @@ function currentUser(req) {
 }
 function sessionCookie(req, value, maxAgeSec) {
   const secure = req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
-  return `stars_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`;
+  return `stars_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=None; Max-Age=${maxAgeSec}${secure}`;
 }
 
 // ---------- Envoi via le script Google ----------
@@ -1649,6 +1649,24 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const ip = clientIp(req);
   try {
+    // Autorise uniquement les interfaces officielles à appeler cette API depuis un autre domaine.
+    const allowedOrigins = new Set([
+      "https://yvan-ai-interface.onrender.com",
+      "https://yvanai-interface.vercel.app",
+      "https://yvan-ai.onrender.com"
+    ]);
+    const requestOrigin = String(req.headers.origin || "");
+    if (allowedOrigins.has(requestOrigin)) {
+      res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS" && requestOrigin && allowedOrigins.has(requestOrigin)) {
+      res.writeHead(204);
+      return res.end();
+    }
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
       return res.end(await page());
