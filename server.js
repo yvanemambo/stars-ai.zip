@@ -27,7 +27,7 @@ const GEMINI_API_KEYS = [...new Set([
   env("GEMINI_API_KEY_4"), env("GEMINI_API_KEY_5")
 ].filter(Boolean))];
 const GEMINI_API_KEY = GEMINI_API_KEYS[0] || "";
-const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3-flash-preview";
+const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3.8-flash";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 4096; // limite par défaut pour des réponses plus rapides ; ajustable dans Render
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
 const DAILY_LIMIT = Number(env("DAILY_LIMIT")) || 500;              // messages / jour pour tout le site
@@ -240,7 +240,7 @@ async function notifyAdmins(reason) {
 if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les connexions seront perdues à chaque redémarrage.");
 
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
-const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
+const GEMINI_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 
 const provider = GEMINI_API_KEYS.length ? "gemini" : CLOUDFLARE_AI ? "cloudflare" : OPENAI_API_KEY ? "openai" : null;
 
@@ -922,7 +922,7 @@ async function extractWithAI(prov, content) {
 }
 
 async function autoMemorize(email, userText, assistantText, items, prov) {
-  if (!allow("memauto-min:" + email, 3, 60_000) || !allow("memauto-h:" + email, 20, 60 * 60_000)) return;
+  if (!allow("memauto-min:" + email, 1, 5 * 60_000) || !allow("memauto-h:" + email, 8, 60 * 60_000)) return;
   const found = parseExtraction(await extractWithAI(prov, buildExtractionInput(userText, assistantText, items)), items);
   let n = 0;
   for (const f of found) {
