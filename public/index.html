@@ -2514,10 +2514,14 @@ body::before {
       if (busy || !String(question || "").trim()) return;
       retry.disabled = true; retry.lastChild.textContent = "Nouvel essai…";
       const row = b.closest(".msg"), userRow = row && row.previousElementSibling;
-      const last = turns[turns.length - 1];
-      if (last && last.role === "assistant") turns.pop();
-      const previous = turns[turns.length - 1];
-      if (previous && previous.role === "user") turns.pop();
+      let answerIndex = -1;
+      for (let i = turns.length - 1; i >= 0; i--) {
+        if (turns[i].role === "assistant" && String(turns[i].content || "") === String(answer)) { answerIndex = i; break; }
+      }
+      if (answerIndex >= 0) {
+        if (answerIndex > 0 && turns[answerIndex - 1].role === "user") turns.splice(answerIndex - 1, 2);
+        else turns.splice(answerIndex, 1);
+      }
       if (row) row.remove();
       if (userRow && userRow.classList.contains("user")) userRow.remove();
       save();
