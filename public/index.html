@@ -1592,8 +1592,42 @@ body::before {
   const key = () => "stars-ai-chat-v1" + (me ? ":" + me.email : "");
   const activeKey = () => "stars-ai-active-v1" + (me ? ":" + me.email : "");
   const makeId = () => (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c === "x" ? r : (r&3|8)).toString(16); }));
+  // Sauvegarde locale durable des images générées (IndexedDB).
+  const IMAGE_DB = "yvanai-media-v1", IMAGE_STORE = "images";
+  function imageDb() {
+    return new Promise((resolve, reject) => {
+      if (!("indexedDB" in window)) return reject(new Error("indexeddb_unavailable"));
+      const request = indexedDB.open(IMAGE_DB, 1);
+      request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains(IMAGE_STORE)) request.result.createObjectStore(IMAGE_STORE, { keyPath: "id" }); };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("indexeddb_open_failed"));
+    });
+  }
+  async function saveGeneratedImage(id, data, prompt) {
+    const db = await imageDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_STORE, "readwrite");
+      tx.objectStore(IMAGE_STORE).put({ id, data, prompt: String(prompt || "").slice(0, 1000), savedAt: Date.now() });
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("indexeddb_save_failed"));
+    });
+    db.close();
+  }
+  async function getGeneratedImage(id) {
+    const db = await imageDb();
+    const value = await new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_STORE, "readonly"), request = tx.objectStore(IMAGE_STORE).get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("indexeddb_read_failed"));
+    });
+    db.close(); return value;
+  }
+  const IMAGE_MARKER = /\n?\[\[YVANAI_IMAGE:([a-zA-Z0-9-]+)\]\]$/;
+  function storedTurn(t) {
+    const raw = String(t.content || ""), match = IMAGE_MARKER.exec(raw);
+    return { ...t, content: match ? raw.slice(0, match.index).trimEnd() : raw, imageId: t.imageId || (match && match[1]) || null };
+  }
   function save() {
-    const slim = keepThumbs => turns.slice(-40).map(t => ({ role: t.role, content: t.content, thumbs: keepThumbs ? t.thumbs : undefined }));
+    const slim = keepThumbs => turns.slice(-40).map(t => ({ role: t.role, content: t.content, imageId: t.imageId || undefined, imagePrompt: t.imagePrompt || undefined, thumbs: keepThumbs ? t.thumbs : undefined }));
     try { localStorage.setItem(key(), JSON.stringify(slim(true))); }
     catch (e) { try { localStorage.setItem(key(), JSON.stringify(slim(false))); } catch (e2) {} }
     if (me && activeConversationId && cloudHistoryReady) {
@@ -1614,7 +1648,8 @@ body::before {
   function flashHistory(message) { if (typeof flash === "function") flash(message); }
   async function persistConversation() {
     if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
-    const messages = turns.slice(-40).map(t => ({ role:t.role, content:String(t.content||"").slice(0,30000) }));
+    const messages = turns.slice(-40).map(t => ({ role:t.role, content:(String(t.content||"") + (t.imageId ? "
+[[YVANAI_IMAGE:" + t.imageId + "]]" : "")).slice(0,30000) }));
     await apiPost("/api/conversations/save", { id:activeConversationId, title:conversationTitle(messages), messages });
     await refreshHistory();
   }
@@ -1666,11 +1701,11 @@ body::before {
       row.append(open,rename,del); list.append(row);
     }
   }
-  function saveLocalOnly() { try { localStorage.setItem(key(), JSON.stringify(turns.slice(-40).map(t=>({role:t.role,content:t.content,thumbs:t.thumbs})))); } catch(e) {} }
+  function saveLocalOnly() { try { localStorage.setItem(key(), JSON.stringify(turns.slice(-40).map(t=>({role:t.role,content:t.content,imageId:t.imageId||undefined,imagePrompt:t.imagePrompt||undefined,thumbs:t.thumbs})))); } catch(e) {} }
   function showTurns() {
     thread.querySelectorAll(".msg").forEach(n=>n.remove());
     welcome.hidden = turns.length > 0; let lastQuestion="";
-    for(const t of turns){ if(t.role==="user"){addMsg("user",t.content,t.thumbs);lastQuestion=t.content||"";} else addActions(addMsg("ai",t.content),lastQuestion,t.content); }
+    for(const raw of turns){ const t=storedTurn(raw); if(t.role==="user"){addMsg("user",t.content,t.thumbs);lastQuestion=t.content||"";} else { const b=addMsg("ai",t.content); if(t.imageId) restoreImageCard(b,t.imageId,t.imagePrompt||lastQuestion); else addActions(b,lastQuestion,t.content); } }
   }
   async function openConversation(id) {
     try {
@@ -1679,7 +1714,7 @@ body::before {
       clearTimeout(saveTimer);
       const d=await apiGet("/api/conversations/"+encodeURIComponent(id));
       activeConversationId=d.item.id; try{localStorage.setItem(activeKey(),activeConversationId);}catch(e){}
-      turns=(d.item.messages||[]).map(m=>({role:m.role,content:m.content})); saveLocalOnly(); showTurns(); closeHistory(); input.focus(); renderHistory();
+      turns=(d.item.messages||[]).map(m=>storedTurn({role:m.role,content:m.content})); saveLocalOnly(); showTurns(); closeHistory(); input.focus(); renderHistory();
     } catch(e) { flashHistory("Impossible de charger cette discussion."); }
   }
   async function startNewConversation() {
