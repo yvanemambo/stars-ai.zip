@@ -2038,7 +2038,7 @@ body::before {
   }
 
   async function createImageInChat(container, prompt, size) {
-    container.innerHTML = '<div class="thinking"><i></i><i></i><i></i> YvanAI crée ton image avec Gemini…</div>';
+    container.innerHTML = '<div class="thinking"><i></i><i></i><i></i> YvanAI crée ton image…</div>';
     const response = await fetch(apiUrl("/api/image"), {
       method: "POST", credentials: "include", headers: { "content-type": "application/json" },
       body: JSON.stringify({ prompt, size }), signal: ctl && ctl.signal
