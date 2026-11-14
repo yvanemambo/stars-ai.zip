@@ -1591,9 +1591,11 @@ body::before {
     const first = (messages || []).find(t => t.role === "user" && t.content && t.content.trim());
     return (first ? first.content.trim() : "Nouvelle discussion").replace(/\s+/g, " ").slice(0, 72);
   }
+  const API_ORIGIN = "https://yvan-ai.onrender.com";
+  const apiUrl = path => new URL(path, API_ORIGIN).toString();
   const historyTimeout = () => (typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined);
-  async function apiGet(url) { const r = await fetch(url, { signal: historyTimeout() }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
-  async function apiPost(url, body) { const r = await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:historyTimeout()}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
+  async function apiGet(url) { const r = await fetch(apiUrl(url), { signal: historyTimeout(), credentials: "include" }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.code || "history_error"); return d; }
+  async function apiPost(url, body) { const r = await fetch(apiUrl(url),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:historyTimeout(),credentials:"include"}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.code||"history_error"); return d; }
   function flashHistory(message) { if (typeof flash === "function") flash(message); }
   async function persistConversation() {
     if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
@@ -1789,7 +1791,7 @@ body::before {
 
   // Sends the conversation to the server and streams the answer back (one JSON object per line).
   async function chat(history, signal, onText, voice) {
-    const res = await fetch("/api/chat", {
+    const res = await fetch(apiUrl("/api/chat"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messages: history, voice: !!voice }),
@@ -1843,7 +1845,7 @@ body::before {
     actions.append(preview,exportBtn);card.append(heading,info,stage,scenes,actions,progress,note);container.replaceChildren(card);
     let script;
     try{
-      const res=await fetch("/api/video/script",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
+      const res=await fetch(apiUrl("/api/video/script"),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
       const data=await res.json().catch(()=>({}));
       if(!res.ok)throw new Error(data.code||"video_error");
       script=data.script;
@@ -2524,7 +2526,7 @@ body::before {
     try { localStorage.setItem(LAST_EMAIL, me.email); } catch (e) {}
     showChat();
     // Fetch the Premium status / daily counter for the account menu
-    fetch("/api/me").then(r => r.ok ? r.json() : null).then(d => { if (d && me && d.email === me.email) { me = d; refreshPlan(); } }).catch(() => {});
+    fetch(apiUrl("/api/me"), { credentials: "include" }).then(r => r.ok ? r.json() : null).then(d => { if (d && me && d.email === me.email) { me = d; refreshPlan(); } }).catch(() => {});
   }
 
   const AUTH_ERRORS = {
@@ -2548,7 +2550,7 @@ body::before {
   async function post(url, body) {
     let res;
     try {
-      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+      res = await fetch(apiUrl(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}), credentials: "include" });
     } catch (e) { return { ok: false, data: { code: "network" } }; }
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, data };
@@ -2747,7 +2749,7 @@ body::before {
     // Sécurité : si le serveur ne répond pas, ne jamais ouvrir l'IA par défaut.
     let status;
     try {
-      const response = await fetch("/api/status", { cache: "no-store", credentials: "same-origin" });
+      const response = await fetch(apiUrl("/api/status"), { cache: "no-store", credentials: "include" });
       if (!response.ok) throw new Error("status_unavailable");
       status = await response.json();
       if (!status || typeof status.authRequired !== "boolean") throw new Error("invalid_status");
@@ -2762,7 +2764,7 @@ body::before {
     passwordMin = status.passwordMin || 8;
     if (status.authRequired) {
       try {
-        const r = await fetch("/api/me", { cache: "no-store", credentials: "same-origin" });
+        const r = await fetch(apiUrl("/api/me"), { cache: "no-store", credentials: "include" });
         if (r.ok) me = await r.json();
       } catch (e) {}
       if (!me) return showAuth("");
