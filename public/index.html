@@ -2609,14 +2609,25 @@ body::before {
 
   /* ---------- Start ---------- */
   (async () => {
-    let status = { ready: true, authRequired: false };
-    try { status = await (await fetch("/api/status")).json(); } catch (e) {}
+    // Sécurité : si le serveur ne répond pas, ne jamais ouvrir l'IA par défaut.
+    let status;
+    try {
+      const response = await fetch("/api/status", { cache: "no-store", credentials: "same-origin" });
+      if (!response.ok) throw new Error("status_unavailable");
+      status = await response.json();
+      if (!status || typeof status.authRequired !== "boolean") throw new Error("invalid_status");
+    } catch (e) {
+      fine.textContent = "Impossible de vérifier la connexion. Actualise la page ou réessaie dans un instant.";
+      fine.classList.add("warn");
+      showAuth("La connexion sécurisée n'a pas pu être vérifiée. Réessaie.");
+      return;
+    }
     if (!status.ready) { fine.textContent = "YvanAI attend sa clé API (à ajouter dans Render › Environment)."; fine.classList.add("warn"); }
     passwordsOn = status.passwords !== false;
     passwordMin = status.passwordMin || 8;
     if (status.authRequired) {
       try {
-        const r = await fetch("/api/me");
+        const r = await fetch("/api/me", { cache: "no-store", credentials: "same-origin" });
         if (r.ok) me = await r.json();
       } catch (e) {}
       if (!me) return showAuth("");
