@@ -424,8 +424,9 @@ function currentUser(req) {
   return p ? { email: p.e, name: p.n } : null;
 }
 function sessionCookie(req, value, maxAgeSec) {
-  const secure = req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
-  return `stars_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=None; Max-Age=${maxAgeSec}${secure}`;
+  // Le site est servi exclusivement en HTTPS sur Render : Secure est obligatoire
+  // avec SameSite=None pour que le navigateur conserve le cookie entre les visites.
+  return `stars_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=${maxAgeSec}; Priority=High`;
 }
 
 // ---------- Envoi via le script Google ----------
