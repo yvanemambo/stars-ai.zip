@@ -1198,32 +1198,48 @@ async function handleVideoScript(req, res, ip) {
   const payload = await readJson(req, 8000);
   const brief = String(payload?.prompt || "").trim().slice(0, 1200);
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
-  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\"title\":\"Titre\",\"scenes\":[{\"title\":\"Scène\",\"subtitle\":\"Phrase\",\"visual\":\"particles\"}]}";
-  try {
-    const response = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
-      signal: AbortSignal.timeout(45_000)
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const status = response.status;
-      console.warn("[video] Gemini HTTP " + status);
-      return json(res, status === 401 || status === 403 ? 502 : status === 429 || status >= 500 ? 503 : 502, { code: status === 401 || status === 403 ? "gemini_bad_key" : status === 429 || status >= 500 ? "gemini_busy" : "gemini_error" });
+  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\\"title\\":\\"Titre\\",\\"scenes\\":[{\\"title\\":\\"Scène\\",\\"subtitle\\":\\"Phrase\\",\\"visual\\":\\"particles\\"}]}";
+  const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
+  let lastStatus = 503;
+  for (const model of models) {
+    try {
+      const response = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
+        signal: AbortSignal.timeout(45_000)
+      });
+      if (!response.ok) {
+        lastStatus = response.status;
+        console.warn("[video] Gemini " + model + " HTTP " + response.status + "; essai du modèle suivant si possible.");
+        if ([429, 500, 502, 503, 504, 529].includes(response.status)) {
+          pauseModel(model, PAUSE_FOR[response.status] || 60_000, "vidéo HTTP " + response.status);
+          continue;
+        }
+        return json(res, response.status === 401 || response.status === 403 ? 502 : 502, { code: response.status === 401 || response.status === 403 ? "gemini_bad_key" : "gemini_error" });
+      }
+      const data = await response.json().catch(() => ({}));
+      const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\\n");
+      let script;
+      try { script = JSON.parse(answer.trim().replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim()); }
+      catch { console.warn("[video] Réponse JSON invalide du modèle " + model + "."); pauseModel(model, 60_000, "JSON vidéo invalide"); continue; }
+      if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) {
+        console.warn("[video] Storyboard incomplet du modèle " + model + ".");
+        pauseModel(model, 60_000, "storyboard incomplet");
+        continue;
+      }
+      const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
+      script.title = String(script.title || "Ma vidéo").slice(0, 60);
+      script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), visual: allowed.has(scene.visual) ? scene.visual : "particles" }));
+      console.log("[video] Storyboard généré avec " + model + ".");
+      return json(res, 200, { ok: true, script });
+    } catch (e) {
+      console.warn("[video] " + model + " indisponible :", e.name || "erreur");
+      pauseModel(model, 60_000, "vidéo indisponible");
+      lastStatus = 503;
     }
-    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n");
-    let script;
-    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
-    if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
-    const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
-    script.title = String(script.title || "Ma vidéo").slice(0, 60);
-    script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), visual: allowed.has(scene.visual) ? scene.visual : "particles" }));
-    return json(res, 200, { ok: true, script });
-  } catch (e) {
-    console.warn("[video] Gemini indisponible :", e.name || "erreur");
-    return json(res, 502, { code: "gemini_unavailable" });
   }
+  return json(res, 503, { code: lastStatus === 429 || lastStatus >= 500 ? "gemini_busy" : "gemini_unavailable" });
 }
 async function handleChat(req, res, ip) {
   const user = currentUser(req);
