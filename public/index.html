@@ -1655,10 +1655,28 @@ body::before {
     });
     db.close(); return value;
   }
-  const IMAGE_MARKER = /\n?\[\[YVANAI_IMAGE:([a-zA-Z0-9-]+)\]\]$/;
+  const IMAGE_MARKER = /\n?\[\[YVANAI_IMAGE:([a-zA-Z0-9-]+)\]\]/;
+  const IMAGE_PREVIEW_MARKER = /\n?\[\[YVANAI_PREVIEW:([A-Za-z0-9+/=]+)\]\]/;
   function storedTurn(t) {
-    const raw = String(t.content || ""), match = IMAGE_MARKER.exec(raw);
-    return { ...t, content: match ? raw.slice(0, match.index).trimEnd() : raw, imageId: t.imageId || (match && match[1]) || null };
+    let raw = String(t.content || "");
+    const previewMatch = IMAGE_PREVIEW_MARKER.exec(raw);
+    const imagePreview = previewMatch ? "data:image/jpeg;base64," + previewMatch[1] : (t.imagePreview || null);
+    if (previewMatch) raw = raw.replace(previewMatch[0], "");
+    const match = IMAGE_MARKER.exec(raw);
+    if (match) raw = raw.replace(match[0], "");
+    return { ...t, content: raw.trimEnd(), imageId: t.imageId || (match && match[1]) || null, imagePreview };
+  }
+  async function makeCloudImagePreview(data) {
+    try {
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = data; });
+      const scale = Math.min(1, 220 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      const url = canvas.toDataURL("image/jpeg", 0.52);
+      return url.length <= 24000 ? url : null;
+    } catch { return null; }
   }
   function save() {
     const slim = keepThumbs => turns.slice(-40).map(t => ({ role: t.role, content: t.content, imageId: t.imageId || undefined, imagePrompt: t.imagePrompt || undefined, thumbs: keepThumbs ? t.thumbs : undefined }));
@@ -1686,7 +1704,25 @@ body::before {
   function flashHistory(message) { if (typeof flash === "function") flash(message); }
   async function persistConversation() {
     if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
-    const messages = turns.slice(-40).map(t => ({ role:t.role, content:(String(t.content||"") + (t.imageId ? "\n[[YVANAI_IMAGE:" + t.imageId + "]]" : "")).slice(0,30000) }));
+    const recent = turns.slice(-40);
+    const imageTurns = recent.filter(t => t.imageId).slice(-8);
+    const previews = new Map();
+    for (const t of imageTurns) {
+      try {
+        const saved = await getGeneratedImage(t.imageId);
+        if (saved && saved.data) {
+          const preview = await makeCloudImagePreview(saved.data);
+          if (preview) previews.set(t.imageId, preview.slice(preview.indexOf(",") + 1));
+        }
+      } catch {}
+    }
+    const messages = recent.map(t => {
+      let content = String(t.content || "").slice(0, 9000);
+      if (t.imageId) content += "\n[[YVANAI_IMAGE:" + t.imageId + "]]";
+      const preview = t.imageId && previews.get(t.imageId);
+      if (preview) content += "\n[[YVANAI_PREVIEW:" + preview + "]]";
+      return { role:t.role, content:content.slice(0,30000) };
+    });
     await apiPost("/api/conversations/save", { id:activeConversationId, title:conversationTitle(messages), messages });
     await refreshHistory();
   }
@@ -2138,19 +2174,23 @@ body::before {
     const meta = document.createElement("span"); meta.className = "image-meta"; meta.textContent = "Image générée" + (used && limit ? " · " + used + "/" + limit + " créations aujourd’hui" : "");
     actions.append(download, copy, meta); card.append(image, actions); container.replaceChildren(card);
   }
-  async function restoreImageCard(container, imageId, prompt) {
+  async function restoreImageCard(container, imageId, prompt, imagePreview) {
     try {
       const saved = await getGeneratedImage(imageId);
       if (saved && saved.data) imageCard(container, saved.data, saved.prompt || prompt);
+      else if (imagePreview) imageCard(container, imagePreview, prompt || "Aperçu de l’image créée avec YvanAI");
       else {
         const note = document.createElement("p"); note.className = "image-meta";
-        note.textContent = "Cette image n’est pas disponible dans le stockage de cet appareil. Elle doit être recréée ici.";
+        note.textContent = "L’aperçu de cette ancienne image n’avait pas été sauvegardé en ligne. Les prochaines images seront conservées dans l’historique.";
         container.appendChild(note);
       }
     } catch (e) {
-      const note = document.createElement("p"); note.className = "image-meta";
-      note.textContent = "Impossible de retrouver cette image sur cet appareil.";
-      container.appendChild(note);
+      if (imagePreview) imageCard(container, imagePreview, prompt || "Aperçu de l’image créée avec YvanAI");
+      else {
+        const note = document.createElement("p"); note.className = "image-meta";
+        note.textContent = "Cette ancienne image n’est pas disponible. Les prochaines images auront un aperçu sauvegardé dans l’historique.";
+        container.appendChild(note);
+      }
     }
   }
   async function createImageInChat(container, prompt, size) {
