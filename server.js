@@ -1215,7 +1215,7 @@ async function handleVideoScript(req, res, ip) {
   const payload = await readJson(req, 8000);
   const brief = String(payload?.prompt || "").trim().slice(0, 1200);
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
-  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\\"title\\":\\"Titre\\",\\"scenes\\":[{\\"title\\":\\"Scène\\",\\"subtitle\\":\\"Phrase\\",\\"visual\\":\\"particles\\"}]}";
+  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Retourne un objet JSON avec title et scenes.";
   const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
   let response = null, responseModel = GEMINI_MODEL, lastDetail = "";
   try {
@@ -1240,9 +1240,9 @@ async function handleVideoScript(req, res, ip) {
       return json(res, status === 429 || status >= 500 ? 503 : 502, { code });
     }
     const data = await response.json().catch(() => ({}));
-    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\\n");
+    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n");
     let script;
-    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
+    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
     if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
