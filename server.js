@@ -166,7 +166,7 @@ const CLOUDFLARE_IMAGES = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 const IMAGE_FREE_DAILY = numEnv("IMAGE_FREE_DAILY", 3);
 const IMAGE_PREMIUM_DAILY = numEnv("IMAGE_PREMIUM_DAILY", 30);
 const IMAGE_SITE_DAILY = numEnv("IMAGE_SITE_DAILY", 100);
-const IMAGES_ON = false; // Génération d'images désactivée à la demande.
+const IMAGES_ON = env("IMAGES_ENABLED") === "1" && !!GEMINI_API_KEY && !!MEMBERS; // Activation explicite avec quotas Supabase.
 const IMAGE_SIZES = { carre: "1:1", portrait: "3:4", paysage: "4:3" };
 const IMAGE_SAFE_SUFFIX = "\n\n(Image adaptée à tous les publics : pas de nudité, pas de violence explicite, pas de personne réelle identifiable.)";
 const imageBusy = new Set();
@@ -238,7 +238,7 @@ if (!env("SESSION_SECRET")) console.warn("[auth] SESSION_SECRET absent : les con
 // Modèles de secours si le modèle choisi n'existe plus, est surchargé ou ne répond pas.
 const GEMINI_FALLBACKS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
 
-const provider = CLOUDFLARE_AI ? "cloudflare" : GEMINI_API_KEY ? "gemini" : OPENAI_API_KEY ? "openai" : null;
+const provider = GEMINI_API_KEY ? "gemini" : CLOUDFLARE_AI ? "cloudflare" : OPENAI_API_KEY ? "openai" : null;
 
 const VOICE_RULES = `
 
@@ -1124,7 +1124,7 @@ async function memoryApi(req, res, url) {
 async function handleVideoScript(req, res, ip) {
   const user = currentUser(req);
   if (!user) return json(res, 401, { code: "auth_required" });
-  if (!CLAUDE_API_KEY) return json(res, 503, { code: "claude_not_configured" });
+  if (!GEMINI_API_KEY) return json(res, 503, { code: "gemini_not_configured" });
   if (!allow("video:" + user.email, 3, 60_000)) return json(res, 429, { code: "rate_limited" });
   const owner = isAdmin(user);
   let premium = owner;
@@ -1141,51 +1141,33 @@ async function handleVideoScript(req, res, ip) {
   const payload = await readJson(req, 8000);
   const brief = String(payload?.prompt || "").trim().slice(0, 1200);
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
-  const system = `Tu es directeur artistique et scénariste Motion Design. Réponds UNIQUEMENT avec un objet JSON valide, sans Markdown ni commentaire, de forme :
-{"title":"Titre court","scenes":[{"title":"Titre de scène","subtitle":"Phrase courte","visual":"particles"}]}
-Fournis exactement 6 scènes pour une vidéo de 30 secondes, 5 secondes par scène. Français naturel, orthographe parfaite, textes courts adaptés au mobile. Chaque scène contient title (max 48 caractères), subtitle (max 100 caractères) et visual choisi parmi particles, rings, bars, orbit, grid, spotlight. Ne mets aucun texte entre guillemets dans les champs. N'invente pas de faits ou de promesses commerciales. `;
+  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Format : {\"title\":\"Titre\",\"scenes\":[{\"title\":\"Scène\",\"subtitle\":\"Phrase\",\"visual\":\"particles\"}]}";
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(GEMINI_MODEL) + ":generateContent", {
       method: "POST",
-      headers: {
-        "authorization": "Bearer " + CLAUDE_API_KEY,
-        "anthropic-version": "2026-10-21",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 1400,
-        system,
-        messages: [{ role: "user", content: "Crée un storyboard Motion Design de 30 secondes à partir de cette description : " + brief }]
-      }),
+      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
       signal: AbortSignal.timeout(45_000)
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const status = response.status;
-      console.warn("[video] Claude a refusé la demande (HTTP " + status + ").");
-      return json(res, status === 401 || status === 403 ? 502 : status === 429 ? 429 : 502,
-        { code: status === 401 || status === 403 ? "claude_bad_key" : status === 429 ? "claude_busy" : "claude_error" });
+      console.warn("[video] Gemini HTTP " + status);
+      return json(res, status === 401 || status === 403 ? 502 : status === 429 || status >= 500 ? 503 : 502, { code: status === 401 || status === 403 ? "gemini_bad_key" : status === 429 || status >= 500 ? "gemini_busy" : "gemini_error" });
     }
-    const answer = Array.isArray(data.content) ? data.content.filter(x => x.type === "text").map(x => x.text).join("\n") : "";
-    const cleaned = answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n");
     let script;
-    try { script = JSON.parse(cleaned); } catch { return json(res, 502, { code: "bad_script" }); }
+    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
     if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
-    script.scenes = script.scenes.map((scene, i) => ({
-      title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48),
-      subtitle: String(scene.subtitle || "").slice(0, 100),
-      visual: allowed.has(scene.visual) ? scene.visual : "particles"
-    }));
+    script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), visual: allowed.has(scene.visual) ? scene.visual : "particles" }));
     return json(res, 200, { ok: true, script });
   } catch (e) {
-    console.warn("[video] génération indisponible :", e.name || "erreur");
-    return json(res, 502, { code: "claude_unavailable" });
+    console.warn("[video] Gemini indisponible :", e.name || "erreur");
+    return json(res, 502, { code: "gemini_unavailable" });
   }
 }
-
 async function handleChat(req, res, ip) {
   const user = currentUser(req);
   if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
