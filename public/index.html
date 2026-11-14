@@ -1648,8 +1648,7 @@ body::before {
   function flashHistory(message) { if (typeof flash === "function") flash(message); }
   async function persistConversation() {
     if (!me || !activeConversationId || !cloudHistoryReady || !turns.length) return;
-    const messages = turns.slice(-40).map(t => ({ role:t.role, content:(String(t.content||"") + (t.imageId ? "
-[[YVANAI_IMAGE:" + t.imageId + "]]" : "")).slice(0,30000) }));
+    const messages = turns.slice(-40).map(t => ({ role:t.role, content:(String(t.content||"") + (t.imageId ? "\n[[YVANAI_IMAGE:" + t.imageId + "]]" : "")).slice(0,30000) }));
     await apiPost("/api/conversations/save", { id:activeConversationId, title:conversationTitle(messages), messages });
     await refreshHistory();
   }
