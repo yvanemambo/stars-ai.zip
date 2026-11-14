@@ -1063,20 +1063,43 @@ async function imageApi(req, res, url) {
         try { detail = JSON.parse(responseText)?.error || {}; } catch {}
         const msg = String(detail.message || "").toLowerCase();
         const code = r.status === 429 || r.status >= 500 ? "upstream_busy" : r.status === 400 && /safety|blocked|policy/.test(msg) ? "refused" : r.status === 401 || r.status === 403 ? "bad_key" : "upstream_error";
-        console.error(`[images] Gemini HTTP ${r.status} (${code})`);
-        await refund();
-        return json(res, code === "refused" ? 422 : code === "upstream_busy" ? 503 : 502, { code });
-      }
-      let imagePart;
-      try {
-        const data = JSON.parse(responseText);
-        for (const candidate of data.candidates || []) {
-          imagePart = (candidate.content?.parts || []).find(part => part.inlineData?.data);
-          if (imagePart) break;
+        console.warn(`[images] Gemini HTTP ${r.status} (${code})`);
+        if (code !== "upstream_busy" || !CLOUDFLARE_IMAGES) {
+          await refund();
+          return json(res, code === "refused" ? 422 : code === "upstream_busy" ? 503 : 502, { code });
         }
-      } catch {}
-      b64 = imagePart?.inlineData?.data || "";
-      mime = imagePart?.inlineData?.mimeType || "image/png";
+        console.warn("[images] Gemini indisponible : essai du secours Cloudflare.");
+        providerName = "Cloudflare";
+        const backup = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${CLOUDFLARE_IMAGE_MODEL.split("/").map(part => encodeURIComponent(part).replace(/^%40/i, "@")).join("/")}`, {
+          method: "POST", signal: AbortSignal.timeout(180_000),
+          headers: { "content-type": "application/json", authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
+          body: JSON.stringify({ prompt: (prompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
+        });
+        const backupText = await backup.text();
+        let backupData = {};
+        try { backupData = JSON.parse(backupText); } catch {}
+        if (!backup.ok || backupData.success === false) {
+          console.error(`[images] secours Cloudflare HTTP ${backup.status}`);
+          await refund();
+          return json(res, 503, { code: "upstream_busy" });
+        }
+        b64 = backupData.result?.image || backupData.image || "";
+        if (typeof b64 === "string" && b64.startsWith("data:")) {
+          const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(b64);
+          if (match) { mime = match[1]; b64 = match[2]; }
+        }
+      } else {
+        let imagePart;
+        try {
+          const data = JSON.parse(responseText);
+          for (const candidate of data.candidates || []) {
+            imagePart = (candidate.content?.parts || []).find(part => part.inlineData?.data);
+            if (imagePart) break;
+          }
+        } catch {}
+        b64 = imagePart?.inlineData?.data || "";
+        mime = imagePart?.inlineData?.mimeType || "image/png";
+      }
     }
     if (typeof b64 !== "string" || b64.length < 100 || !/^[A-Za-z0-9+/=]+$/.test(b64) || !["image/png", "image/jpeg", "image/webp"].includes(mime)) {
       console.error(`[images] ${providerName} n'a retourné aucune image exploitable`);
@@ -1826,9 +1849,7 @@ async function selfCheck() {
   if (IMAGES_ON) {
     try {
       await rpc("stars_image_used", { p_email: "verification@example.com" });
-      console.log(CLOUDFLARE_IMAGES
-        ? `[vérif] Génération d'images Cloudflare activée (${CLOUDFLARE_IMAGE_MODEL}, quota interne : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).`
-        : `[vérif] Génération d'images Gemini activée (${IMAGE_MODEL}, quotas internes : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site).`);
+      console.log(`[vérif] Génération d'images : Gemini (${IMAGE_MODEL}) en priorité${CLOUDFLARE_IMAGES ? ` avec secours Cloudflare (${CLOUDFLARE_IMAGE_MODEL})` : ""}; quotas internes : ${IMAGE_FREE_DAILY}/jour gratuit, ${IMAGE_SITE_DAILY}/jour pour tout le site.`);
     } catch (e) { console.error("[vérif] Compteurs d'images indisponibles (vérifier les fonctions SQL stars_image_*) :", e.message); }
   } else console.log("[vérif] Génération d'images désactivée (clé Gemini, Supabase ou IMAGES_ENABLED).");
 
