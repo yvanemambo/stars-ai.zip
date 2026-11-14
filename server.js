@@ -1214,24 +1214,35 @@ async function handleChat(req, res, ip) {
 
   if (!allow("chat:" + (user ? user.email : ip), PER_MINUTE, 60_000)) return json(res, 429, { code: "rate_limited" });
   // Compte gratuit : FREE_DAILY messages par jour ; Premium et propriétaire (ADMIN_EMAILS) : illimité.
+  // Le contrôle du quota et la lecture de la mémoire sont indépendants : on les lance ensemble
+  // pour éviter deux allers-retours Supabase successifs avant chaque réponse.
   const owner = isAdmin(user);
   let premium = owner;
-  if (MEMBERS && user) {
-    try {
-      const rows = await rpc("stars_chat_allow", { p_email: user.email, p_limit: owner ? 1_000_000 : FREE_DAILY });
-      const r = Array.isArray(rows) ? rows[0] : null;
-      if (r && !r.allowed) return json(res, 402, { code: "free_limit", limit: FREE_DAILY, used: r.used, price: PREMIUM_PRICE });
-      premium = owner || !!(r && r.premium_until && new Date(r.premium_until) > new Date());
-    } catch (e) { console.warn("[premium] compteur indisponible :", e.message); }
-  }
+  const quotaPromise = MEMBERS && user
+    ? rpc("stars_chat_allow", { p_email: user.email, p_limit: owner ? 1_000_000 : FREE_DAILY })
+        .then(rows => {
+          const row = Array.isArray(rows) ? rows[0] : null;
+          if (row && !row.allowed) {
+            return { denied: { code: "free_limit", limit: FREE_DAILY, used: row.used, price: PREMIUM_PRICE } };
+          }
+          return { premium: owner || !!(row && row.premium_until && new Date(row.premium_until) > new Date()) };
+        })
+        .catch(e => {
+          console.warn("[premium] compteur indisponible :", e.message);
+          return { premium: owner };
+        })
+    : Promise.resolve({ premium: owner });
+  const lastUserText = [...messages].reverse().find(m => m.role === "user")?.content || "";
+  const memoryPromise = MEMORY_ON && user ? loadMemory(user.email) : Promise.resolve(null);
+  const [quota, loadedMemory] = await Promise.all([quotaPromise, memoryPromise]);
+  if (quota.denied) return json(res, 402, quota.denied);
+  premium = quota.premium;
   const limited = checkSiteCap(premium);
   if (limited) return json(res, 429, { code: limited });
 
   // Mémoire : souvenirs de cette personne + demandes « retiens que… » / « oublie que… »
-  let mem = null, memText = "", memCommand = null;
-  const lastUserText = [...messages].reverse().find(m => m.role === "user")?.content || "";
+  let mem = loadedMemory, memText = "", memCommand = null;
   if (MEMORY_ON && user) {
-    mem = await loadMemory(user.email);
     memCommand = parseMemoryCommand(lastUserText);
     const note = memCommand ? await runMemoryCommand(user.email, memCommand, mem) : "";
     if (memCommand) mem = await loadMemory(user.email); // les souvenirs viennent peut-être de changer
