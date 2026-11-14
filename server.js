@@ -1026,7 +1026,7 @@ async function imageApi(req, res, url) {
     if (!a?.ok) return json(res, 429, { code: a?.reason === "site_limit" ? "site_limit" : "user_limit", limit: q.limit, used: a?.used ?? q.limit, premium: q.premium });
     reserved = true;
     let b64 = "", mime = "image/jpeg", providerName = "Gemini";
-    if (CLOUDFLARE_IMAGES && env("IMAGE_PROVIDER").toLowerCase() === "cloudflare") {
+    if (false && CLOUDFLARE_IMAGES && env("IMAGE_PROVIDER").toLowerCase() === "cloudflare") {
       providerName = "Cloudflare";
       const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${CLOUDFLARE_IMAGE_MODEL.split("/").map(part => encodeURIComponent(part).replace(/^%40/i, "@")).join("/") }`, {
         method: "POST", signal: AbortSignal.timeout(180_000),
