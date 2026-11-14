@@ -1932,15 +1932,29 @@ body::before {
     if (imageRequest && !opts.voice) {
       ctl = new AbortController(); setBusy(true);
       try {
-        await createImageInChat(b, text, requestedImageSize);
+        const imageResult = await createImageInChat(b, text, requestedImageSize);
         const assistantText = "Voici l’image que tu as demandée. Tu peux la télécharger directement ici.";
-        turns.push({ role: "assistant", content: assistantText }); save();
+        turns.push({ role: "assistant", content: assistantText, imageId: imageResult.imageId, imagePrompt: text }); save();
         return { ok: true, text: assistantText };
       } catch (error) {
         if (error && error.code === "cancelled") return { ok: false, code: "cancelled" };
         const message = imageErrorMessage(error && error.code);
         b.innerHTML = '<p class="note"></p>'; b.querySelector(".note").textContent = message;
-        turns.push({ role: "assistant", content: message }); save();
+        const retryImage = document.createElement("button"); retryImage.type = "button"; retryImage.className = "retry-btn"; retryImage.textContent = "↻ Réessayer";
+        retryImage.addEventListener("click", async () => {
+          retryImage.disabled = true; retryImage.textContent = "Nouvel essai…";
+          ctl = new AbortController(); setBusy(true);
+          try {
+            const result = await createImageInChat(b, text, requestedImageSize);
+            const saved = turns[turns.length - 1];
+            if (saved && saved.role === "assistant") { saved.content = "Voici l’image que tu as demandée. Tu peux la télécharger directement ici."; saved.imageId = result.imageId; saved.imagePrompt = text; save(); }
+          } catch (retryError) {
+            retryImage.disabled = false; retryImage.textContent = "↻ Réessayer";
+            flash(imageErrorMessage(retryError && retryError.code));
+          } finally { setBusy(false); }
+        });
+        b.appendChild(retryImage);
+        turns.push({ role: "assistant", content: message, imagePrompt: text }); save();
         return { ok: false, code: error && error.code, text: message };
       } finally { setBusy(false); input.focus(); }
     }
@@ -2037,6 +2051,35 @@ body::before {
     input.focus();
   }
 
+  function imageCard(container, data, prompt, used, limit) {
+    const card = document.createElement("section"); card.className = "image-chat-card";
+    const image = document.createElement("img"); image.src = data; image.alt = String(prompt || "Image créée avec YvanAI").slice(0, 240); image.loading = "eager";
+    const actions = document.createElement("div"); actions.className = "image-actions";
+    const download = document.createElement("a"); download.href = data; download.download = "yvanai-image." + (data.startsWith("data:image/jpeg") ? "jpg" : data.startsWith("data:image/webp") ? "webp" : "png"); download.textContent = "⬇ Télécharger";
+    const copy = document.createElement("button"); copy.type = "button"; copy.className = "act"; copy.textContent = "Copier le prompt";
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(String(prompt || "")); copy.textContent = "Prompt copié !"; }
+      catch (e) { const area = document.createElement("textarea"); area.value = String(prompt || ""); document.body.appendChild(area); area.select(); const ok = document.execCommand("copy"); area.remove(); copy.textContent = ok ? "Prompt copié !" : "Copie impossible"; }
+      setTimeout(() => { copy.textContent = "Copier le prompt"; }, 1800);
+    });
+    const meta = document.createElement("span"); meta.className = "image-meta"; meta.textContent = "Image générée" + (used && limit ? " · " + used + "/" + limit + " créations aujourd’hui" : "");
+    actions.append(download, copy, meta); card.append(image, actions); container.replaceChildren(card);
+  }
+  async function restoreImageCard(container, imageId, prompt) {
+    try {
+      const saved = await getGeneratedImage(imageId);
+      if (saved && saved.data) imageCard(container, saved.data, saved.prompt || prompt);
+      else {
+        const note = document.createElement("p"); note.className = "image-meta";
+        note.textContent = "Cette image n’est pas disponible dans le stockage de cet appareil. Elle doit être recréée ici.";
+        container.appendChild(note);
+      }
+    } catch (e) {
+      const note = document.createElement("p"); note.className = "image-meta";
+      note.textContent = "Impossible de retrouver cette image sur cet appareil.";
+      container.appendChild(note);
+    }
+  }
   async function createImageInChat(container, prompt, size) {
     container.innerHTML = '<div class="thinking"><i></i><i></i><i></i> YvanAI crée ton image…</div>';
     const response = await fetch(apiUrl("/api/image"), {
@@ -2045,15 +2088,12 @@ body::before {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.image) throw { code: data.code || "image_failed" };
-    const card = document.createElement("section"); card.className = "image-chat-card";
-    const image = document.createElement("img"); image.src = data.image; image.alt = prompt.slice(0, 240); image.loading = "eager";
-    const actions = document.createElement("div"); actions.className = "image-actions";
-    const download = document.createElement("a"); download.href = data.image; download.download = "yvanai-image." + (data.image.startsWith("data:image/jpeg") ? "jpg" : data.image.startsWith("data:image/webp") ? "webp" : "png"); download.textContent = "⬇ Télécharger l’image";
-    const meta = document.createElement("span"); meta.className = "image-meta"; meta.textContent = "Image générée · " + (data.used || "?") + "/" + (data.limit || "?") + " créations aujourd’hui";
-    actions.append(download, meta); card.append(image, actions); container.replaceChildren(card);
-    return { ok: true };
+    const imageId = makeId();
+    try { await saveGeneratedImage(imageId, data.image, prompt); }
+    catch (e) { console.warn("[images] sauvegarde locale impossible", e && e.message); }
+    imageCard(container, data.image, prompt, data.used, data.limit);
+    return { ok: true, imageId };
   }
-
   function imageErrorMessage(code) {
     const messages = {
       auth_required: "Connecte-toi à ton compte pour créer une image.", images_off: "La création d’images n’est pas encore activée sur le serveur.",
