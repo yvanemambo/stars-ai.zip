@@ -29,16 +29,16 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
 <div class="wrap">
   <div class="top"><a class="brand" href="/">Yvan<span>AI</span></a><a class="back" href="/">← Retour au chat</a></div>
   <h1>Donne vie à tes idées avec <em>la vidéo.</em></h1>
-  <p class="lead">Décris ton projet. Claude prépare six scènes, puis YvanAI les anime en Motion Design et te permet d'enregistrer la vidéo.</p>
+  <p class="lead">Décris ton projet. Gemini prépare six scènes, puis YvanAI les anime en Motion Design et te permet d'enregistrer la vidéo.</p>
   <div class="layout">
     <section class="panel">
       <label for="brief">Que veux-tu voir dans ta vidéo ?</label>
       <textarea id="brief" maxlength="1200" placeholder="Exemple : une publicité de 30 secondes pour mon magasin d'électronique à Abidjan. Présente Arduino, LED et capteurs, avec un style futuriste bleu et violet."></textarea>
-      <div class="controls"><button class="btn primary" id="make">✨ Créer le storyboard avec Claude</button><button class="btn" id="render" disabled>▶ Exporter la vidéo (30 s)</button></div>
+      <div class="controls"><button class="btn primary" id="make">✨ Créer le storyboard avec Gemini</button><button class="btn" id="render" disabled>▶ Exporter la vidéo (30 s)</button></div>
       <div class="status" id="status" role="status">Durée : 30 secondes · Format vertical 9:16 · 1080 × 1920.</div>
       <div class="progress" aria-label="Progression de l'export"><span id="bar"></span></div>
       <div class="download" id="download"></div>
-      <div class="smallprint">La préparation du storyboard utilise ta clé API Claude et peut consommer des crédits. L'animation est rendue dans ton navigateur. L'export actuel est au format WebM (pas MP4) et ne contient pas encore de voix off ni de musique.</div>
+      <div class="smallprint">La préparation du storyboard utilise ta clé API Gemini et peut consommer des crédits. L'animation est rendue dans ton navigateur. L'export actuel est au format WebM (pas MP4) et ne contient pas encore de voix off ni de musique.</div>
     </section>
     <aside class="panel preview">
       <div class="screen"><canvas id="canvas" width="1080" height="1920"></canvas></div>
@@ -87,13 +87,13 @@ function showScript(data){
 }
 make.addEventListener("click",async()=>{
  const text=brief.value.trim();if(text.length<8){setStatus("Décris un peu plus la vidéo à créer.","error");return}
- make.disabled=true;render.disabled=true;download.style.display="none";setStatus("Claude prépare les six scènes…");
+ make.disabled=true;render.disabled=true;download.style.display="none";setStatus("Gemini prépare les six scènes…");
  try{
   const res=await fetch("/api/video/script",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:text})});
   const data=await res.json().catch(()=>({}));
-  if(!res.ok)throw new Error(data.code||"claude_error");
+  if(!res.ok)throw new Error(data.code||"gemini_error");
   showScript(data.script);setStatus("Storyboard prêt. Tu peux prévisualiser les scènes puis exporter la vidéo.","ok");
- }catch(e){const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",claude_not_configured:"La clé Claude n'est pas configurée sur le serveur. Ajoute CLAUDE_API_KEY ou ANTHROPIC_API_KEY dans Render > Environment.",claude_bad_key:"La clé Claude a été refusée. Vérifie-la dans Render sans la partager ici.",claude_busy:"Claude est temporairement occupé ou la limite API est atteinte.",free_limit:"Tu as atteint ta limite gratuite quotidienne pour les demandes IA.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Claude n'a pas renvoyé un storyboard valide. Réessaie.",claude_unavailable:"Impossible de joindre Claude pour le moment."};setStatus(messages[e.message]||"La création du storyboard a échoué. Réessaie.","error")}
+ }catch(e){const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",gemini_not_configured:"La clé Gemini n'est pas configurée sur le serveur. Ajoute GEMINI_API_KEY ou GEMINI_API_KEY dans Render > Environment.",gemini_bad_key:"La clé Gemini a été refusée. Vérifie-la dans Render sans la partager ici.",gemini_busy:"Gemini est temporairement occupé ou la limite API est atteinte.",free_limit:"Tu as atteint ta limite gratuite quotidienne pour les demandes IA.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Gemini n'a pas renvoyé un storyboard valide. Réessaie.",gemini_unavailable:"Impossible de joindre Gemini pour le moment."};setStatus(messages[e.message]||"La création du storyboard a échoué. Réessaie.","error")}
  finally{make.disabled=false}
 });
 render.addEventListener("click",()=>{
