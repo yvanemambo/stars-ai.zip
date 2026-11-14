@@ -105,7 +105,7 @@ function showScript(data){
 async function loadProjectFiles(files){
  const picked=Array.from(files||[]);
  const images=picked.filter(f=>f.type.startsWith("image/"));
- const docs=picked.filter(f=>/\\.(txt|md)$/i.test(f.name)||f.type==="text/plain"||f.type==="text/markdown");
+ const docs=picked.filter(f=>/\.(txt|md)$/i.test(f.name)||f.type==="text/plain"||f.type==="text/markdown");
  const rejected=picked.filter(f=>!images.includes(f)&&!docs.includes(f));
  if(images.length>6||docs.length>3){setStatus("Limite : 6 images et 3 fichiers texte maximum.","error");return}
  if(picked.some(f=>f.size>5*1024*1024)){setStatus("Un fichier dépasse la limite de 5 Mo. Choisis des fichiers plus légers.","error");return}
@@ -122,7 +122,7 @@ async function loadProjectFiles(files){
    const tag=document.createElement("span");tag.textContent="Scène "+(index+1);
    thumb.append(preview,tag);imageGallery.append(thumb);
  });
- for(const file of docs){documentContext+="\\n\\n--- Fichier : "+file.name+" ---\\n"+(await file.text()).slice(0,12000)}
+ for(const file of docs){documentContext+="\n\\n--- Fichier : "+file.name+" ---\\n"+(await file.text()).slice(0,12000)}
  picked.forEach(file=>{
    const row=document.createElement("div");row.className="file-row";
    const icon=document.createElement("span");icon.textContent=file.type.startsWith("image/")?"🖼️":"📄";
@@ -141,7 +141,7 @@ make.addEventListener("click",async()=>{
  const text=brief.value.trim();if(text.length<8){setStatus("Décris un peu plus la vidéo à créer.","error");return}
  make.disabled=true;render.disabled=true;download.style.display="none";setStatus("Gemini prépare les six scènes…");
  try{
-  const fullPrompt=documentContext?text+"\\n\\nÉléments fournis par l'utilisateur :\\n"+documentContext:text;
+  const fullPrompt=documentContext?text+"\n\\nÉléments fournis par l'utilisateur :\\n"+documentContext:text;
   const res=await fetch("/api/video/script",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:fullPrompt.slice(0,24000)})});
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error(data.code||"gemini_error");
