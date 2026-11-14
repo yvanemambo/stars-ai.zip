@@ -1792,6 +1792,8 @@ async function selfCheck() {
           } else console.warn(`[vérif] Clé Gemini ${i + 1}/${GEMINI_API_KEYS.length} refusée (HTTP ${r.status}).`);
         } catch (e) { console.warn(`[vérif] Clé Gemini ${i + 1}/${GEMINI_API_KEYS.length} inaccessible : ${e.message}`); }
       }
+      const keySlots = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"].filter(k => !!env(k));
+      console.log(`[vérif] Variables Gemini présentes : ${keySlots.length}/5 (${keySlots.join(", ") || "aucune"}). Clés distinctes : ${GEMINI_API_KEYS.length}.`);
       console.log(`[vérif] ${checked}/${GEMINI_API_KEYS.length} clé(s) Gemini valide(s).`);
     }
   } catch (e) {
