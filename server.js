@@ -29,6 +29,8 @@ const GEMINI_API_KEYS = [...new Set([
 const GEMINI_API_KEY = GEMINI_API_KEYS[0] || "";
 const VIDEO_RENDERER_URL = env("VIDEO_RENDERER_URL").replace(/\/+$/, "");
 const VIDEO_RENDERER_TOKEN = env("VIDEO_RENDERER_TOKEN");
+const GEMINI_VIDEO_ENABLED = env("GEMINI_VIDEO_ENABLED") === "1";
+const GEMINI_VIDEO_MODEL = env("GEMINI_VIDEO_MODEL") || "gemini-omni-1.1-flash";
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3.8-flash";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 4096; // limite par défaut pour des réponses plus rapides ; ajustable dans Render
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
@@ -1218,7 +1220,7 @@ async function handleVideoScript(req, res, ip) {
   const payload = await readJson(req, 8000);
   const brief = String(payload?.prompt || "").trim().slice(0, 1200);
   if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
-  const system = "Tu es directeur artistique Motion Design. Réponds uniquement en JSON valide. Crée exactement 6 scènes pour une vidéo de 30 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max) et visual parmi particles, rings, bars, orbit, grid, spotlight. Français naturel, sans inventer de faits. Retourne un objet JSON avec title et scenes.";
+  const system = "Tu es réalisateur et directeur de la photographie pour des publicités premium. Réponds uniquement en JSON valide. Crée exactement 6 plans cohérents pour préparer un clip vidéo IA. Chaque scène contient title (48 caractères max), subtitle (100 caractères max), shot (description visuelle concrète, 240 caractères max), camera (mouvement caméra précis, 120 caractères max), motion (mouvement naturel du sujet et de l’environnement, 160 caractères max), lighting (éclairage et ambiance, 120 caractères max), visual parmi particles, rings, bars, orbit, grid, spotlight. Décris de vraies situations filmables, des sujets et des décors détaillés, une profondeur de champ, des mouvements crédibles, une continuité visuelle et une direction artistique professionnelle. Évite les simples fonds abstraits et le texte incrusté. Français naturel, sans inventer de faits. Retourne un objet JSON avec title et scenes.";
   const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
   let response = null, responseModel = GEMINI_MODEL, lastDetail = "";
   try {
@@ -1249,7 +1251,8 @@ async function handleVideoScript(req, res, ip) {
     if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
-    script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Scène " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), visual: allowed.has(scene.visual) ? scene.visual : "particles" }));
+    script.prompt = brief;
+    script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Plan " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), shot: String(scene.shot || scene.title || "").slice(0, 240), camera: String(scene.camera || "mouvement de caméra fluide et stabilisé").slice(0, 120), motion: String(scene.motion || "mouvement naturel et crédible du sujet").slice(0, 160), lighting: String(scene.lighting || "éclairage cinématographique naturel").slice(0, 120), visual: allowed.has(scene.visual) ? scene.visual : "spotlight" }));
     console.log(`[video] storyboard généré avec ${responseModel}`);
     return json(res, 200, { ok: true, script });
   } catch (e) {
@@ -1260,38 +1263,64 @@ async function handleVideoScript(req, res, ip) {
 async function handleVideoRender(req, res, ip) {
   const user = currentUser(req);
   if (!user) return json(res, 401, { code: "auth_required" });
-  if (!VIDEO_RENDERER_URL || !VIDEO_RENDERER_TOKEN) return json(res, 503, { code: "video_renderer_not_configured" });
-  if (!allow("video-render:" + user.email, 2, 60_000)) return json(res, 429, { code: "rate_limited" });
+  if (!GEMINI_API_KEYS.length || !GEMINI_VIDEO_ENABLED) return json(res, 503, { code: "video_ai_not_configured" });
+  if (!allow("video-render:" + user.email, 1, 60_000)) return json(res, 429, { code: "rate_limited" });
   const payload = await readJson(req, 100_000);
   const script = payload?.script;
   if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 400, { code: "bad_script" });
-  const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
-  const scenes = script.scenes.map((scene, i) => ({
-    title: String(scene?.title || ("Scène " + (i + 1))).replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 48),
-    subtitle: String(scene?.subtitle || "").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 100),
-    visual: allowed.has(scene?.visual) ? scene.visual : "particles"
-  }));
   const aspectRatio = ["9:16", "16:9", "1:1"].includes(payload?.aspectRatio) ? payload.aspectRatio : "9:16";
+  const sceneNotes = script.scenes.map((scene, i) =>
+    "Plan " + (i + 1) + ": " + String(scene?.shot || scene?.title || "").slice(0, 240) +
+    ". Caméra: " + String(scene?.camera || "").slice(0, 120) +
+    ". Mouvement: " + String(scene?.motion || "").slice(0, 160) +
+    ". Lumière: " + String(scene?.lighting || "").slice(0, 120)
+  ).join("\n");
+  const brief = String(script.prompt || script.title || "Film publicitaire cinématographique").slice(0, 1200);
+  const cinematicPrompt = [
+    "Create a polished, photorealistic, professional commercial film. Do not create a slideshow, poster, static image, animated typography, abstract color background, or graphic-only motion design.",
+    "Brief: " + brief,
+    "Visual direction and shot sequence:",
+    sceneNotes,
+    "Use real environments, believable people or products when requested, physically plausible movement, natural body motion, realistic camera movement, cinematic lighting, depth of field, coherent color grading, and seamless visual continuity. Keep the main subject consistent. No subtitles, captions, logos, watermarks, or UI text unless explicitly requested in the brief.",
+    "Make a complete short video with a clear beginning, visual development, and satisfying ending."
+  ].join("\n\n");
   try {
-    const upstream = await fetch(VIDEO_RENDERER_URL + "/render", {
+    const upstream = await fetch(GEMINI_BASE_URL + "/v1beta/interactions", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: "Bearer " + VIDEO_RENDERER_TOKEN },
-      body: JSON.stringify({ title: String(script.title || "YvanAI Studio").slice(0, 60), scenes, aspectRatio, durationSeconds: 30 }),
-      signal: AbortSignal.timeout(240_000)
+      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEYS[0] },
+      body: JSON.stringify({
+        model: GEMINI_VIDEO_MODEL,
+        input: cinematicPrompt,
+        response_format: { type: "video", aspect_ratio: aspectRatio === "1:1" ? "16:9" : aspectRatio, resolution: "720p" },
+        generation_config: { video_config: { task: "text_to_video" } }
+      }),
+      signal: AbortSignal.timeout(300_000)
     });
+    const responseText = await upstream.text();
+    let data = {};
+    try { data = JSON.parse(responseText); } catch {}
     if (!upstream.ok) {
-      const detail = await upstream.text().catch(() => "");
-      console.error("[video-render] moteur HTTP " + upstream.status + " : " + detail.slice(0, 240));
-      return json(res, upstream.status === 503 ? 503 : 502, { code: "video_render_failed" });
+      const detail = String(data.error?.message || responseText || "").slice(0, 300);
+      console.warn("[video-ai] Gemini Omni HTTP " + upstream.status + ": " + detail);
+      const code = upstream.status === 401 || upstream.status === 403 ? "gemini_bad_key"
+        : upstream.status === 429 || upstream.status >= 500 ? "gemini_busy" : "video_ai_failed";
+      return json(res, upstream.status === 429 || upstream.status >= 500 ? 503 : 502, { code });
     }
-    const video = Buffer.from(await upstream.arrayBuffer());
+    const outputs = (data.steps || []).filter(step => step.type === "model_output").flatMap(step => step.content || []);
+    const videoPart = outputs.find(part => part.type === "video" && typeof part.data === "string" && part.data.length > 1000);
+    if (!videoPart) {
+      console.warn("[video-ai] réponse sans vidéo intégrée; statut=" + String(data.status || "inconnu"));
+      return json(res, 502, { code: "video_ai_empty" });
+    }
+    const video = Buffer.from(videoPart.data, "base64");
     if (video.length < 10_000 || video.length > 100_000_000) return json(res, 502, { code: "video_output_invalid" });
     const filename = String(script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "yvanai-video";
-    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(video.length), "cache-control": "no-store" });
+    console.log("[video-ai] clip IA généré avec " + GEMINI_VIDEO_MODEL + " (" + video.length + " octets)");
+    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(video.length), "cache-control": "no-store", "x-yvanai-video-engine": "gemini-omni" });
     return res.end(video);
   } catch (e) {
-    console.warn("[video-render] moteur indisponible :", e.name || "erreur");
-    return json(res, 503, { code: "video_renderer_unavailable" });
+    console.warn("[video-ai] génération indisponible :", e.name || "erreur");
+    return json(res, 503, { code: "video_ai_unavailable" });
   }
 }
 
