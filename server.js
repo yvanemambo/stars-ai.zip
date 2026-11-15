@@ -368,7 +368,15 @@ async function fetchGeminiWithRotation(url, options = {}, signal = options.signa
     } catch (error) {
       if (signal?.aborted) throw error;
       lastError = error;
-      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} : connexion indisponible, essai de la suivante.`);
+      // Une panne réseau ou un délai de connexion touche l'endpoint, pas la clé :
+      // réessayer les autres clés du même fournisseur ne ferait qu'ajouter de l'attente.
+      const networkFailure = error instanceof TypeError || /fetch failed|ENOTFOUND|ECONNRESET|ECONNREFUSED|EAI_AGAIN|network/i.test(String(error?.message || ""));
+      if (networkFailure) {
+        const unavailable = new UpstreamError("upstream_busy", 504, "Connexion réseau Gemini indisponible");
+        unavailable.networkUnavailable = true;
+        throw unavailable;
+      }
+      console.warn(`[gemini] clé ${i + 1}/${GEMINI_API_KEYS.length} : erreur de connexion, essai de la suivante.`);
     }
   }
   if (lastResponse) return lastResponse;
@@ -802,6 +810,12 @@ async function callGemini(messages, signal, name, voice, guide, memory) {
       }, signal, FIRST_BYTE_TIMEOUT_MS);
     } catch (e) {
       if (signal.aborted) throw e;
+      if (e.networkUnavailable) {
+        // L'endpoint Gemini est inaccessible : mettre tous ses modèles en pause
+        // et éviter plusieurs délais identiques sur le même hôte.
+        for (const candidate of models) pauseModel(candidate, 2 * 60_000, "connexion réseau indisponible");
+        throw e;
+      }
       pauseModel(model, 5 * 60_000, "ne répond pas");
       last = new UpstreamError("upstream_busy", 504, "timeout");
       continue;
