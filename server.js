@@ -44,7 +44,6 @@ const CLOUDFLARE_MODELS = [
 ].filter((m, i, a) => a.indexOf(m) === i);
 const CLOUDFLARE_AI = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN);
 
-// Génération de scripts Motion Design avec Claude (la clé reste côté serveur).
 const CLAUDE_API_KEY = env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY");
 const CLAUDE_MODEL = env("CLAUDE_MODEL") || "claude-haiku-5-5";
 
