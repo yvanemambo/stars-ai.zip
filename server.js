@@ -1338,7 +1338,7 @@ async function handleVideoRender(req, res, ip) {
       body: JSON.stringify({
         model: GEMINI_VIDEO_MODEL,
         input: cinematicPrompt,
-        response_format: { type: "video", delivery: "uri", aspect_ratio: aspectRatio, resolution: "720p", duration: "8s" }
+        response_format: { type: "video", aspect_ratio: aspectRatio, resolution: "720p", duration: "8s" }
       }),
       signal: AbortSignal.timeout(300_000)
     });
@@ -1352,46 +1352,57 @@ async function handleVideoRender(req, res, ip) {
         : upstream.status === 429 || upstream.status >= 500 ? "gemini_busy" : "video_ai_failed";
       return json(res, upstream.status === 429 || upstream.status >= 500 ? 503 : 502, { code });
     }
-    const videoUri = data.output_video?.uri ||
-      (data.steps || []).flatMap(step => step.content || []).find(part => part.type === "video")?.uri;
-    const fileMatch = typeof videoUri === "string" && videoUri.match(/\/files\/([^/?]+)/);
-    if (!fileMatch) {
-      console.warn("[video-ai] Gemini a répondu sans URI vidéo; statut=" + String(data.status || "inconnu"));
-      return json(res, 502, { code: "video_ai_empty" });
-    }
-    const fileId = fileMatch[1];
-    let fileState = "";
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const statusResponse = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId), {
+    let videoBuffer = null;
+    // Gemini Omni renvoie normalement les octets MP4 en Base64 dans output_video.data
+    // lorsque la livraison URI n'est pas demandée.
+    if (typeof data.output_video?.data === "string" && data.output_video.data.length > 0) {
+      videoBuffer = Buffer.from(data.output_video.data, "base64");
+    } else {
+      // Compatibilité avec les réponses qui fournissent une URI de fichier.
+      const videoUri = data.output_video?.uri ||
+        (data.steps || []).flatMap(step => step.content || []).find(part => part.type === "video")?.uri;
+      const fileMatch = typeof videoUri === "string" && videoUri.match(/\\/files\\/([^/?]+)/);
+      if (!fileMatch) {
+        console.warn("[video-ai] Gemini a répondu sans données MP4 ni URI vidéo; statut=" + String(data.status || "inconnu"));
+        return json(res, 502, { code: "video_ai_empty" });
+      }
+      const fileId = fileMatch[1];
+      let fileState = "";
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const statusResponse = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId), {
+          headers: { "x-goog-api-key": apiKey },
+          signal: AbortSignal.timeout(15_000)
+        });
+        if (!statusResponse.ok) {
+          const detail = (await statusResponse.text()).slice(0, 240);
+          console.warn("[video-ai] statut fichier HTTP " + statusResponse.status + ": " + detail);
+          return json(res, 502, { code: "video_ai_download_failed" });
+        }
+        const fileInfo = await statusResponse.json();
+        fileState = String(fileInfo.state || "").toUpperCase();
+        if (fileState === "ACTIVE") break;
+        if (fileState === "FAILED") return json(res, 502, { code: "video_ai_processing_failed" });
+        await new Promise(resolve => setTimeout(resolve, 5_000));
+      }
+      if (fileState !== "ACTIVE") return json(res, 504, { code: "video_ai_timeout" });
+      const download = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId) + ":download?alt=media", {
         headers: { "x-goog-api-key": apiKey },
-        signal: AbortSignal.timeout(15_000)
+        signal: AbortSignal.timeout(60_000)
       });
-      if (!statusResponse.ok) {
-        const detail = (await statusResponse.text()).slice(0, 240);
-        console.warn("[video-ai] statut fichier HTTP " + statusResponse.status + ": " + detail);
+      if (!download.ok) {
+        console.warn("[video-ai] téléchargement MP4 HTTP " + download.status);
         return json(res, 502, { code: "video_ai_download_failed" });
       }
-      const fileInfo = await statusResponse.json();
-      fileState = String(fileInfo.state || "").toUpperCase();
-      if (fileState === "ACTIVE") break;
-      if (fileState === "FAILED") return json(res, 502, { code: "video_ai_processing_failed" });
-      await new Promise(resolve => setTimeout(resolve, 5_000));
+      videoBuffer = Buffer.from(await download.arrayBuffer());
     }
-    if (fileState !== "ACTIVE") return json(res, 504, { code: "video_ai_timeout" });
-    const download = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId) + ":download?alt=media", {
-      headers: { "x-goog-api-key": apiKey },
-      signal: AbortSignal.timeout(60_000)
-    });
-    if (!download.ok) {
-      console.warn("[video-ai] téléchargement MP4 HTTP " + download.status);
-      return json(res, 502, { code: "video_ai_download_failed" });
+    if (!videoBuffer || videoBuffer.length < 10_000 || videoBuffer.length > 100_000_000) {
+      console.warn("[video-ai] données vidéo absentes ou taille MP4 invalide.");
+      return json(res, 502, { code: "video_output_invalid" });
     }
-    const video = Buffer.from(await download.arrayBuffer());
-    if (video.length < 10_000 || video.length > 100_000_000) return json(res, 502, { code: "video_output_invalid" });
     const filename = String(script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "yvanai-video";
-    console.log("[video-ai] vrai clip Gemini Omni généré (" + video.length + " octets, 8s, 720p)");
-    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(video.length), "cache-control": "no-store", "x-yvanai-video-engine": GEMINI_VIDEO_MODEL });
-    return res.end(video);
+    console.log("[video-ai] vrai clip Gemini Omni généré (" + videoBuffer.length + " octets, 8s, 720p)");
+    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(videoBuffer.length), "cache-control": "no-store", "x-yvanai-video-engine": GEMINI_VIDEO_MODEL });
+    return res.end(videoBuffer);
   } catch (e) {
     console.warn("[video-ai] génération indisponible :", e.name || "erreur");
     return json(res, 503, { code: "video_ai_unavailable" });
