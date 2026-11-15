@@ -1024,6 +1024,7 @@ async function imageApi(req, res, url) {
   if (prompt.length < 3) return json(res, 400, { code: "bad_prompt" });
   if (prompt.length > 1000) return json(res, 400, { code: "prompt_too_long" });
   const aspectRatio = IMAGE_SIZES[String(b?.size ?? "")] || IMAGE_SIZES.carre;
+  const professionalPrompt = "Create a premium, professional commercial image with intentional art direction, a clear focal point, balanced composition, refined lighting, realistic materials, crisp details, and polished color grading. Avoid accidental lettering, watermarks, distorted anatomy, blurry details, and unwanted logos. Follow the user brief faithfully: " + prompt;
   if (!allow("img:" + email, 4, 60_000)) return json(res, 429, { code: "rate_limited" });
   if (imageBusy.has(email)) return json(res, 429, { code: "busy" });
   imageBusy.add(email);
@@ -1050,7 +1051,7 @@ async function imageApi(req, res, url) {
       const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${CLOUDFLARE_IMAGE_MODEL.split("/").map(part => encodeURIComponent(part).replace(/^%40/i, "@")).join("/") }`, {
         method: "POST", signal: AbortSignal.timeout(180_000),
         headers: { "content-type": "application/json", authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
-        body: JSON.stringify({ prompt: (prompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
+        body: JSON.stringify({ prompt: (professionalPrompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
       });
       const responseText = await r.text();
       let data = {};
@@ -1072,7 +1073,7 @@ async function imageApi(req, res, url) {
         method: "POST", signal: AbortSignal.timeout(180_000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt + IMAGE_SAFE_SUFFIX }] }],
+          contents: [{ role: "user", parts: [{ text: professionalPrompt + IMAGE_SAFE_SUFFIX }] }],
           generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio, imageSize: "2K" } }
         })
       });
@@ -1092,7 +1093,7 @@ async function imageApi(req, res, url) {
         const backup = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(CLOUDFLARE_ACCOUNT_ID)}/ai/run/${CLOUDFLARE_IMAGE_MODEL.split("/").map(part => encodeURIComponent(part).replace(/^%40/i, "@")).join("/")}`, {
           method: "POST", signal: AbortSignal.timeout(180_000),
           headers: { "content-type": "application/json", authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
-          body: JSON.stringify({ prompt: (prompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
+          body: JSON.stringify({ prompt: (professionalPrompt + IMAGE_SAFE_SUFFIX).slice(0, 2048), steps: 4 })
         });
         const backupText = await backup.text();
         let backupData = {};
