@@ -1244,11 +1244,56 @@ async function handleVideoScript(req, res, ip) {
       console.warn(`[video] aucun modèle disponible; dernier HTTP ${status} (${responseModel}) ${lastDetail.slice(0,180)}`);
       return json(res, status === 429 || status >= 500 ? 503 : 502, { code });
     }
-    const data = await response.json().catch(() => ({}));
-    const answer = (data.candidates || []).flatMap(c => c.content?.parts || []).filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n");
-    let script;
-    try { script = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()); } catch { return json(res, 502, { code: "bad_script" }); }
-    if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 502, { code: "bad_script" });
+    const readStoryboard = (data) => {
+      const answer = (data.candidates || []).flatMap(c => c.content?.parts || [])
+        .filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n").trim();
+      if (!answer) return null;
+      const cleaned = answer.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      const candidates = [cleaned];
+      // Tolère une courte phrase avant/après le JSON : on extrait le premier objet complet.
+      const start = cleaned.indexOf("{");
+      if (start >= 0 && cleaned !== cleaned.slice(start)) {
+        let depth = 0, quoted = false, escaped = false, end = -1;
+        for (let i = start; i < cleaned.length; i++) {
+          const ch = cleaned[i];
+          if (quoted) { if (escaped) escaped = false; else if (ch === "\\") escaped = true; else if (ch === '"') quoted = false; continue; }
+          if (ch === '"') quoted = true;
+          else if (ch === "{") depth++;
+          else if (ch === "}" && --depth === 0) { end = i + 1; break; }
+        }
+        if (end > start) candidates.push(cleaned.slice(start, end));
+      }
+      for (const candidate of candidates) {
+        try {
+          const parsed = JSON.parse(candidate);
+          const scenes = Array.isArray(parsed) ? parsed : parsed?.scenes || parsed?.storyboard?.scenes;
+          if (Array.isArray(scenes) && scenes.length === 6) return { ...(Array.isArray(parsed) ? {} : parsed), scenes };
+        } catch {}
+      }
+      return null;
+    };
+    let data = await response.json().catch(() => ({}));
+    let script = readStoryboard(data);
+    if (!script) {
+      console.warn(`[video] storyboard invalide avec ${responseModel}; nouvelle tentative de génération.`);
+      const retry = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(responseModel) + ":generateContent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system + " IMPORTANT : la réponse doit être un seul objet JSON valide, sans Markdown ni commentaire, avec exactement 6 éléments dans scenes." }] },
+          contents: [{ role: "user", parts: [{ text: "Réessaie. Produis maintenant le storyboard complet en respectant strictement le schéma demandé. Brief : " + brief }] }],
+          generationConfig: { maxOutputTokens: 1800, responseMimeType: "application/json" }
+        }),
+        signal: AbortSignal.timeout(45_000)
+      });
+      if (retry.ok) {
+        data = await retry.json().catch(() => ({}));
+        script = readStoryboard(data);
+      } else {
+        console.warn(`[video] nouvelle tentative storyboard refusée (HTTP ${retry.status}).`);
+      }
+    }
+    if (!script) return json(res, 502, { code: "bad_script" });
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
     script.prompt = brief;
