@@ -27,6 +27,8 @@ const GEMINI_API_KEYS = [...new Set([
   env("GEMINI_API_KEY_4"), env("GEMINI_API_KEY_5")
 ].filter(Boolean))];
 const GEMINI_API_KEY = GEMINI_API_KEYS[0] || "";
+const VIDEO_RENDERER_URL = env("VIDEO_RENDERER_URL").replace(/\/+$/, "");
+const VIDEO_RENDERER_TOKEN = env("VIDEO_RENDERER_TOKEN");
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3.8-flash";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 4096; // limite par défaut pour des réponses plus rapides ; ajustable dans Render
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
@@ -1254,6 +1256,44 @@ async function handleVideoScript(req, res, ip) {
     return json(res, 502, { code: "gemini_unavailable" });
   }
 }
+async function handleVideoRender(req, res, ip) {
+  const user = currentUser(req);
+  if (!user) return json(res, 401, { code: "auth_required" });
+  if (!VIDEO_RENDERER_URL || !VIDEO_RENDERER_TOKEN) return json(res, 503, { code: "video_renderer_not_configured" });
+  if (!allow("video-render:" + user.email, 2, 60_000)) return json(res, 429, { code: "rate_limited" });
+  const payload = await readJson(req, 100_000);
+  const script = payload?.script;
+  if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 400, { code: "bad_script" });
+  const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
+  const scenes = script.scenes.map((scene, i) => ({
+    title: String(scene?.title || ("Scène " + (i + 1))).replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 48),
+    subtitle: String(scene?.subtitle || "").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 100),
+    visual: allowed.has(scene?.visual) ? scene.visual : "particles"
+  }));
+  const aspectRatio = ["9:16", "16:9", "1:1"].includes(payload?.aspectRatio) ? payload.aspectRatio : "9:16";
+  try {
+    const upstream = await fetch(VIDEO_RENDERER_URL + "/render", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + VIDEO_RENDERER_TOKEN },
+      body: JSON.stringify({ title: String(script.title || "YvanAI Studio").slice(0, 60), scenes, aspectRatio, durationSeconds: 30 }),
+      signal: AbortSignal.timeout(240_000)
+    });
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => "");
+      console.error("[video-render] moteur HTTP " + upstream.status + " : " + detail.slice(0, 240));
+      return json(res, upstream.status === 503 ? 503 : 502, { code: "video_render_failed" });
+    }
+    const video = Buffer.from(await upstream.arrayBuffer());
+    if (video.length < 10_000 || video.length > 100_000_000) return json(res, 502, { code: "video_output_invalid" });
+    const filename = String(script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "yvanai-video";
+    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(video.length), "cache-control": "no-store" });
+    return res.end(video);
+  } catch (e) {
+    console.warn("[video-render] moteur indisponible :", e.name || "erreur");
+    return json(res, 503, { code: "video_renderer_unavailable" });
+  }
+}
+
 async function handleChat(req, res, ip) {
   const user = currentUser(req);
   if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
@@ -1817,6 +1857,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/image" || url.pathname.startsWith("/api/image/")) return await imageApi(req, res, url);
     if (url.pathname === "/api/memory" || url.pathname.startsWith("/api/memory/")) return await memoryApi(req, res, url);
     if (req.method === "POST" && url.pathname === "/api/video/script") return await handleVideoScript(req, res, ip);
+    if (req.method === "POST" && url.pathname === "/api/video/render") return await handleVideoRender(req, res, ip);
     if (req.method === "POST" && url.pathname === "/api/chat") return await handleChat(req, res, ip);
     json(res, 404, { code: "not_found" });
   } catch (e) {
