@@ -33,7 +33,7 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
   <div class="layout">
     <section class="panel">
       <label for="brief">Que veux-tu voir dans ta vidéo ?</label>
-      <textarea id="brief" maxlength="1200" placeholder="Exemple : une publicité de 30 secondes pour mon magasin d'électronique à Abidjan. Présente Arduino, LED et capteurs, avec un style futuriste bleu et violet."></textarea>
+      <textarea id="brief" maxlength="1200" placeholder="Exemple : un clip publicitaire de 8 secondes pour mon magasin d'électronique à Abidjan. Présente Arduino, LED et capteurs, avec un style futuriste bleu et violet."></textarea>
       <div class="image-picker" id="fileDrop">
         <label for="projectFiles">Ajouter des fichiers à ta vidéo</label>
         <div class="dropzone"><span class="drop-icon">＋</span><strong>Dépose tes fichiers ici</strong><span>ou sélectionne-les depuis ton ordinateur</span>
@@ -47,7 +47,7 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
       <div class="status" id="status" role="status">Durée : 8 secondes · Format vertical 9:16 · 720p · MP4 généré par IA.</div>
       <div class="progress" aria-label="Progression de l'export"><span id="bar"></span></div>
       <div class="download" id="download"></div>
-      <div class="smallprint">Gemini utilise ta description et le contenu des fichiers TXT/MD. Les images choisies sont intégrées visuellement aux scènes sur ton appareil. L'animation est rendue dans ton navigateur ; export WebM (pas MP4), sans voix off ni musique pour le moment. Les PDF, Word et PowerPoint ne sont pas encore pris en charge.</div>
+      <div class="smallprint">Le canevas sert uniquement d’aperçu du storyboard. Le clip final est généré sur le serveur par le moteur vidéo IA et téléchargé au format MP4 (8 secondes, 720p). Les documents TXT et MD peuvent compléter ta description.</div>
     </section>
     <aside class="panel preview">
       <div class="screen"><canvas id="canvas" width="1080" height="1920"></canvas></div>
