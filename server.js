@@ -1268,31 +1268,32 @@ async function handleVideoRender(req, res, ip) {
   const payload = await readJson(req, 100_000);
   const script = payload?.script;
   if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 400, { code: "bad_script" });
-  const aspectRatio = ["9:16", "16:9", "1:1"].includes(payload?.aspectRatio) ? payload.aspectRatio : "9:16";
+  const aspectRatio = ["9:16", "16:9"].includes(payload?.aspectRatio) ? payload.aspectRatio : "9:16";
   const sceneNotes = script.scenes.map((scene, i) =>
-    "Plan " + (i + 1) + ": " + String(scene?.shot || scene?.title || "").slice(0, 240) +
-    ". Caméra: " + String(scene?.camera || "").slice(0, 120) +
-    ". Mouvement: " + String(scene?.motion || "").slice(0, 160) +
-    ". Lumière: " + String(scene?.lighting || "").slice(0, 120)
+    "Shot " + (i + 1) + ": " + String(scene?.shot || scene?.title || "").slice(0, 240) +
+    ". Camera: " + String(scene?.camera || "").slice(0, 120) +
+    ". Motion: " + String(scene?.motion || "").slice(0, 160) +
+    ". Lighting: " + String(scene?.lighting || "").slice(0, 120)
   ).join("\n");
-  const brief = String(script.prompt || script.title || "Film publicitaire cinématographique").slice(0, 1200);
+  const brief = String(script.prompt || script.title || "Professional cinematic commercial").slice(0, 1200);
   const cinematicPrompt = [
-    "Create a polished, photorealistic, professional commercial film. Do not create a slideshow, poster, static image, animated typography, abstract color background, or graphic-only motion design.",
-    "Brief: " + brief,
-    "Visual direction and shot sequence:",
+    "Create one coherent, photorealistic, professional commercial video, not a slideshow, poster, still image, animated typography, abstract color background, or graphic-only motion design.",
+    "Creative brief: " + brief,
+    "Six-shot visual direction:",
     sceneNotes,
-    "Use real environments, believable people or products when requested, physically plausible movement, natural body motion, realistic camera movement, cinematic lighting, depth of field, coherent color grading, and seamless visual continuity. Keep the main subject consistent. No subtitles, captions, logos, watermarks, or UI text unless explicitly requested in the brief.",
-    "Make a complete short video with a clear beginning, visual development, and satisfying ending."
+    "Use real environments, believable people or products when requested, physically plausible movement, natural body motion, realistic camera movement, cinematic lighting, depth of field, coherent color grading, and visual continuity. Keep the main subject consistent across shots. No subtitles, captions, logos, watermarks, or UI text unless explicitly requested.",
+    "Create a complete short film with a clear beginning, development, and satisfying ending."
   ].join("\n\n");
+  const apiKey = GEMINI_API_KEYS[0];
   try {
+    // Gemini Omni returns a hosted file URI; wait until Google marks it ACTIVE, then download the MP4.
     const upstream = await fetch(GEMINI_BASE_URL + "/v1beta/interactions", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEYS[0] },
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         model: GEMINI_VIDEO_MODEL,
         input: cinematicPrompt,
-        response_format: { type: "video", aspect_ratio: aspectRatio === "1:1" ? "16:9" : aspectRatio, resolution: "720p" },
-        generation_config: { video_config: { task: "text_to_video" } }
+        response_format: { type: "video", delivery: "uri", aspect_ratio: aspectRatio, resolution: "720p", duration: "8s" }
       }),
       signal: AbortSignal.timeout(300_000)
     });
@@ -1306,17 +1307,45 @@ async function handleVideoRender(req, res, ip) {
         : upstream.status === 429 || upstream.status >= 500 ? "gemini_busy" : "video_ai_failed";
       return json(res, upstream.status === 429 || upstream.status >= 500 ? 503 : 502, { code });
     }
-    const outputs = (data.steps || []).filter(step => step.type === "model_output").flatMap(step => step.content || []);
-    const videoPart = outputs.find(part => part.type === "video" && typeof part.data === "string" && part.data.length > 1000);
-    if (!videoPart) {
-      console.warn("[video-ai] réponse sans vidéo intégrée; statut=" + String(data.status || "inconnu"));
+    const videoUri = data.output_video?.uri ||
+      (data.steps || []).flatMap(step => step.content || []).find(part => part.type === "video")?.uri;
+    const fileMatch = typeof videoUri === "string" && videoUri.match(/\/files\/([^/?]+)/);
+    if (!fileMatch) {
+      console.warn("[video-ai] Gemini a répondu sans URI vidéo; statut=" + String(data.status || "inconnu"));
       return json(res, 502, { code: "video_ai_empty" });
     }
-    const video = Buffer.from(videoPart.data, "base64");
+    const fileId = fileMatch[1];
+    let fileState = "";
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const statusResponse = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId), {
+        headers: { "x-goog-api-key": apiKey },
+        signal: AbortSignal.timeout(15_000)
+      });
+      if (!statusResponse.ok) {
+        const detail = (await statusResponse.text()).slice(0, 240);
+        console.warn("[video-ai] statut fichier HTTP " + statusResponse.status + ": " + detail);
+        return json(res, 502, { code: "video_ai_download_failed" });
+      }
+      const fileInfo = await statusResponse.json();
+      fileState = String(fileInfo.state || "").toUpperCase();
+      if (fileState === "ACTIVE") break;
+      if (fileState === "FAILED") return json(res, 502, { code: "video_ai_processing_failed" });
+      await new Promise(resolve => setTimeout(resolve, 5_000));
+    }
+    if (fileState !== "ACTIVE") return json(res, 504, { code: "video_ai_timeout" });
+    const download = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId) + ":download?alt=media", {
+      headers: { "x-goog-api-key": apiKey },
+      signal: AbortSignal.timeout(60_000)
+    });
+    if (!download.ok) {
+      console.warn("[video-ai] téléchargement MP4 HTTP " + download.status);
+      return json(res, 502, { code: "video_ai_download_failed" });
+    }
+    const video = Buffer.from(await download.arrayBuffer());
     if (video.length < 10_000 || video.length > 100_000_000) return json(res, 502, { code: "video_output_invalid" });
     const filename = String(script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "yvanai-video";
-    console.log("[video-ai] clip IA généré avec " + GEMINI_VIDEO_MODEL + " (" + video.length + " octets)");
-    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(video.length), "cache-control": "no-store", "x-yvanai-video-engine": "gemini-omni" });
+    console.log("[video-ai] vrai clip Gemini Omni généré (" + video.length + " octets, 8s, 720p)");
+    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(video.length), "cache-control": "no-store", "x-yvanai-video-engine": GEMINI_VIDEO_MODEL });
     return res.end(video);
   } catch (e) {
     console.warn("[video-ai] génération indisponible :", e.name || "erreur");
