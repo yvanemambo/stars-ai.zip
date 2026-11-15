@@ -1329,7 +1329,12 @@ async function handleVideoScript(req, res, ip) {
         console.warn(`[video] nouvelle tentative storyboard refusée (HTTP ${retry.status}).`);
       }
     }
-    if (!script) {\n      const finish = data.candidates?.[0]?.finishReason || "inconnu";\n      const block = data.promptFeedback?.blockReason || "aucun";\n      console.warn(`[video] storyboard illisible (${responseModel}); finishReason=${finish}; blockReason=${block}; candidates=${data.candidates?.length || 0}`);\n      return json(res, 502, { code: "bad_script" });\n    }
+    if (!script) {
+      const finish = data.candidates?.[0]?.finishReason || "inconnu";
+      const block = data.promptFeedback?.blockReason || "aucun";
+      console.warn(`[video] storyboard illisible (${responseModel}); finishReason=${finish}; blockReason=${block}; candidates=${data.candidates?.length || 0}`);
+      return json(res, 502, { code: "bad_script" });
+    }
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
     script.prompt = brief;
