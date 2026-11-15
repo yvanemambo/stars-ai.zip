@@ -27,10 +27,6 @@ const GEMINI_API_KEYS = [...new Set([
   env("GEMINI_API_KEY_4"), env("GEMINI_API_KEY_5")
 ].filter(Boolean))];
 const GEMINI_API_KEY = GEMINI_API_KEYS[0] || "";
-const VIDEO_RENDERER_URL = env("VIDEO_RENDERER_URL").replace(/\/+$/, "");
-const VIDEO_RENDERER_TOKEN = env("VIDEO_RENDERER_TOKEN");
-const GEMINI_VIDEO_ENABLED = env("GEMINI_VIDEO_ENABLED") === "1";
-const GEMINI_VIDEO_MODEL = env("GEMINI_VIDEO_MODEL") || "gemini-omni-1.1-flash";
 const GEMINI_MODEL = env("GEMINI_MODEL") || "gemini-3.8-flash";
 const MAX_TOKENS = Number(env("MAX_TOKENS")) || 4096; // limite par défaut pour des réponses plus rapides ; ajustable dans Render
 const PER_MINUTE = Number(env("PER_IP_PER_MINUTE")) || 15;          // messages / minute / personne
@@ -1200,256 +1196,6 @@ async function memoryApi(req, res, url) {
 }
 
 
-async function handleVideoScript(req, res, ip) {
-  const user = currentUser(req);
-  if (!user) return json(res, 401, { code: "auth_required" });
-  if (!GEMINI_API_KEYS.length) return json(res, 503, { code: "gemini_not_configured" });
-  if (!allow("video:" + user.email, 3, 60_000)) return json(res, 429, { code: "rate_limited" });
-  const owner = isAdmin(user);
-  let premium = owner;
-  if (MEMBERS) {
-    try {
-      const rows = await rpc("stars_chat_allow", { p_email: user.email, p_limit: owner ? 1_000_000 : FREE_DAILY });
-      const r = Array.isArray(rows) ? rows[0] : null;
-      if (r && !r.allowed) return json(res, 402, { code: "free_limit", limit: FREE_DAILY, used: r.used, price: PREMIUM_PRICE });
-      premium = owner || !!(r && r.premium_until && new Date(r.premium_until) > new Date());
-    } catch (e) { console.warn("[video] compteur indisponible :", e.message); }
-  }
-  const limited = checkSiteCap(premium);
-  if (limited) return json(res, 429, { code: limited });
-  const payload = await readJson(req, 8000);
-  const brief = String(payload?.prompt || "").trim().slice(0, 1200);
-  if (brief.length < 8) return json(res, 400, { code: "bad_prompt" });
-  const system = "Tu es réalisateur et directeur de la photographie pour des publicités premium. Réponds uniquement en JSON valide. Crée exactement 6 plans cohérents pour préparer un clip vidéo IA de 8 secondes. Chaque scène contient title (48 caractères max), subtitle (100 caractères max), shot (description visuelle concrète, 240 caractères max), camera (mouvement caméra précis, 120 caractères max), motion (mouvement naturel du sujet et de l’environnement, 160 caractères max), lighting (éclairage et ambiance, 120 caractères max), visual parmi particles, rings, bars, orbit, grid, spotlight. Décris de vraies situations filmables, des sujets et des décors détaillés, une profondeur de champ, des mouvements crédibles, une continuité visuelle et une direction artistique professionnelle. Évite les simples fonds abstraits et le texte incrusté. Français naturel, sans inventer de faits. Retourne un objet JSON avec title et scenes.";
-  const models = usableModels([GEMINI_MODEL, ...GEMINI_FALLBACKS.filter(m => m !== GEMINI_MODEL)]);
-  let response = null, responseModel = GEMINI_MODEL, lastDetail = "";
-  try {
-    for (const model of models) {
-      responseModel = model;
-      response = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: "Crée un storyboard Motion Design à partir de : " + brief }] }], generationConfig: { maxOutputTokens: 1400, responseMimeType: "application/json" } }),
-        signal: AbortSignal.timeout(45_000)
-      });
-      if (response.ok) break;
-      lastDetail = await response.text().catch(() => "");
-      if (!RETRY_NEXT.has(response.status)) break;
-      pauseModel(model, PAUSE_FOR[response.status] || 2 * 60_000, "vidéo HTTP " + response.status);
-      console.warn(`[video] ${model} indisponible (HTTP ${response.status}), essai du modèle suivant.`);
-    }
-    if (!response?.ok) {
-      const status = response?.status || 503;
-      const code = status === 401 || status === 403 ? "gemini_bad_key" : status === 429 || status >= 500 ? "gemini_busy" : "gemini_error";
-      console.warn(`[video] aucun modèle disponible; dernier HTTP ${status} (${responseModel}) ${lastDetail.slice(0,180)}`);
-      return json(res, status === 429 || status >= 500 ? 503 : 502, { code });
-    }
-    const readStoryboard = (data) => {
-      const answer = (data.candidates || []).flatMap(c => c.content?.parts || [])
-        .filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n").trim()
-        || String(data.output_text || data.text || "").trim();
-      if (!answer) return null;
-      const cleaned = answer.replace(/^\uFEFF/, "").replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-      const candidates = [cleaned];
-      // Extraire le premier objet JSON complet, même si Gemini ajoute du texte avant ou après.
-      const startObject = cleaned.indexOf("{");
-      if (startObject >= 0) {
-        let depth = 0, quoted = false, escaped = false, endObject = -1;
-        for (let i = startObject; i < cleaned.length; i++) {
-          const ch = cleaned[i];
-          if (quoted) {
-            if (escaped) escaped = false;
-            else if (ch === "\\") escaped = true;
-            else if (ch === '"') quoted = false;
-            continue;
-          }
-          if (ch === '"') quoted = true;
-          else if (ch === "{") depth++;
-          else if (ch === "}") {
-            depth--;
-            if (depth === 0) { endObject = i + 1; break; }
-          }
-        }
-        if (endObject > startObject) candidates.push(cleaned.slice(startObject, endObject));
-      }
-      for (const candidate of candidates) {
-        try {
-          const parsed = JSON.parse(candidate);
-          const findScenes = (value, depth = 0) => {
-            if (!value || depth > 5) return null;
-            if (Array.isArray(value)) {
-              if (value.length && value.every(item => item && typeof item === "object" && !Array.isArray(item))) return value;
-              for (const item of value) { const found = findScenes(item, depth + 1); if (found) return found; }
-              return null;
-            }
-            if (typeof value !== "object") return null;
-            if (Array.isArray(value.scenes)) return value.scenes;
-            for (const key of ["storyboard", "result", "data", "output", "video"]) {
-              const found = findScenes(value[key], depth + 1);
-              if (found) return found;
-            }
-            return null;
-          };
-          const scenes = findScenes(parsed);
-          if (scenes && scenes.length) {
-            const defaults = [
-              { title: "Ouverture", shot: "Plan d'ouverture cinématographique présentant le sujet et son environnement." },
-              { title: "Découverte", shot: "La caméra avance doucement et révèle les détails du sujet." },
-              { title: "Mise en valeur", shot: "Plan rapproché dynamique mettant en valeur les détails importants." },
-              { title: "Action", shot: "Le sujet effectue un mouvement naturel dans son environnement." },
-              { title: "Moment fort", shot: "Plan cinématographique avec mouvement de caméra fluide et lumière travaillée." },
-              { title: "Conclusion", shot: "Plan final élégant qui conclut la séquence avec une composition forte." }
-            ];
-            const normalized = scenes.slice(0, 6);
-            while (normalized.length < 6) normalized.push(defaults[normalized.length]);
-            return { ...(Array.isArray(parsed) ? {} : parsed), scenes: normalized };
-          }
-        } catch {}
-      }
-      return null;
-    };
-    let data = await response.json().catch(() => ({}));
-    let script = readStoryboard(data);
-    if (!script) {
-      console.warn(`[video] storyboard invalide avec ${responseModel}; nouvelle tentative de génération.`);
-      const retry = await fetchGeminiWithRotation(GEMINI_BASE_URL + "/v1beta/models/" + encodeURIComponent(responseModel) + ":generateContent", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system + " IMPORTANT : la réponse doit être un seul objet JSON valide, sans Markdown ni commentaire, avec exactement 6 éléments dans scenes." }] },
-          contents: [{ role: "user", parts: [{ text: "Réessaie. Produis maintenant le storyboard complet en respectant strictement le schéma demandé. Brief : " + brief }] }],
-          generationConfig: { maxOutputTokens: 1800, responseMimeType: "application/json" }
-        }),
-        signal: AbortSignal.timeout(45_000)
-      });
-      if (retry.ok) {
-        data = await retry.json().catch(() => ({}));
-        script = readStoryboard(data);
-      } else {
-        console.warn(`[video] nouvelle tentative storyboard refusée (HTTP ${retry.status}).`);
-      }
-    }
-    if (!script) {
-      const finish = data.candidates?.[0]?.finishReason || "inconnu";
-      const block = data.promptFeedback?.blockReason || "aucun";
-      console.warn(`[video] storyboard illisible (${responseModel}); finishReason=${finish}; blockReason=${block}; candidates=${data.candidates?.length || 0}`);
-      return json(res, 502, { code: "bad_script" });
-    }
-    const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
-    script.title = String(script.title || "Ma vidéo").slice(0, 60);
-    script.prompt = brief;
-    script.scenes = script.scenes.map((scene, i) => ({ title: String(scene.title || ("Plan " + (i + 1))).slice(0, 48), subtitle: String(scene.subtitle || "").slice(0, 100), shot: String(scene.shot || scene.title || "").slice(0, 240), camera: String(scene.camera || "mouvement de caméra fluide et stabilisé").slice(0, 120), motion: String(scene.motion || "mouvement naturel et crédible du sujet").slice(0, 160), lighting: String(scene.lighting || "éclairage cinématographique naturel").slice(0, 120), visual: allowed.has(scene.visual) ? scene.visual : "spotlight" }));
-    console.log(`[video] storyboard généré avec ${responseModel}`);
-    return json(res, 200, { ok: true, script });
-  } catch (e) {
-    console.warn("[video] Gemini indisponible :", e.name || "erreur");
-    return json(res, 502, { code: "gemini_unavailable" });
-  }
-}
-async function handleVideoRender(req, res, ip) {
-  const user = currentUser(req);
-  if (!user) return json(res, 401, { code: "auth_required" });
-  if (!GEMINI_API_KEYS.length || !GEMINI_VIDEO_ENABLED) return json(res, 503, { code: "video_ai_not_configured" });
-  if (!allow("video-render:" + user.email, 1, 60_000)) return json(res, 429, { code: "rate_limited" });
-  const payload = await readJson(req, 100_000);
-  const script = payload?.script;
-  if (!script || !Array.isArray(script.scenes) || script.scenes.length !== 6) return json(res, 400, { code: "bad_script" });
-  const aspectRatio = ["9:16", "16:9"].includes(payload?.aspectRatio) ? payload.aspectRatio : "9:16";
-  const sceneNotes = script.scenes.map((scene, i) =>
-    "Shot " + (i + 1) + ": " + String(scene?.shot || scene?.title || "").slice(0, 240) +
-    ". Camera: " + String(scene?.camera || "").slice(0, 120) +
-    ". Motion: " + String(scene?.motion || "").slice(0, 160) +
-    ". Lighting: " + String(scene?.lighting || "").slice(0, 120)
-  ).join("\n");
-  const brief = String(script.prompt || script.title || "Professional cinematic commercial").slice(0, 1200);
-  const cinematicPrompt = [
-    "Create one coherent, photorealistic, professional commercial video, not a slideshow, poster, still image, animated typography, abstract color background, or graphic-only motion design.",
-    "Creative brief: " + brief,
-    "Six-shot visual direction:",
-    sceneNotes,
-    "Use real environments, believable people or products when requested, physically plausible movement, natural body motion, realistic camera movement, cinematic lighting, depth of field, coherent color grading, and visual continuity. Keep the main subject consistent across shots. No subtitles, captions, logos, watermarks, or UI text unless explicitly requested.",
-    "Create a complete short film with a clear beginning, development, and satisfying ending."
-  ].join("\n\n");
-  const apiKey = GEMINI_API_KEYS[0];
-  try {
-    // Gemini Omni returns a hosted file URI; wait until Google marks it ACTIVE, then download the MP4.
-    const upstream = await fetch(GEMINI_BASE_URL + "/v1beta/interactions", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        model: GEMINI_VIDEO_MODEL,
-        input: cinematicPrompt,
-        response_format: { type: "video", aspect_ratio: aspectRatio, resolution: "720p", duration: "8s" }
-      }),
-      signal: AbortSignal.timeout(300_000)
-    });
-    const responseText = await upstream.text();
-    let data = {};
-    try { data = JSON.parse(responseText); } catch {}
-    if (!upstream.ok) {
-      const detail = String(data.error?.message || responseText || "").slice(0, 300);
-      console.warn("[video-ai] Gemini Omni HTTP " + upstream.status + ": " + detail);
-      const code = upstream.status === 401 || upstream.status === 403 ? "gemini_bad_key"
-        : upstream.status === 429 || upstream.status >= 500 ? "gemini_busy" : "video_ai_failed";
-      return json(res, upstream.status === 429 || upstream.status >= 500 ? 503 : 502, { code });
-    }
-    let videoBuffer = null;
-    // Gemini Omni renvoie normalement les octets MP4 en Base64 dans output_video.data
-    // lorsque la livraison URI n'est pas demandée.
-    if (typeof data.output_video?.data === "string" && data.output_video.data.length > 0) {
-      videoBuffer = Buffer.from(data.output_video.data, "base64");
-    } else {
-      // Compatibilité avec les réponses qui fournissent une URI de fichier.
-      const videoUri = data.output_video?.uri ||
-        (data.steps || []).flatMap(step => step.content || []).find(part => part.type === "video")?.uri;
-      const fileIdFromUri = typeof videoUri === "string" ? videoUri.split("/files/")[1]?.split(/[/?]/)[0] : "";
-      if (!fileIdFromUri) {
-        console.warn("[video-ai] Gemini a répondu sans données MP4 ni URI vidéo; statut=" + String(data.status || "inconnu"));
-        return json(res, 502, { code: "video_ai_empty" });
-      }
-      const fileId = fileIdFromUri;
-      let fileState = "";
-      for (let attempt = 0; attempt < 60; attempt++) {
-        const statusResponse = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId), {
-          headers: { "x-goog-api-key": apiKey },
-          signal: AbortSignal.timeout(15_000)
-        });
-        if (!statusResponse.ok) {
-          const detail = (await statusResponse.text()).slice(0, 240);
-          console.warn("[video-ai] statut fichier HTTP " + statusResponse.status + ": " + detail);
-          return json(res, 502, { code: "video_ai_download_failed" });
-        }
-        const fileInfo = await statusResponse.json();
-        fileState = String(fileInfo.state || "").toUpperCase();
-        if (fileState === "ACTIVE") break;
-        if (fileState === "FAILED") return json(res, 502, { code: "video_ai_processing_failed" });
-        await new Promise(resolve => setTimeout(resolve, 5_000));
-      }
-      if (fileState !== "ACTIVE") return json(res, 504, { code: "video_ai_timeout" });
-      const download = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId) + ":download?alt=media", {
-        headers: { "x-goog-api-key": apiKey },
-        signal: AbortSignal.timeout(60_000)
-      });
-      if (!download.ok) {
-        console.warn("[video-ai] téléchargement MP4 HTTP " + download.status);
-        return json(res, 502, { code: "video_ai_download_failed" });
-      }
-      videoBuffer = Buffer.from(await download.arrayBuffer());
-    }
-    if (!videoBuffer || videoBuffer.length < 10_000 || videoBuffer.length > 100_000_000) {
-      console.warn("[video-ai] données vidéo absentes ou taille MP4 invalide.");
-      return json(res, 502, { code: "video_output_invalid" });
-    }
-    const filename = String(script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "yvanai-video";
-    console.log("[video-ai] vrai clip Gemini Omni généré (" + videoBuffer.length + " octets, 8s, 720p)");
-    res.writeHead(200, { "content-type": "video/mp4", "content-disposition": 'attachment; filename="' + filename + '.mp4"', "content-length": String(videoBuffer.length), "cache-control": "no-store", "x-yvanai-video-engine": GEMINI_VIDEO_MODEL });
-    return res.end(videoBuffer);
-  } catch (e) {
-    console.warn("[video-ai] génération indisponible :", e.name || "erreur");
-    return json(res, 503, { code: "video_ai_unavailable" });
-  }
-}
-
 async function handleChat(req, res, ip) {
   const user = currentUser(req);
   if (AUTH_REQUIRED && !user) return json(res, 401, { code: "auth_required" });
@@ -1568,7 +1314,7 @@ async function page() {
 // ---------- Fichiers de l'appli (icônes, manifeste, service worker, pages) ----------
 const PUBLIC_DIR = path.join(__dirname, "public");
 const TYPES = { ".apk": "application/vnd.android.package-archive", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".js": "text/javascript; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json" };
-const PAGES = { "/antivirus": "antivirus.html", "/monscanner": "antivirus.html", "/premium": "premium.html", "/video": "video.html", "/memoire": "memoire.html", "/memory": "memoire.html", "/images": "images.html", "/image": "images.html", "/yvanai": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
+const PAGES = { "/antivirus": "antivirus.html", "/monscanner": "antivirus.html", "/premium": "premium.html", "/memoire": "memoire.html", "/memory": "memoire.html", "/images": "images.html", "/image": "images.html", "/yvanai": "admin.html", "/ecoles": "ecoles.html", "/telecharger": "telecharger.html", "/download": "telecharger.html", "/confidentialite": "confidentialite.html", "/privacy": "confidentialite.html", "/offline.html": "offline.html", "/manifest.webmanifest": "manifest.webmanifest", "/sw.js": "sw.js" };
 async function serveStatic(req, res, pathname) {
   let rel = PAGES[pathname];
   if (!rel && /^\/icons\/[a-z0-9-]+\.(png|jpg|svg)$/.test(pathname)) rel = pathname.slice(1);
@@ -2012,8 +1758,6 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/conversations" || url.pathname.startsWith("/api/conversations/")) return await conversationApi(req, res, url);
     if (url.pathname === "/api/image" || url.pathname.startsWith("/api/image/")) return await imageApi(req, res, url);
     if (url.pathname === "/api/memory" || url.pathname.startsWith("/api/memory/")) return await memoryApi(req, res, url);
-    if (req.method === "POST" && url.pathname === "/api/video/script") return await handleVideoScript(req, res, ip);
-    if (req.method === "POST" && url.pathname === "/api/video/render") return await handleVideoRender(req, res, ip);
     if (req.method === "POST" && url.pathname === "/api/chat") return await handleChat(req, res, ip);
     json(res, 404, { code: "not_found" });
   } catch (e) {
