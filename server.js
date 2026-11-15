@@ -1246,28 +1246,64 @@ async function handleVideoScript(req, res, ip) {
     }
     const readStoryboard = (data) => {
       const answer = (data.candidates || []).flatMap(c => c.content?.parts || [])
-        .filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n").trim();
+        .filter(p => typeof p.text === "string" && !p.thought).map(p => p.text).join("\n").trim()
+        || String(data.output_text || data.text || "").trim();
       if (!answer) return null;
-      const cleaned = answer.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      const cleaned = answer.replace(/^\uFEFF/, "").replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
       const candidates = [cleaned];
-      // Tolère une courte phrase avant/après le JSON : on extrait le premier objet complet.
-      const start = cleaned.indexOf("{");
-      if (start >= 0 && cleaned !== cleaned.slice(start)) {
-        let depth = 0, quoted = false, escaped = false, end = -1;
-        for (let i = start; i < cleaned.length; i++) {
+      // Extraire le premier objet JSON complet, même si Gemini ajoute du texte avant ou après.
+      const startObject = cleaned.indexOf("{");
+      if (startObject >= 0) {
+        let depth = 0, quoted = false, escaped = false, endObject = -1;
+        for (let i = startObject; i < cleaned.length; i++) {
           const ch = cleaned[i];
-          if (quoted) { if (escaped) escaped = false; else if (ch === "\\") escaped = true; else if (ch === '"') quoted = false; continue; }
+          if (quoted) {
+            if (escaped) escaped = false;
+            else if (ch === "\\") escaped = true;
+            else if (ch === '"') quoted = false;
+            continue;
+          }
           if (ch === '"') quoted = true;
           else if (ch === "{") depth++;
-          else if (ch === "}" && --depth === 0) { end = i + 1; break; }
+          else if (ch === "}") {
+            depth--;
+            if (depth === 0) { endObject = i + 1; break; }
+          }
         }
-        if (end > start) candidates.push(cleaned.slice(start, end));
+        if (endObject > startObject) candidates.push(cleaned.slice(startObject, endObject));
       }
       for (const candidate of candidates) {
         try {
           const parsed = JSON.parse(candidate);
-          const scenes = Array.isArray(parsed) ? parsed : parsed?.scenes || parsed?.storyboard?.scenes;
-          if (Array.isArray(scenes) && scenes.length === 6) return { ...(Array.isArray(parsed) ? {} : parsed), scenes };
+          const findScenes = (value, depth = 0) => {
+            if (!value || depth > 5) return null;
+            if (Array.isArray(value)) {
+              if (value.length && value.every(item => item && typeof item === "object" && !Array.isArray(item))) return value;
+              for (const item of value) { const found = findScenes(item, depth + 1); if (found) return found; }
+              return null;
+            }
+            if (typeof value !== "object") return null;
+            if (Array.isArray(value.scenes)) return value.scenes;
+            for (const key of ["storyboard", "result", "data", "output", "video"]) {
+              const found = findScenes(value[key], depth + 1);
+              if (found) return found;
+            }
+            return null;
+          };
+          const scenes = findScenes(parsed);
+          if (scenes && scenes.length) {
+            const defaults = [
+              { title: "Ouverture", shot: "Plan d'ouverture cinématographique présentant le sujet et son environnement." },
+              { title: "Découverte", shot: "La caméra avance doucement et révèle les détails du sujet." },
+              { title: "Mise en valeur", shot: "Plan rapproché dynamique mettant en valeur les détails importants." },
+              { title: "Action", shot: "Le sujet effectue un mouvement naturel dans son environnement." },
+              { title: "Moment fort", shot: "Plan cinématographique avec mouvement de caméra fluide et lumière travaillée." },
+              { title: "Conclusion", shot: "Plan final élégant qui conclut la séquence avec une composition forte." }
+            ];
+            const normalized = scenes.slice(0, 6);
+            while (normalized.length < 6) normalized.push(defaults[normalized.length]);
+            return { ...(Array.isArray(parsed) ? {} : parsed), scenes: normalized };
+          }
         } catch {}
       }
       return null;
@@ -1293,7 +1329,7 @@ async function handleVideoScript(req, res, ip) {
         console.warn(`[video] nouvelle tentative storyboard refusée (HTTP ${retry.status}).`);
       }
     }
-    if (!script) return json(res, 502, { code: "bad_script" });
+    if (!script) {\n      const finish = data.candidates?.[0]?.finishReason || "inconnu";\n      const block = data.promptFeedback?.blockReason || "aucun";\n      console.warn(`[video] storyboard illisible (${responseModel}); finishReason=${finish}; blockReason=${block}; candidates=${data.candidates?.length || 0}`);\n      return json(res, 502, { code: "bad_script" });\n    }
     const allowed = new Set(["particles", "rings", "bars", "orbit", "grid", "spotlight"]);
     script.title = String(script.title || "Ma vidéo").slice(0, 60);
     script.prompt = brief;
