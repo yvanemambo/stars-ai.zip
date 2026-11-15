@@ -1954,67 +1954,61 @@ body::before {
 
   async function createMotionVideoInChat(container, prompt, images) {
     container.innerHTML = '<div class="thinking"><i></i><i></i><i></i> Préparation du storyboard Motion Design…</div>';
-    const card=document.createElement("section");card.className="video-chat-card";
-    const heading=document.createElement("h3");heading.textContent="🎬 Création vidéo Motion Design";
-    const info=document.createElement("div");info.className="vc-muted";info.textContent="YvanAI prépare les scènes. L’aperçu et l’export resteront dans cette conversation.";
-    const stage=document.createElement("div");stage.className="vc-stage";
-    const canvas=document.createElement("canvas");canvas.width=540;canvas.height=960;stage.append(canvas);
-    const ctx=canvas.getContext("2d");
-    const scenes=document.createElement("div");scenes.className="vc-scenes";
-    const actions=document.createElement("div");actions.className="vc-actions";
-    const preview=document.createElement("button");preview.textContent="↻ Relancer l’aperçu";
-    const exportBtn=document.createElement("button");exportBtn.className="primary";exportBtn.textContent="⬇ Créer et télécharger la vidéo";
-    const progress=document.createElement("div");progress.className="vc-progress";const fill=document.createElement("span");progress.append(fill);
-    const note=document.createElement("div");note.className="vc-muted";note.textContent="Format vertical 9:16 · 30 secondes · export WebM. La vidéo est animée dans ton navigateur.";
-    actions.append(preview,exportBtn);card.append(heading,info,stage,scenes,actions,progress,note);container.replaceChildren(card);
-    let script;
-    try{
-      const res=await fetch(apiUrl("/api/video/script"),{method:"POST",headers:{"content-type":"application/json"},credentials:"include",body:JSON.stringify({prompt:String(prompt||"").slice(0,1200)})});
-      const data=await res.json().catch(()=>({}));
-      if(!res.ok)throw new Error(data.code||"video_error");
-      script=data.script;
-    }catch(e){
-      info.textContent=({auth_required:"Connecte-toi pour créer une vidéo.",gemini_not_configured:"La création vidéo nécessite une clé Gemini configurée sur le serveur.",gemini_bad_key:"La clé Gemini est refusée. Vérifie-la dans Render.",free_limit:"La limite gratuite de création vidéo est atteinte.",rate_limited:"Attends un instant avant de recommencer.",gemini_busy:"Gemini est temporairement occupé.",gemini_unavailable:"Gemini est momentanément indisponible."})[e.message]||"Impossible de créer le storyboard. Réessaie.";
-      exportBtn.remove();preview.remove();progress.remove();return {ok:false,error:e.message};
+    const card = document.createElement("section"); card.className = "video-chat-card";
+    const heading = document.createElement("h3"); heading.textContent = "🎬 Studio vidéo YvanAI";
+    const info = document.createElement("div"); info.className = "vc-muted"; info.textContent = "Création du scénario, puis rendu MP4 sur le serveur. Cela peut prendre quelques minutes.";
+    const video = document.createElement("video"); video.controls = true; video.playsInline = true; video.preload = "metadata";
+    video.style.width = "100%"; video.style.maxWidth = "420px"; video.style.display = "none"; video.style.borderRadius = "16px"; video.style.background = "#080b18";
+    const actions = document.createElement("div"); actions.className = "vc-actions";
+    const download = document.createElement("a"); download.className = "primary"; download.textContent = "⬇ Télécharger la vidéo MP4"; download.hidden = true;
+    const progress = document.createElement("div"); progress.className = "vc-progress"; const fill = document.createElement("span"); progress.append(fill);
+    const scenes = document.createElement("div"); scenes.className = "vc-scenes";
+    actions.append(download); card.append(heading, info, video, scenes, actions, progress); container.replaceChildren(card);
+    try {
+      const scriptResponse = await fetch(apiUrl("/api/video/script"), { method: "POST", headers: { "content-type": "application/json" }, credentials: "include", body: JSON.stringify({ prompt: String(prompt || "").slice(0, 1200) }) });
+      const scriptData = await scriptResponse.json().catch(() => ({}));
+      if (!scriptResponse.ok) throw new Error(scriptData.code || "video_error");
+      const script = scriptData.script;
+      heading.textContent = "🎬 " + (script.title || "Ta vidéo");
+      (script.scenes || []).forEach((scene, index) => {
+        const row = document.createElement("div"); row.className = "vc-scene";
+        row.textContent = (index + 1) + ". " + scene.title + (scene.subtitle ? " — " + scene.subtitle : "");
+        scenes.append(row);
+      });
+      info.textContent = "Storyboard prêt. Le moteur vidéo encode maintenant les 6 scènes en MP4.";
+      fill.style.width = "18%";
+      const renderResponse = await fetch(apiUrl("/api/video/render"), { method: "POST", headers: { "content-type": "application/json" }, credentials: "include", body: JSON.stringify({ script, aspectRatio: "9:16" }) });
+      if (!renderResponse.ok) {
+        const errorData = await renderResponse.json().catch(() => ({}));
+        throw new Error(errorData.code || "video_render_failed");
+      }
+      const blob = await renderResponse.blob();
+      if (!blob || blob.size < 10000 || blob.type !== "video/mp4") throw new Error("video_output_invalid");
+      const objectUrl = URL.createObjectURL(blob);
+      video.src = objectUrl; video.style.display = "block";
+      download.href = objectUrl;
+      download.download = (script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".mp4";
+      download.hidden = false;
+      progress.remove();
+      info.textContent = "Vidéo MP4 créée et encodée sur le serveur · 30 secondes · format vertical 9:16.";
+      return { ok: true, title: script.title };
+    } catch (error) {
+      const messages = {
+        auth_required: "Connecte-toi pour créer une vidéo.",
+        gemini_not_configured: "La création vidéo nécessite une clé Gemini configurée sur le serveur.",
+        gemini_bad_key: "La clé Gemini est refusée. Vérifie-la dans Render.",
+        free_limit: "La limite gratuite est atteinte.",
+        rate_limited: "Attends un instant avant de recommencer.",
+        gemini_busy: "Gemini est temporairement occupé.",
+        video_renderer_not_configured: "Le moteur de rendu MP4 n'est pas encore configuré sur Render.",
+        video_renderer_unavailable: "Le moteur de rendu vidéo ne répond pas pour le moment.",
+        video_render_failed: "Le rendu MP4 a échoué. Réessaie dans un instant.",
+        video_output_invalid: "Le moteur n'a pas fourni un fichier MP4 valide."
+      };
+      info.textContent = messages[error.message] || "Impossible de créer la vidéo. Réessaie.";
+      progress.remove(); download.remove();
+      return { ok: false, error: error.message };
     }
-    const sceneImages=[];
-    for(const im of (images||[]).slice(0,6)){
-      try{const image=new Image();image.src="data:"+im.mime+";base64,"+im.data;await new Promise((ok,ko)=>{image.onload=ok;image.onerror=ko});sceneImages.push(image)}catch(e){}
-    }
-    (script.scenes||[]).forEach((s,i)=>{const row=document.createElement("div");row.className="vc-scene";row.textContent=(i+1)+". "+s.title+" — "+s.subtitle;scenes.append(row)});
-    heading.textContent="🎬 "+(script.title||"Ta vidéo Motion Design");
-    const duration=30000,W=270,H=480;
-    function draw(ms){
-      const list=script.scenes||[],total=list.length||1,each=duration/total,idx=Math.min(total-1,Math.floor(ms/each)),local=(ms-idx*each)/each,scene=list[idx]||{};
-      const im=sceneImages[idx];
-      if(im&&im.complete){const scale=Math.max(W/im.naturalWidth,H/im.naturalHeight),iw=im.naturalWidth*scale,ih=im.naturalHeight*scale;ctx.drawImage(im,(W-iw)/2,(H-ih)/2,iw,ih);const shade=ctx.createLinearGradient(0,0,0,H);shade.addColorStop(0,"rgba(3,7,24,.4)");shade.addColorStop(1,"rgba(3,7,24,.9)");ctx.fillStyle=shade;ctx.fillRect(0,0,W,H)}
-      else{const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#17245b");g.addColorStop(1,"#070b1f");ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
-      ctx.save();ctx.globalAlpha=.25;for(let i=0;i<22;i++){const a=i*2.4+ms/1000,r=35+(i%7)*23;ctx.beginPath();ctx.arc(W/2+Math.cos(a)*r,H*.39+Math.sin(a)*r,3+(i%4)*2,0,Math.PI*2);ctx.fillStyle=i%3?"#63d9ff":"#f4c96b";ctx.fill()}ctx.restore();
-      ctx.textAlign="center";ctx.fillStyle="#f4c96b";ctx.font="bold 12px system-ui";ctx.fillText("Y V A N A I",W/2,42);
-      ctx.globalAlpha=Math.max(.2,Math.min(1,local*5,(1-local)*5));ctx.fillStyle="#fff";ctx.font="bold 27px system-ui";
-      const words=String(scene.title||"").split(/\s+/);let line="",lines=[];for(const word of words){const next=line?line+" "+word:word;if(ctx.measureText(next).width>W-36&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);lines.slice(0,3).forEach((x,i)=>ctx.fillText(x,W/2,H*.70+i*34));
-      ctx.fillStyle="#d5dcf5";ctx.font="14px system-ui";ctx.fillText(String(scene.subtitle||"").slice(0,48),W/2,H*.83);ctx.globalAlpha=1;
-      ctx.fillStyle="rgba(255,255,255,.18)";ctx.fillRect(16,H-22,W-32,3);ctx.fillStyle="#f4c96b";ctx.fillRect(16,H-22,(W-32)*Math.min(1,ms/duration),3);
-    }
-    let raf=0,previewStart=performance.now();
-    function animate(){draw((performance.now()-previewStart)%duration);raf=requestAnimationFrame(animate)}
-    function startPreview(){cancelAnimationFrame(raf);previewStart=performance.now();animate()}
-    preview.addEventListener("click",startPreview);
-    startPreview();
-    exportBtn.addEventListener("click",()=>{
-      if(!canvas.captureStream||!window.MediaRecorder){note.textContent="L’export vidéo n’est pas pris en charge par ce navigateur. Essaie Chrome ou Edge.";return}
-      const stream=canvas.captureStream(30),mime=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
-      if(!mime){note.textContent="Ce navigateur ne prend pas en charge l’export WebM.";stream.getTracks().forEach(t=>t.stop());return}
-      const chunks=[];let recorder;try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3500000})}catch(e){note.textContent="Impossible de démarrer l’export sur cet appareil.";return}
-      exportBtn.disabled=true;preview.disabled=true;cancelAnimationFrame(raf);fill.style.width="0%";note.textContent="Export en cours… garde cette conversation ouverte.";
-      const start=performance.now();recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
-      recorder.onerror=()=>{note.textContent="Une erreur est survenue pendant l’export.";stream.getTracks().forEach(t=>t.stop());exportBtn.disabled=false;preview.disabled=false;startPreview()};
-      recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger la vidéo (.webm)";a.className="primary";actions.append(a);note.textContent="Vidéo terminée ! Tu peux la télécharger ici.";exportBtn.disabled=false;preview.disabled=false;startPreview()};
-      recorder.start(500);
-      function tick(now){const elapsed=Math.min(duration,now-start);draw(elapsed);fill.style.width=(elapsed/duration*100)+"%";if(elapsed>=duration){recorder.stop();return}requestAnimationFrame(tick)}
-      requestAnimationFrame(tick);
-    });
-    return {ok:true,title:script.title};
   }
 
   async function ask(text, opts = {}) {
