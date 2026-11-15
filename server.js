@@ -1361,12 +1361,12 @@ async function handleVideoRender(req, res, ip) {
       // Compatibilité avec les réponses qui fournissent une URI de fichier.
       const videoUri = data.output_video?.uri ||
         (data.steps || []).flatMap(step => step.content || []).find(part => part.type === "video")?.uri;
-      const fileMatch = typeof videoUri === "string" && videoUri.match(/\\/files\\/([^/?]+)/);
-      if (!fileMatch) {
+      const fileIdFromUri = typeof videoUri === "string" ? videoUri.split("/files/")[1]?.split(/[/?]/)[0] : "";
+      if (!fileIdFromUri) {
         console.warn("[video-ai] Gemini a répondu sans données MP4 ni URI vidéo; statut=" + String(data.status || "inconnu"));
         return json(res, 502, { code: "video_ai_empty" });
       }
-      const fileId = fileMatch[1];
+      const fileId = fileIdFromUri;
       let fileState = "";
       for (let attempt = 0; attempt < 60; attempt++) {
         const statusResponse = await fetch(GEMINI_BASE_URL + "/v1beta/files/" + encodeURIComponent(fileId), {
