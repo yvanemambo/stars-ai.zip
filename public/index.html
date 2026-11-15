@@ -1975,7 +1975,7 @@ body::before {
         row.textContent = (index + 1) + ". " + scene.title + (scene.subtitle ? " — " + scene.subtitle : "");
         scenes.append(row);
       });
-      info.textContent = "Storyboard prêt. Le moteur vidéo encode maintenant les 6 scènes en MP4.";
+      info.textContent = "Storyboard prêt. Gemini Omni génère maintenant les images en mouvement et le clip vidéo réel.";
       fill.style.width = "18%";
       const renderResponse = await fetch(apiUrl("/api/video/render"), { method: "POST", headers: { "content-type": "application/json" }, credentials: "include", body: JSON.stringify({ script, aspectRatio: "9:16" }) });
       if (!renderResponse.ok) {
@@ -1990,7 +1990,7 @@ body::before {
       download.download = (script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".mp4";
       download.hidden = false;
       progress.remove();
-      info.textContent = "Vidéo MP4 créée et encodée sur le serveur · 30 secondes · format vertical 9:16.";
+      info.textContent = "Clip vidéo IA généré en MP4 · rendu cinématographique · 720p.";
       return { ok: true, title: script.title };
     } catch (error) {
       const messages = {
@@ -2000,7 +2000,11 @@ body::before {
         free_limit: "La limite gratuite est atteinte.",
         rate_limited: "Attends un instant avant de recommencer.",
         gemini_busy: "Gemini est temporairement occupé.",
-        video_renderer_not_configured: "Le moteur de rendu MP4 n'est pas encore configuré sur Render.",
+        video_ai_not_configured: "La vraie génération vidéo IA n'est pas encore activée. Elle nécessite GEMINI_VIDEO_ENABLED=1 et un accès payant à Gemini Omni Flash.",
+        video_ai_empty: "Le modèle vidéo n'a pas renvoyé de fichier MP4 exploitable.",
+        video_ai_failed: "Le moteur vidéo IA a refusé la demande. Vérifie le modèle et les autorisations de la clé Gemini.",
+        video_ai_unavailable: "Le moteur vidéo IA est temporairement indisponible. Réessaie plus tard.",
+        video_renderer_not_configured: "Le moteur vidéo n'est pas encore configuré sur Render.",
         video_renderer_unavailable: "Le moteur de rendu vidéo ne répond pas pour le moment.",
         video_render_failed: "Le rendu MP4 a échoué. Réessaie dans un instant.",
         video_output_invalid: "Le moteur n'a pas fourni un fichier MP4 valide."
