@@ -29,7 +29,7 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
 <div class="wrap">
   <div class="top"><a class="brand" href="/">Yvan<span>AI</span></a><a class="back" href="/">← Retour au chat</a></div>
   <h1>Donne vie à tes idées avec <em>la vidéo.</em></h1>
-  <p class="lead">Décris ton projet. Gemini prépare six scènes, puis YvanAI les anime en Motion Design et te permet d'enregistrer la vidéo.</p>
+  <p class="lead">Décris ton projet. Gemini prépare six scènes, puis le moteur vidéo IA génère un véritable clip MP4 téléchargeable.</p>
   <div class="layout">
     <section class="panel">
       <label for="brief">Que veux-tu voir dans ta vidéo ?</label>
@@ -43,15 +43,15 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
         <div id="fileList" class="file-list" aria-live="polite"></div>
         <div id="imageGallery" class="image-gallery" aria-live="polite"></div>
       </div>
-      <div class="controls"><button class="btn primary" id="make">✨ Créer le storyboard avec Gemini</button><button class="btn" id="render" disabled>▶ Exporter la vidéo (30 s)</button></div>
-      <div class="status" id="status" role="status">Durée : 30 secondes · Format vertical 9:16 · 1080 × 1920.</div>
+      <div class="controls"><button class="btn primary" id="make">✨ Créer le storyboard avec Gemini</button><button class="btn" id="render" disabled>▶ Générer le vrai clip MP4 (8 s)</button></div>
+      <div class="status" id="status" role="status">Durée : 8 secondes · Format vertical 9:16 · 720p · MP4 généré par IA.</div>
       <div class="progress" aria-label="Progression de l'export"><span id="bar"></span></div>
       <div class="download" id="download"></div>
       <div class="smallprint">Gemini utilise ta description et le contenu des fichiers TXT/MD. Les images choisies sont intégrées visuellement aux scènes sur ton appareil. L'animation est rendue dans ton navigateur ; export WebM (pas MP4), sans voix off ni musique pour le moment. Les PDF, Word et PowerPoint ne sont pas encore pris en charge.</div>
     </section>
     <aside class="panel preview">
       <div class="screen"><canvas id="canvas" width="1080" height="1920"></canvas></div>
-      <div><strong id="previewTitle">Aperçu Motion Design</strong><div class="hint">Ton animation apparaîtra ici après la création du storyboard.</div></div>
+      <div><strong id="previewTitle">Aperçu Motion Design</strong><div class="hint">Aperçu animé du storyboard. Le fichier final sera une vraie vidéo MP4 générée par IA.</div></div>
       <div class="scenes" id="scenes"></div>
     </aside>
   </div>
@@ -60,7 +60,7 @@ label{display:block;font-size:13px;font-weight:700;margin-bottom:9px}textarea{wi
 (() => {
 const $=id=>document.getElementById(id), brief=$("brief"), make=$("make"), render=$("render"), status=$("status"), canvas=$("canvas"), ctx=canvas.getContext("2d"), bar=$("bar"), scenesBox=$("scenes"), download=$("download"), fileInput=$("projectFiles"), fileDrop=$("fileDrop"), fileList=$("fileList"), imageGallery=$("imageGallery");
 let script=null, previewFrame=0, previewStart=performance.now(), raf=0, sceneImages=[], documentContext="";
-const W=canvas.width/2,H=canvas.height/2,DURATION=30000;ctx.scale(2,2);
+const W=canvas.width/2,H=canvas.height/2,DURATION=8000;ctx.scale(2,2);
 const clean=s=>String(s||"").replace(/[<>]/g,"").trim();
 function setStatus(t,type=""){status.className="status "+type;status.textContent=t}
 function wrap(text,max){const words=String(text||"").split(/\s+/);const lines=[];let line="";for(const word of words){const next=line?line+" "+word:word;if(ctx.measureText(next).width>max&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);return lines.slice(0,4)}
@@ -141,30 +141,40 @@ make.addEventListener("click",async()=>{
  const text=brief.value.trim();if(text.length<8){setStatus("Décris un peu plus la vidéo à créer.","error");return}
  make.disabled=true;render.disabled=true;download.style.display="none";setStatus("Gemini prépare les six scènes…");
  try{
-  const fullPrompt=documentContext?text+"\n\\nÉléments fournis par l'utilisateur :\\n"+documentContext:text;
-  const res=await fetch("/api/video/script",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:fullPrompt.slice(0,24000)})});
+  const fullPrompt=(documentContext?text+"\n\nInformations fournies :\n"+documentContext:text).slice(0,1200);
+  const res=await fetch("/api/video/script",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:fullPrompt})});
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error(data.code||"gemini_error");
-  showScript(data.script);setStatus("Storyboard prêt. Tu peux prévisualiser les scènes puis exporter la vidéo.","ok");
- }catch(e){const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",gemini_not_configured:"La clé Gemini n'est pas configurée sur le serveur. Ajoute GEMINI_API_KEY ou GEMINI_API_KEY dans Render > Environment.",gemini_bad_key:"La clé Gemini a été refusée. Vérifie-la dans Render sans la partager ici.",gemini_busy:"Gemini est temporairement occupé ou la limite API est atteinte.",free_limit:"Tu as atteint ta limite gratuite quotidienne pour les demandes IA.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Gemini n'a pas renvoyé un storyboard valide. Réessaie.",gemini_unavailable:"Impossible de joindre Gemini pour le moment."};setStatus(messages[e.message]||"La création du storyboard a échoué. Réessaie.","error")}
- finally{make.disabled=false}
+  if(!data.script||!Array.isArray(data.script.scenes)||!data.script.scenes.length)throw new Error("bad_script");
+  showScript(data.script);
+  setStatus("Storyboard prêt. Clique sur « Générer le vrai clip MP4 » pour lancer la génération vidéo IA.","ok");
+  const oldVideo=document.querySelector(".screen video");if(oldVideo)oldVideo.remove();
+  if(!canvas.parentNode)document.querySelector(".screen").append(canvas);
+  canvas.style.display="block";
+ }catch(e){
+  const messages={auth_required:"Connecte-toi à YvanAI pour utiliser cet outil.",gemini_not_configured:"La clé Gemini n'est pas configurée sur le serveur.",gemini_bad_key:"Gemini a refusé la clé API. Vérifie les variables Render sans partager ta clé.",gemini_busy:"Gemini est temporairement occupé ou la limite API est atteinte.",free_limit:"Tu as atteint ta limite gratuite quotidienne.",rate_limited:"Attends une minute avant de refaire une demande.",bad_prompt:"La description est trop courte.",bad_script:"Gemini n'a pas renvoyé un storyboard exploitable. Réessaie avec une description plus simple.",gemini_unavailable:"Impossible de joindre Gemini pour le moment."};
+  setStatus(messages[e.message]||"La création du storyboard a échoué ("+e.message+"). Réessaie.","error");
+ }finally{make.disabled=false}
 });
-render.addEventListener("click",()=>{
- if(!script||!canvas.captureStream||!window.MediaRecorder){setStatus("Ton navigateur ne prend pas en charge l'export vidéo. Essaie avec Chrome récent sur ordinateur.","error");return}
- const stream=canvas.captureStream(30),types=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];
- const mime=types.find(t=>MediaRecorder.isTypeSupported(t));if(!mime){setStatus("L'export WebM n'est pas pris en charge par ce navigateur. Essaie Chrome ou Edge.","error");return}
- const chunks=[];let recorder;
- try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:5000000})}catch(e){setStatus("Impossible de démarrer l'export sur cet appareil.","error");return}
- render.disabled=true;make.disabled=true;cancelAnimationFrame(raf);download.style.display="none";bar.style.width="0%";setStatus("Export en cours… garde cette page ouverte pendant 30 secondes.");
- const start=performance.now();previewStart=start;
- recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
- recorder.onerror=()=>{setStatus("Une erreur est survenue pendant l'export.","error");render.disabled=false;make.disabled=false;stream.getTracks().forEach(t=>t.stop())};
- recorder.onstop=()=>{
-  stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(script.title||"yvanai-video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".webm";a.textContent="⬇ Télécharger ma vidéo (.webm)";download.innerHTML="";download.append(a);download.style.display="block";setStatus("Vidéo terminée ! Télécharge ton fichier WebM.","ok");render.disabled=false;make.disabled=false;previewStart=performance.now();animate();
- };
- recorder.start(500);
- function tick(now){const elapsed=Math.min(DURATION,now-start);draw(elapsed);bar.style.width=(elapsed/DURATION*100)+"%";if(elapsed>=DURATION){recorder.stop();return}requestAnimationFrame(tick)}
- requestAnimationFrame(tick);
+let activeVideoUrl=null;
+render.addEventListener("click",async()=>{
+ if(!script){setStatus("Crée d'abord le storyboard.","error");return}
+ render.disabled=true;make.disabled=true;download.style.display="none";bar.style.width="12%";setStatus("Le moteur vidéo IA génère ton clip. Cela peut prendre plusieurs minutes…");
+ try{
+  const res=await fetch("/api/video/render",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({script,aspectRatio:"9:16"})});
+  if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.code||"video_render_failed")}
+  const blob=await res.blob();
+  if(!blob||blob.size<10000||!/^video\/mp4/i.test(blob.type))throw new Error("video_output_invalid");
+  if(activeVideoUrl)URL.revokeObjectURL(activeVideoUrl);
+  activeVideoUrl=URL.createObjectURL(blob);
+  const player=document.createElement("video");player.controls=true;player.playsInline=true;player.preload="metadata";player.src=activeVideoUrl;player.style.cssText="display:block;width:100%;height:100%;object-fit:contain;background:#05091c";
+  const screen=document.querySelector(".screen");screen.replaceChildren(player);
+  const a=document.createElement("a");a.href=activeVideoUrl;a.download=(script.title||"yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".mp4";a.textContent="⬇ Télécharger ma vraie vidéo MP4";download.replaceChildren(a);download.style.display="block";
+  bar.style.width="100%";setStatus("Vidéo IA générée avec succès · MP4 · 8 secondes · 720p.","ok");
+ }catch(e){
+  const messages={auth_required:"Connecte-toi à YvanAI pour générer une vidéo.",gemini_bad_key:"La clé Gemini a été refusée.",video_ai_not_configured:"Le moteur vidéo IA n'est pas activé sur Render (GEMINI_VIDEO_ENABLED=1 requis).",video_ai_empty:"Le modèle vidéo n'a pas renvoyé de fichier vidéo.",video_ai_processing_failed:"Google n'a pas réussi à finaliser le clip.",video_ai_download_failed:"Le clip existe, mais son téléchargement a échoué.",video_ai_timeout:"La génération prend trop de temps. Réessaie avec une demande plus courte.",video_ai_failed:"Le moteur vidéo IA a refusé la demande. Vérifie le modèle et les droits API.",video_ai_unavailable:"Le moteur vidéo IA est temporairement indisponible.",video_output_invalid:"Le serveur n'a pas renvoyé un fichier MP4 valide.",rate_limited:"Attends avant de lancer une nouvelle génération.",video_render_failed:"Le rendu vidéo a échoué."};
+  setStatus(messages[e.message]||"La génération vidéo a échoué ("+e.message+").","error");
+ }finally{render.disabled=false;make.disabled=false}
 });
 draw(0);
 })();
