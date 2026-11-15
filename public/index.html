@@ -1990,7 +1990,7 @@ body::before {
       download.download = (script.title || "yvanai-video").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".mp4";
       download.hidden = false;
       progress.remove();
-      info.textContent = "Clip vidéo IA généré en MP4 · rendu cinématographique · 720p.";
+      info.textContent = "Vraie vidéo générée par Gemini Omni · MP4 · 8 secondes · 720p.";
       return { ok: true, title: script.title };
     } catch (error) {
       const messages = {
@@ -2002,6 +2002,9 @@ body::before {
         gemini_busy: "Gemini est temporairement occupé.",
         video_ai_not_configured: "La vraie génération vidéo IA n'est pas encore activée. Elle nécessite GEMINI_VIDEO_ENABLED=1 et un accès payant à Gemini Omni Flash.",
         video_ai_empty: "Le modèle vidéo n'a pas renvoyé de fichier MP4 exploitable.",
+        video_ai_processing_failed: "Google n'a pas réussi à finaliser le clip vidéo.",
+        video_ai_download_failed: "Le fichier vidéo a été créé, mais son téléchargement a échoué.",
+        video_ai_timeout: "La génération vidéo prend trop de temps. Réessaie avec une demande plus courte.",
         video_ai_failed: "Le moteur vidéo IA a refusé la demande. Vérifie le modèle et les autorisations de la clé Gemini.",
         video_ai_unavailable: "Le moteur vidéo IA est temporairement indisponible. Réessaie plus tard.",
         video_renderer_not_configured: "Le moteur vidéo n'est pas encore configuré sur Render.",
